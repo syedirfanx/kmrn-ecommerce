@@ -1,0 +1,10 @@
+{
+  "projectId": "kamran-ecommerce",
+  "appId": "1:913533657733:web:05afc526a507dc96217fec",
+  "apiKey": "AIzaSyD3IH8kSDAqrvPCmyvTUtDgueFBcUpd5bQ",
+  "authDomain": "kamran-ecommerce.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "kamran-ecommerce.firebasestorage.app",
+  "messagingSenderId": "913533657733",
+  "measurementId": "G-KRSTMVRGYP"
+}

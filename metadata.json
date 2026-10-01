@@ -1,0 +1,6 @@
+{
+  "name": "Maison Minimal Goods",
+  "description": "A curated ecommerce store featuring five essential products across five categories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
