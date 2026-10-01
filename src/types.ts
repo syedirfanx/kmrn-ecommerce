@@ -16,6 +16,7 @@ export interface Product {
   image: string;
   additionalImages?: string[];
   inStock: boolean;
+  featured?: boolean;
   rating: number;
   reviewsCount: number;
   createdAt?: string;
@@ -86,4 +87,15 @@ export interface StoreSettings {
   logoUrl?: string;
   brandName?: string;
   updatedAt?: string;
+}
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  subject?: string;
+  message: string;
+  createdAt: string;
+  read?: boolean;
 }

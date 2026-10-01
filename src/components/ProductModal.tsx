@@ -204,8 +204,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Gallery Column */}
-          <div className="p-6 md:p-8 bg-neutral-50 flex flex-col justify-between">
-            <div className="aspect-4/3 rounded-2xl overflow-hidden bg-white shadow-xs mb-4">
+          <div className="p-6 md:p-8 bg-stone-50 flex flex-col justify-between">
+            <div className="aspect-[3/4] rounded-xl overflow-hidden bg-white shadow-xs mb-4 border border-stone-200/60">
               <img
                 src={selectedImage || product.image}
                 alt={product.name}
@@ -215,15 +215,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
             {/* Thumbnail selector */}
             {allImages.length > 1 && (
-              <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
                 {allImages.map((img, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedImage(img)}
-                    className={`relative w-16 h-16 rounded-xl overflow-hidden shadow-xs transition-all shrink-0 cursor-pointer ${
+                    className={`relative w-14 h-18 rounded-lg overflow-hidden shadow-xs transition-all shrink-0 cursor-pointer border ${
                       selectedImage === img
-                        ? 'ring-2 ring-neutral-900 scale-105'
-                        : 'opacity-70 hover:opacity-100'
+                        ? 'border-neutral-900 ring-1 ring-neutral-900'
+                        : 'border-stone-200 opacity-70 hover:opacity-100'
                     }`}
                   >
                     <img
@@ -242,45 +242,45 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div>
               {/* Header Info */}
               <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+                <span className="text-[11px] font-medium uppercase tracking-widest text-stone-400">
                   {product.category}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  {renderStars(effectiveRatingNumber, 'h-4 w-4')}
-                  <span className="font-bold text-sm text-neutral-900">
+                  {renderStars(effectiveRatingNumber, 'h-3.5 w-3.5')}
+                  <span className="font-semibold text-xs text-neutral-900 tabular-nums">
                     {effectiveRating}
                   </span>
-                  <span className="text-neutral-400 text-xs">
+                  <span className="text-stone-400 text-xs tabular-nums">
                     ({effectiveCount})
                   </span>
                 </div>
               </div>
 
-              <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-neutral-900 mb-3">
+              <h1 className="font-heading font-medium text-2xl text-neutral-900 mb-2">
                 {product.name}
               </h1>
 
               <div className="mb-4">
-                <span className="font-heading font-extrabold text-3xl text-neutral-900">
+                <span className="font-heading font-semibold text-2xl text-neutral-900 tabular-nums">
                   {formatBDT(product.price)}
                 </span>
               </div>
 
               {/* Description */}
-              <div className="prose prose-neutral mb-6 text-sm text-neutral-600 leading-relaxed">
+              <div className="prose prose-neutral mb-6 text-xs sm:text-sm text-stone-600 leading-relaxed">
                 <p>{product.details || product.description}</p>
               </div>
 
               {/* Specifications */}
               <div className="pt-2 mb-6">
-                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-3">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 block mb-2.5">
                   Specifications
                 </span>
-                <dl className="grid grid-cols-1 gap-2 text-sm">
+                <dl className="grid grid-cols-1 gap-1.5 text-xs">
                   {product.specs.map((spec, i) => (
-                    <div key={i} className="flex justify-between py-1.5 px-3 bg-neutral-50 rounded-lg">
-                      <dt className="text-neutral-500 font-medium text-xs">{spec.label}</dt>
-                      <dd className="text-neutral-900 font-semibold text-xs">{spec.value}</dd>
+                    <div key={i} className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
+                      <dt className="text-stone-500 font-medium">{spec.label}</dt>
+                      <dd className="text-neutral-900 font-semibold">{spec.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -288,38 +288,38 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
 
             <div>
-              {/* Quantity and Actions */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-2">
+              {/* Quantity and Actions: Simple, Elegant, Premium */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 mb-2">
                 {/* Stepper */}
-                <div className="flex items-center justify-between rounded-xl px-3 py-2.5 bg-neutral-100 sm:w-36">
+                <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-stone-100 border border-stone-200/80 sm:w-32">
                   <button
                     onClick={handleDecrease}
                     disabled={quantity <= 1}
                     aria-label="Decrease quantity"
-                    className="p-1 rounded text-neutral-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
+                    className="p-1 rounded text-stone-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
                   >
-                    <Minus className="h-4 w-4" />
+                    <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="font-heading font-bold text-lg text-neutral-900 px-3">
+                  <span className="font-semibold text-sm text-neutral-900 px-2 tabular-nums">
                     {quantity}
                   </span>
                   <button
                     onClick={handleIncrease}
                     disabled={quantity >= 10}
                     aria-label="Increase quantity"
-                    className="p-1 rounded text-neutral-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
+                    className="p-1 rounded text-stone-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
                   >
-                    <Plus className="h-4 w-4" />
+                    <Plus className="h-3.5 w-3.5" />
                   </button>
                 </div>
 
                 {/* Add Button */}
                 <button
                   onClick={handleAdd}
-                  className="flex-1 flex items-center justify-center gap-2.5 bg-[#283618] hover:bg-[#1f2b12] text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer active:scale-98 border border-[#445837]"
+                  className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs tracking-wider uppercase py-3 px-6 rounded-lg transition-all cursor-pointer active:scale-98 shadow-xs"
                 >
-                  <Plus className="h-5 w-5 text-stone-200" />
-                  <span>Add to Cart ({quantity})</span>
+                  <Plus className="h-4 w-4 text-stone-300" />
+                  <span>Add to Bag ({quantity})</span>
                 </button>
 
                 {/* Wishlist Button */}
@@ -327,14 +327,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onToggleWishlist(product.id)}
-                    className={`p-3.5 rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
+                    className={`p-3 rounded-lg border transition-colors flex items-center justify-center cursor-pointer ${
                       isWishlisted
-                        ? 'bg-red-50 text-red-600'
-                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                        ? 'bg-red-50 border-red-200 text-red-600'
+                        : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
                     }`}
                     aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                   >
-                    <Heart className={`h-5 w-5 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`} />
+                    <Heart className={`h-4 w-4 ${isWishlisted ? 'fill-red-500 text-red-500' : ''}`} />
                   </button>
                 )}
               </div>

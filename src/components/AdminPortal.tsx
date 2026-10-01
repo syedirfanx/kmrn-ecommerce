@@ -17,9 +17,19 @@ import {
   Calendar,
   X,
   Image as ImageIcon,
-  Sparkles
+  Sparkles,
+  Mail,
+  Eye,
+  EyeOff
 } from 'lucide-react';
-import { Product, CategoryData, BannerSlide, AnnouncementItem, StoreSettings } from '../types';
+import {
+  Product,
+  CategoryData,
+  BannerSlide,
+  AnnouncementItem,
+  StoreSettings,
+  ContactMessage
+} from '../types';
 import { formatBDT } from '../utils/format';
 import { ADMIN_CREDENTIALS } from '../config/adminAuth';
 import { ImageCropperModal } from './ImageCropperModal';
@@ -30,7 +40,10 @@ import {
   deleteCategoryFromDb,
   saveBannerSlides,
   saveAnnouncements,
-  saveStoreSettings
+  saveFeaturedProductIds,
+  subscribeContactMessages,
+  deleteContactMessage,
+  markContactMessageRead
 } from '../services/storeService';
 import { Logo } from './Logo';
 
@@ -38,6 +51,8 @@ interface AdminPortalProps {
   onNavigateToStore: () => void;
   products: Product[];
   categories: CategoryData[];
+  featuredProductIds?: string[];
+  onFeaturedProductIdsChange?: (ids: string[]) => void;
   bannerSlides: BannerSlide[];
   onBannerSlidesChange?: (slides: BannerSlide[]) => void;
   announcements: AnnouncementItem[];
@@ -54,6 +69,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onNavigateToStore,
   products,
   categories,
+  featuredProductIds,
+  onFeaturedProductIdsChange,
   bannerSlides,
   onBannerSlidesChange,
   announcements,
@@ -77,18 +94,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banner' | 'announcements' | 'branding'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banner' | 'announcements' | 'messages'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
   // Image Cropper State
   const [isCropperOpen, setIsCropperOpen] = useState(false);
-  const [cropperTarget, setCropperTarget] = useState<{ type: 'product' | 'banner' | 'logo'; index?: number }>({ type: 'product' });
+  const [cropperTarget, setCropperTarget] = useState<{ type: 'product' | 'banner'; index?: number }>({ type: 'product' });
 
-  // Store Logo Branding State
-  const [currentLogoUrl, setCurrentLogoUrl] = useState<string>(storeSettings?.logoUrl || '');
-  const [isSavingLogo, setIsSavingLogo] = useState(false);
+  // Customer Inquiries / Messages State
+  const [contactMessages, setContactMessages] = useState<ContactMessage[]>([]);
 
   // 3-Image Product State
   const [productImages, setProductImages] = useState<[string, string, string]>(['', '', '']);
@@ -106,6 +122,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     rating: 0,
     reviewsCount: 0
   });
+
+  // Featured 4 Products for Home Page State
+  const [localFeaturedIds, setLocalFeaturedIds] = useState<string[]>(() => {
+    if (featuredProductIds && featuredProductIds.length > 0) {
+      return featuredProductIds.slice(0, 4);
+    }
+    const defaultIds = products.filter((p) => p.featured).map((p) => p.id).slice(0, 4);
+    if (defaultIds.length > 0) return defaultIds;
+    return products.slice(0, 4).map((p) => p.id);
+  });
+  const [isSlotPickerOpen, setIsSlotPickerOpen] = useState(false);
+  const [targetSlotIndex, setTargetSlotIndex] = useState<number>(0);
+  const [slotPickerSearch, setSlotPickerSearch] = useState('');
+  const [isSavingFeatured, setIsSavingFeatured] = useState(false);
 
   // Category Form State
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -133,11 +163,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [statusNotice, setStatusNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
-    type: 'product' | 'category' | 'banner' | 'announcement';
+    type: 'product' | 'category' | 'banner' | 'announcement' | 'message';
     id: string;
     name: string;
     index?: number;
   } | null>(null);
+
+  useEffect(() => {
+    const unsub = subscribeContactMessages((liveMsgs) => {
+      setContactMessages(liveMsgs);
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (featuredProductIds && featuredProductIds.length > 0) {
+      setLocalFeaturedIds(featuredProductIds.slice(0, 4));
+    }
+  }, [featuredProductIds]);
 
   useEffect(() => {
     if (bannerSlides && bannerSlides.length > 0) {
@@ -225,49 +268,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         }
         return next;
       });
-    } else if (cropperTarget.type === 'logo') {
-      setCurrentLogoUrl(croppedDataUrl);
     }
   };
 
-  const handleSaveStoreLogo = async () => {
-    setIsSavingLogo(true);
-    setStatusNotice('');
-    setErrorMessage('');
-    try {
-      const res = await saveStoreSettings({ logoUrl: currentLogoUrl });
-      if (res.success) {
-        if (onStoreSettingsChange) {
-          onStoreSettingsChange({ ...storeSettings, logoUrl: currentLogoUrl });
-        }
-        setStatusNotice('Store logo updated successfully');
-        setTimeout(() => setStatusNotice(''), 4000);
-      } else {
-        setErrorMessage(res.error || 'Failed to update store logo');
-      }
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setIsSavingLogo(false);
+  const handleToggleMessageRead = async (message: ContactMessage) => {
+    const newStatus = !message.read;
+    const res = await markContactMessageRead(message.id, newStatus);
+    if (res.success) {
+      setContactMessages((prev) =>
+        prev.map((m) => (m.id === message.id ? { ...m, read: newStatus } : m))
+      );
     }
   };
 
-  const handleRemoveStoreLogo = async () => {
-    setCurrentLogoUrl('');
-    setIsSavingLogo(true);
-    try {
-      const res = await saveStoreSettings({ logoUrl: '' });
-      if (res.success) {
-        if (onStoreSettingsChange) {
-          onStoreSettingsChange({ ...storeSettings, logoUrl: '' });
-        }
-        setStatusNotice('Logo reset to clean ANIQ typography');
-        setTimeout(() => setStatusNotice(''), 4000);
-      }
-    } catch {
-      // fallback
-    } finally {
-      setIsSavingLogo(false);
+  const handleDeleteMessage = (message: ContactMessage) => {
+    setDeleteConfirmModal({
+      type: 'message',
+      id: message.id,
+      name: `Message from ${message.name}`
+    });
+  };
+
+  const executeDeleteMessage = async (messageId: string) => {
+    const res = await deleteContactMessage(messageId);
+    if (res.success) {
+      setContactMessages((prev) => prev.filter((m) => m.id !== messageId));
+      setStatusNotice('Message deleted from live database');
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else {
+      setErrorMessage(res.error || 'Failed to delete message');
     }
   };
 
@@ -293,6 +322,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       image: productImages[0],
       additionalImages: additionalImgs,
       inStock: formData.inStock ?? true,
+      featured: formData.featured ?? false,
       specs: formData.specs || [{ label: 'Origin', value: 'Imported' }],
       rating: formData.rating || 0,
       reviewsCount: formData.reviewsCount || 0
@@ -307,6 +337,98 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
+    }
+  };
+
+  const handleSelectProductForSlot = async (productId: string) => {
+    const updated = [...localFeaturedIds];
+    const existingIndex = updated.indexOf(productId);
+    if (existingIndex !== -1 && existingIndex !== targetSlotIndex) {
+      updated.splice(existingIndex, 1);
+    }
+    updated[targetSlotIndex] = productId;
+    const finalIds = updated.filter(Boolean).slice(0, 4);
+    setLocalFeaturedIds(finalIds);
+    setIsSlotPickerOpen(false);
+
+    setIsSavingFeatured(true);
+    const res = await saveFeaturedProductIds(finalIds);
+    setIsSavingFeatured(false);
+    if (res.success) {
+      onFeaturedProductIdsChange?.(finalIds);
+      // Synchronize featured boolean on products
+      for (const p of products) {
+        const shouldBeFeatured = finalIds.includes(p.id);
+        if (Boolean(p.featured) !== shouldBeFeatured) {
+          const updatedProd = { ...p, featured: shouldBeFeatured };
+          onProductSavedLocally(updatedProd);
+          saveProductToDb(updatedProd).catch(() => {});
+        }
+      }
+      setStatusNotice('Home page featured products updated');
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else {
+      setErrorMessage(res.error || 'Failed to update featured products');
+    }
+  };
+
+  const handleClearSlot = async (slotIdx: number) => {
+    const updated = [...localFeaturedIds];
+    const removedId = updated[slotIdx];
+    updated.splice(slotIdx, 1);
+    setLocalFeaturedIds(updated);
+
+    const res = await saveFeaturedProductIds(updated);
+    if (res.success) {
+      onFeaturedProductIdsChange?.(updated);
+      if (removedId) {
+        const prod = products.find((p) => p.id === removedId);
+        if (prod) {
+          const updatedProd = { ...prod, featured: false };
+          onProductSavedLocally(updatedProd);
+          saveProductToDb(updatedProd).catch(() => {});
+        }
+      }
+      setStatusNotice('Featured slot cleared');
+      setTimeout(() => setStatusNotice(''), 2500);
+    }
+  };
+
+  const handleToggleProductFeatured = async (product: Product) => {
+    let updatedFeaturedIds = [...localFeaturedIds];
+    let newFeaturedStatus = false;
+
+    if (updatedFeaturedIds.includes(product.id)) {
+      updatedFeaturedIds = updatedFeaturedIds.filter((id) => id !== product.id);
+      newFeaturedStatus = false;
+    } else {
+      if (updatedFeaturedIds.length >= 4) {
+        updatedFeaturedIds[3] = product.id;
+      } else {
+        updatedFeaturedIds.push(product.id);
+      }
+      newFeaturedStatus = true;
+    }
+
+    setLocalFeaturedIds(updatedFeaturedIds);
+    const updatedProduct: Product = { ...product, featured: newFeaturedStatus };
+    onProductSavedLocally(updatedProduct);
+
+    const [prodRes, featRes] = await Promise.all([
+      saveProductToDb(updatedProduct),
+      saveFeaturedProductIds(updatedFeaturedIds)
+    ]);
+
+    if (featRes.success && prodRes.success) {
+      onFeaturedProductIdsChange?.(updatedFeaturedIds);
+      setStatusNotice(
+        newFeaturedStatus
+          ? `"${product.name}" added to Home Page Featured Collection`
+          : `"${product.name}" removed from Home Page Featured Collection`
+      );
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else {
+      setErrorMessage(featRes.error || prodRes.error || 'Failed to update featured status');
     }
   };
 
@@ -706,15 +828,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </button>
 
               <button
-                onClick={() => setActiveTab('branding')}
+                onClick={() => setActiveTab('messages')}
                 className={`pb-3.5 px-1 font-heading font-bold text-sm sm:text-base transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
-                  activeTab === 'branding'
+                  activeTab === 'messages'
                     ? 'text-neutral-900 font-extrabold border-b-2 border-neutral-900'
                     : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
-                <Sparkles className="h-4 w-4" />
-                <span>Store Logo</span>
+                <Mail className="h-4 w-4" />
+                <span>Messages ({contactMessages.length})</span>
+                {contactMessages.filter((m) => !m.read).length > 0 && (
+                  <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
+                )}
               </button>
             </div>
 
@@ -936,6 +1061,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             />
                           </div>
 
+                          <div className="pt-2">
+                            <label className="flex items-center gap-2.5 cursor-pointer p-3 bg-stone-50 rounded-xl border border-stone-200">
+                              <input
+                                type="checkbox"
+                                checked={formData.featured || false}
+                                onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
+                                className="h-4 w-4 rounded border-stone-300 text-neutral-900 focus:ring-neutral-900 cursor-pointer"
+                              />
+                              <div>
+                                <span className="text-xs font-bold text-neutral-900 block">
+                                  Feature on Home Page
+                                </span>
+                                <span className="text-[11px] text-stone-500 block">
+                                  Show this product in the 4 featured items section on the homepage
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+
                           <div className="flex items-center justify-end gap-3 pt-4">
                             <button
                               type="button"
@@ -952,6 +1096,219 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </button>
                           </div>
                         </form>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Home Page Featured Products Controller (4 Items) */}
+                  <div className="bg-stone-50 p-4 sm:p-5 rounded-2xl border border-stone-200/90 shadow-xs mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-stone-200">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          <h3 className="font-heading font-bold text-sm sm:text-base text-neutral-900">
+                            Home Page Featured Collection (4 Items)
+                          </h3>
+                        </div>
+                        <p className="text-[11px] text-stone-500 mt-0.5">
+                          Select the exact 4 items displayed on the homepage. Customer can click View All to browse the entire store.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-white border border-stone-200 px-2.5 py-1 rounded-md text-stone-700 font-semibold tabular-nums">
+                          {localFeaturedIds.length} / 4 Selected
+                        </span>
+                        {isSavingFeatured && (
+                          <span className="text-xs text-stone-400 font-medium animate-pulse">
+                            Saving...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 4 Featured Slots Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {[0, 1, 2, 3].map((slotIdx) => {
+                        const prodId = localFeaturedIds[slotIdx];
+                        const prod = prodId ? products.find((p) => p.id === prodId) : null;
+
+                        return (
+                          <div
+                            key={slotIdx}
+                            className={`rounded-xl p-3 border transition-all flex flex-col justify-between ${
+                              prod
+                                ? 'bg-white border-stone-200 shadow-xs'
+                                : 'bg-stone-100/70 border-dashed border-stone-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                                Slot {slotIdx + 1}
+                              </span>
+                              {prod && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleClearSlot(slotIdx)}
+                                  className="text-[11px] text-stone-400 hover:text-red-600 transition-colors cursor-pointer"
+                                  title="Clear this slot"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+
+                            {prod ? (
+                              <div className="flex gap-2.5 mb-3">
+                                <div className="w-14 h-16 rounded-lg overflow-hidden bg-stone-100 shrink-0">
+                                  <img
+                                    src={prod.image}
+                                    alt={prod.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <span className="text-[9px] font-semibold uppercase text-stone-400 block truncate">
+                                    {prod.category}
+                                  </span>
+                                  <p className="font-heading font-bold text-xs text-neutral-900 truncate">
+                                    {prod.name}
+                                  </p>
+                                  <p className="text-xs font-semibold text-neutral-800 mt-0.5">
+                                    {formatBDT(prod.price)}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="py-4 text-center">
+                                <p className="text-xs text-stone-400 font-medium">Empty Slot</p>
+                                <p className="text-[10px] text-stone-400">Click below to assign</p>
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTargetSlotIndex(slotIdx);
+                                setSlotPickerSearch('');
+                                setIsSlotPickerOpen(true);
+                              }}
+                              className={`w-full py-1.5 px-2 rounded-lg text-xs font-semibold cursor-pointer transition-colors text-center ${
+                                prod
+                                  ? 'bg-stone-100 hover:bg-stone-200 text-neutral-800'
+                                  : 'bg-neutral-900 hover:bg-neutral-800 text-white shadow-xs'
+                              }`}
+                            >
+                              {prod ? 'Change Product' : `+ Assign Slot ${slotIdx + 1}`}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Slot Picker Modal */}
+                  {isSlotPickerOpen && (
+                    <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl max-w-xl w-full max-h-[85vh] overflow-hidden flex flex-col shadow-2xl my-8">
+                        <div className="p-5 border-b border-stone-200 flex items-center justify-between">
+                          <div>
+                            <h3 className="font-heading font-bold text-lg text-neutral-900">
+                              Select Product for Slot {targetSlotIndex + 1}
+                            </h3>
+                            <p className="text-xs text-stone-500">
+                              Choose a product to feature on the home page in this slot.
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setIsSlotPickerOpen(false)}
+                            className="p-1.5 rounded-full hover:bg-stone-100 text-stone-500 cursor-pointer"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {/* Search in picker */}
+                        <div className="p-4 border-b border-stone-100 bg-stone-50">
+                          <input
+                            type="text"
+                            value={slotPickerSearch}
+                            onChange={(e) => setSlotPickerSearch(e.target.value)}
+                            placeholder="Search products by name or category..."
+                            className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                          />
+                        </div>
+
+                        {/* Product list */}
+                        <div className="p-4 overflow-y-auto flex-1 space-y-2">
+                          {products
+                            .filter(
+                              (p) =>
+                                !slotPickerSearch.trim() ||
+                                p.name.toLowerCase().includes(slotPickerSearch.toLowerCase()) ||
+                                p.category.toLowerCase().includes(slotPickerSearch.toLowerCase())
+                            )
+                            .map((p) => {
+                              const isCurrentlyAssignedToThisSlot = localFeaturedIds[targetSlotIndex] === p.id;
+                              const isAssignedToOtherSlot = localFeaturedIds.includes(p.id) && !isCurrentlyAssignedToThisSlot;
+
+                              return (
+                                <div
+                                  key={p.id}
+                                  onClick={() => handleSelectProductForSlot(p.id)}
+                                  className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-colors ${
+                                    isCurrentlyAssignedToThisSlot
+                                      ? 'bg-stone-100 border-neutral-900'
+                                      : 'bg-white hover:bg-stone-50 border-stone-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-12 h-14 rounded-lg overflow-hidden bg-stone-100 shrink-0">
+                                      <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <span className="text-[10px] font-semibold uppercase text-stone-400 block truncate">
+                                        {p.category}
+                                      </span>
+                                      <p className="font-heading font-bold text-xs sm:text-sm text-neutral-900 truncate">
+                                        {p.name}
+                                      </p>
+                                      <p className="text-xs font-semibold text-neutral-800">
+                                        {formatBDT(p.price)}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="shrink-0 flex items-center gap-2">
+                                    {isAssignedToOtherSlot && (
+                                      <span className="text-[10px] text-stone-400 bg-stone-100 px-2 py-0.5 rounded">
+                                        Slot {localFeaturedIds.indexOf(p.id) + 1}
+                                      </span>
+                                    )}
+                                    <span
+                                      className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                                        isCurrentlyAssignedToThisSlot
+                                          ? 'bg-neutral-900 text-white'
+                                          : 'bg-stone-100 hover:bg-neutral-900 hover:text-white text-neutral-800 transition-colors'
+                                      }`}
+                                    >
+                                      {isCurrentlyAssignedToThisSlot ? 'Selected' : 'Select'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+
+                        <div className="p-4 border-t border-stone-200 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setIsSlotPickerOpen(false)}
+                            className="px-4 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold rounded-xl text-xs cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -983,19 +1340,37 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 pt-2">
+                        <div className="flex items-center justify-between pt-2 border-t border-stone-200/80 mt-1">
                           <button
-                            onClick={() => openEditProductForm(product)}
-                            className="p-2 rounded-lg bg-white text-neutral-700 hover:bg-neutral-200 text-xs font-semibold cursor-pointer shadow-xs"
+                            type="button"
+                            onClick={() => handleToggleProductFeatured(product)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors border ${
+                              localFeaturedIds.includes(product.id)
+                                ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                                : 'bg-white text-stone-600 hover:text-neutral-900 border-stone-300'
+                            }`}
+                            title={localFeaturedIds.includes(product.id) ? 'Remove from Home Page Featured' : 'Select for Home Page Featured'}
                           >
-                            <Edit2 className="h-3.5 w-3.5" />
+                            <Sparkles className={`h-3 w-3 ${localFeaturedIds.includes(product.id) ? 'text-amber-300' : 'text-stone-400'}`} />
+                            <span>{localFeaturedIds.includes(product.id) ? 'Featured on Home' : 'Feature on Home'}</span>
                           </button>
-                          <button
-                            onClick={() => handleDeleteProduct(product)}
-                            className="p-2 rounded-lg bg-white text-red-600 hover:bg-red-50 text-xs font-semibold cursor-pointer shadow-xs"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => openEditProductForm(product)}
+                              className="p-1.5 rounded-lg bg-white text-neutral-700 hover:bg-neutral-200 text-xs font-semibold cursor-pointer shadow-xs"
+                              title="Edit product"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(product)}
+                              className="p-1.5 rounded-lg bg-white text-red-600 hover:bg-red-50 text-xs font-semibold cursor-pointer shadow-xs"
+                              title="Delete product"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}

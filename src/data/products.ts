@@ -23,6 +23,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
+    featured: true,
     rating: 0,
     reviewsCount: 0
   },
@@ -46,6 +47,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
+    featured: true,
     rating: 0,
     reviewsCount: 0
   },
@@ -118,6 +120,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
+    featured: true,
     rating: 0,
     reviewsCount: 0
   },
@@ -141,6 +144,7 @@ export const PRODUCTS: Product[] = [
       'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
+    featured: true,
     rating: 0,
     reviewsCount: 0
   },

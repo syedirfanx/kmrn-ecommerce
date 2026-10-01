@@ -18,7 +18,8 @@ import {
   ProductReview,
   BannerSlide,
   AnnouncementItem,
-  StoreSettings
+  StoreSettings,
+  ContactMessage
 } from '../types';
 import { PRODUCTS } from '../data/products';
 
@@ -154,6 +155,17 @@ export const seedInitialDataIfEmpty = async () => {
     if (!annSnap.exists()) {
       await setDoc(annDocRef, {
         items: DEFAULT_ANNOUNCEMENTS,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    // Seed home page featured 4 products if empty
+    const featuredDocRef = doc(db, 'settings', 'featured');
+    const featuredSnap = await getDoc(featuredDocRef);
+    if (!featuredSnap.exists()) {
+      const defaultIds = PRODUCTS.filter((p) => p.featured).map((p) => p.id).slice(0, 4);
+      await setDoc(featuredDocRef, {
+        productIds: defaultIds.length === 4 ? defaultIds : PRODUCTS.slice(0, 4).map((p) => p.id),
         updatedAt: new Date().toISOString()
       });
     }
@@ -667,6 +679,109 @@ export const saveStoreSettings = async (settings: Partial<StoreSettings>): Promi
       },
       { merge: true }
     );
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const subscribeFeaturedProductIds = (onUpdate: (productIds: string[]) => void) => {
+  const path = 'settings/featured';
+  return onSnapshot(
+    doc(db, 'settings', 'featured'),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (Array.isArray(data.productIds) && data.productIds.length > 0) {
+          onUpdate(data.productIds);
+          return;
+        }
+      }
+      onUpdate([]);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      onUpdate([]);
+    }
+  );
+};
+
+export const saveFeaturedProductIds = async (productIds: string[]): Promise<DbResult> => {
+  const path = 'settings/featured';
+  try {
+    const docRef = doc(db, 'settings', 'featured');
+    await setDoc(docRef, {
+      productIds: productIds.slice(0, 4),
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const submitContactMessage = async (
+  message: Omit<ContactMessage, 'id' | 'createdAt' | 'read'>
+): Promise<DbResult> => {
+  const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const path = `messages/${messageId}`;
+  try {
+    const docRef = doc(db, 'messages', messageId);
+    const newMsg: ContactMessage = {
+      ...message,
+      id: messageId,
+      createdAt: new Date().toISOString(),
+      read: false
+    };
+    await setDoc(docRef, newMsg);
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) => void) => {
+  const path = 'messages';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const list: ContactMessage[] = [];
+      snapshot.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as ContactMessage);
+      });
+      onUpdate(
+        list.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
+      );
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      onUpdate([]);
+    }
+  );
+};
+
+export const deleteContactMessage = async (messageId: string): Promise<DbResult> => {
+  const path = `messages/${messageId}`;
+  try {
+    const docRef = doc(db, 'messages', messageId);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const markContactMessageRead = async (messageId: string, read = true): Promise<DbResult> => {
+  const path = `messages/${messageId}`;
+  try {
+    const docRef = doc(db, 'messages', messageId);
+    await updateDoc(docRef, { read });
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

@@ -4,6 +4,8 @@ import { Logo } from './Logo';
 interface FooterProps {
   logoUrl?: string;
   onNavigateToShop: () => void;
+  onNavigateToWomensWear?: () => void;
+  onNavigateToHomeDecor?: () => void;
   onNavigateToAbout: () => void;
   onNavigateToContact: () => void;
 }
@@ -11,6 +13,8 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({
   logoUrl,
   onNavigateToShop,
+  onNavigateToWomensWear,
+  onNavigateToHomeDecor,
   onNavigateToAbout,
   onNavigateToContact
 }) => {
@@ -72,13 +76,24 @@ export const Footer: React.FC<FooterProps> = ({
             </span>
             <ul className="space-y-2.5 text-xs text-neutral-400">
               <li>
-                <button onClick={onNavigateToShop} className="hover:text-white transition-colors cursor-pointer text-left">
+                <button
+                  onClick={onNavigateToWomensWear || onNavigateToShop}
+                  className="hover:text-white transition-colors cursor-pointer text-left"
+                >
                   Elegant Women&apos;s Wear
                 </button>
               </li>
               <li>
-                <button onClick={onNavigateToShop} className="hover:text-white transition-colors cursor-pointer text-left">
+                <button
+                  onClick={onNavigateToHomeDecor || onNavigateToShop}
+                  className="hover:text-white transition-colors cursor-pointer text-left"
+                >
                   Home Decor
+                </button>
+              </li>
+              <li>
+                <button onClick={onNavigateToShop} className="hover:text-white transition-colors cursor-pointer text-left">
+                  All Collections
                 </button>
               </li>
               <li>

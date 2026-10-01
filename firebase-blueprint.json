@@ -15,6 +15,7 @@
         "image": { "type": "string", "maxLength": 1000 },
         "additionalImages": { "type": "array" },
         "inStock": { "type": "boolean" },
+        "featured": { "type": "boolean" },
         "rating": { "type": "number" },
         "reviewsCount": { "type": "number" },
         "createdAt": { "type": "string" },
@@ -56,6 +57,32 @@
         "createdAt": { "type": "string" }
       },
       "required": ["email", "role"]
+    },
+    "FeaturedSettings": {
+      "title": "FeaturedSettings",
+      "description": "Featured products selected to appear on the homepage",
+      "type": "object",
+      "properties": {
+        "productIds": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["productIds"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "Customer message submitted via the contact form",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "subject": { "type": "string", "maxLength": 150 },
+        "message": { "type": "string", "maxLength": 3000 },
+        "createdAt": { "type": "string" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["name", "email", "message"]
     }
   },
   "firestore": {
@@ -66,6 +93,14 @@
     "/categories/{categoryId}": {
       "schema": "CategoryItem",
       "description": "Store categories and subcategories, manageable by admin"
+    },
+    "/settings/{settingId}": {
+      "schema": "FeaturedSettings",
+      "description": "Site configurations including featured 4 home products, banner slides, and announcements"
+    },
+    "/messages/{messageId}": {
+      "schema": "ContactMessage",
+      "description": "Customer inquiry messages submitted via contact form, visible to admin"
     },
     "/users/{userId}/cart/{itemId}": {
       "schema": "CartItem",

@@ -42,10 +42,16 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(categoryId);
     }
 
-    // Site settings (such as featured banner product selection)
+    // Site settings (home page featured products selection, banner slides, announcements, store branding)
     match /settings/{settingId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(settingId);
+    }
+
+    // Customer inquiries / messages from contact form
+    match /messages/{messageId} {
+      allow create: if isValidId(messageId);
+      allow get, list, update, delete: if isValidId(messageId);
     }
 
     // User data: profile, cart, wishlist, orders (strictly private to each user)

@@ -147,15 +147,15 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
 
                 <button
                   onClick={() => onAddToCart(linkedProduct)}
-                  className="flex items-center gap-2 bg-[#283618] hover:bg-[#1f2b12] text-white border border-[#445837] font-bold px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
+                  className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-5 py-2.5 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
                 >
-                  <Plus className="h-4 w-4 text-stone-200" />
+                  <Plus className="h-3.5 w-3.5 text-neutral-900" />
                   <span>Add to Bag</span>
                 </button>
 
                 <button
                   onClick={() => onViewDetails(linkedProduct)}
-                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-md px-5 py-3 rounded-xl font-bold transition-all cursor-pointer active:scale-95 text-xs uppercase tracking-wider border border-white/15"
+                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs px-5 py-2.5 rounded-lg font-semibold transition-all cursor-pointer active:scale-95 text-xs uppercase tracking-wider border border-white/20"
                 >
                   <span>Details</span>
                 </button>
@@ -163,10 +163,10 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
             ) : (
               <button
                 onClick={onNavigateToShop}
-                className="flex items-center gap-2 bg-[#283618] hover:bg-[#1f2b12] text-white border border-[#445837] font-bold px-6 py-3.5 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
+                className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-6 py-3 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
               >
                 <span>{'buttonText' in currentSlide && currentSlide.buttonText ? currentSlide.buttonText : 'Discover Collection'}</span>
-                <ArrowRight className="h-4 w-4 text-stone-200" />
+                <ArrowRight className="h-3.5 w-3.5 text-neutral-900" />
               </button>
             )}
           </div>
