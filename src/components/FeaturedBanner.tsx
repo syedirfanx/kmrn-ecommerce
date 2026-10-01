@@ -1,171 +1,175 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Product } from '../types';
+import { Plus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { Product, BannerSlide } from '../types';
 import { formatBDT } from '../utils/format';
 
 interface FeaturedBannerProps {
+  slides?: BannerSlide[];
   products: Product[];
-  bannerProductIds?: string[];
   onAddToCart: (product: Product) => void;
   onViewDetails: (product: Product) => void;
+  onNavigateToShop?: () => void;
 }
 
 export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
+  slides = [],
   products,
-  bannerProductIds = [],
   onAddToCart,
-  onViewDetails
+  onViewDetails,
+  onNavigateToShop
 }) => {
-  const featuredProducts = React.useMemo(() => {
-    if (bannerProductIds && bannerProductIds.length > 0) {
-      const selected: Product[] = [];
-      for (const id of bannerProductIds) {
-        const found = products.find((p) => p.id === id);
-        if (found && !selected.some((s) => s.id === found.id)) {
-          selected.push(found);
-        }
-      }
-      if (selected.length > 0) {
-        for (const p of products) {
-          if (selected.length >= 3) break;
-          if (!selected.some((s) => s.id === p.id)) {
-            selected.push(p);
-          }
-        }
-        return selected;
-      }
-    }
-    return products.slice(0, 3);
-  }, [products, bannerProductIds]);
-
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
-  useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % featuredProducts.length);
-    }, 5500);
-    return () => clearInterval(interval);
-  }, [isPaused, featuredProducts.length]);
+  // Normalize slides
+  const activeSlides = React.useMemo(() => {
+    if (slides && slides.length >= 2) {
+      return slides.slice(0, 5);
+    }
+    if (products.length >= 2) {
+      return products.slice(0, Math.min(5, products.length)).map((p) => ({
+        id: `slide-${p.id}`,
+        type: 'product' as const,
+        productId: p.id,
+        image: p.image,
+        title: p.name,
+        subtitle: p.description
+      }));
+    }
+    return [];
+  }, [slides, products]);
 
-  const currentProduct = featuredProducts[currentIndex] || featuredProducts[0];
+  useEffect(() => {
+    if (isPaused || activeSlides.length < 2) return;
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [isPaused, activeSlides.length]);
+
+  if (activeSlides.length === 0) return null;
+
+  const currentSlide = activeSlides[currentIndex] || activeSlides[0];
+  const linkedProduct = currentSlide.type === 'product' && currentSlide.productId
+    ? products.find((p) => p.id === currentSlide.productId)
+    : null;
 
   const handlePrev = () => {
-    setCurrentIndex((prev) => (prev === 0 ? featuredProducts.length - 1 : prev - 1));
+    setCurrentIndex((prev) => (prev === 0 ? activeSlides.length - 1 : prev - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % featuredProducts.length);
+    setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
   };
-
-  if (!currentProduct) return null;
 
   return (
     <section
-      aria-label="Promotional cover banner"
-      className="mb-8 sm:mb-12"
+      aria-label="Featured collection showcase"
+      className="mb-8"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="relative rounded-2xl overflow-hidden shadow-xl min-h-[420px] sm:min-h-[460px] lg:min-h-[480px] flex flex-col justify-center bg-neutral-900 border border-neutral-300/30">
-        {/* Cover Photo Background */}
+      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[360px] sm:min-h-[420px] lg:min-h-[460px] flex flex-col justify-end sm:justify-center bg-neutral-950">
+        {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img
-            key={currentProduct.id}
-            src={currentProduct.image}
-            alt={currentProduct.name}
-            className="w-full h-full object-cover object-center transition-opacity duration-700 ease-in-out filter brightness-[0.70]"
+            key={currentSlide.id || currentIndex}
+            src={currentSlide.image}
+            alt={currentSlide.title || 'Aniq Lifestyle Showcase'}
+            className="w-full h-full object-cover object-center transition-opacity duration-1000 ease-out brightness-[0.72]"
           />
-          {/* Responsive Gradients */}
-          <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/60 to-neutral-950/30 sm:bg-gradient-to-r sm:from-neutral-950/95 sm:via-neutral-950/70 sm:to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/95 via-neutral-950/50 to-neutral-950/20 sm:bg-gradient-to-r sm:from-neutral-950/90 sm:via-neutral-950/60 sm:to-transparent" />
         </div>
 
-        {/* Navigation Arrows */}
-        <div className="absolute right-4 top-4 sm:top-6 sm:right-6 z-20 flex items-center gap-2">
-          <button
-            onClick={handlePrev}
-            aria-label="Previous product"
-            className="p-2.5 sm:p-3 rounded-full bg-neutral-900/80 hover:bg-neutral-900 text-white border border-neutral-700/80 backdrop-blur-md transition-transform active:scale-95 cursor-pointer shadow-md"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button
-            onClick={handleNext}
-            aria-label="Next product"
-            className="p-2.5 sm:p-3 rounded-full bg-neutral-900/80 hover:bg-neutral-900 text-white border border-neutral-700/80 backdrop-blur-md transition-transform active:scale-95 cursor-pointer shadow-md"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Content Box */}
-        <div className="relative z-10 px-5 sm:px-10 lg:px-14 pt-6 sm:pt-10 pb-20 sm:pb-24 max-w-2xl text-white my-auto">
-          <div className="space-y-3 sm:space-y-4">
-            {/* Product Title */}
-            <h2 className="font-heading font-extrabold text-3xl sm:text-4xl lg:text-5xl tracking-tight text-white leading-tight">
-              {currentProduct.name}
-            </h2>
-
-            {/* Product Description */}
-            <p className="text-base sm:text-lg text-neutral-200 line-clamp-2 leading-relaxed max-w-xl">
-              {currentProduct.description}
-            </p>
-
-            {/* Price Info in BDT */}
-            <div className="pt-1">
-              <span className="font-heading font-extrabold text-2xl sm:text-3xl lg:text-4xl text-white">
-                {formatBDT(currentProduct.price)}
-              </span>
-            </div>
-
-            {/* Actions: Add to Cart and Quick View */}
-            <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <button
-                onClick={() => onAddToCart(currentProduct)}
-                className="flex items-center justify-center gap-2.5 bg-white hover:bg-neutral-100 text-neutral-950 font-bold text-base py-3 px-6 rounded-xl shadow-lg transition-transform active:scale-95 cursor-pointer"
-              >
-                <ShoppingBag className="h-5 w-5" />
-                <span>Add to Cart</span>
-              </button>
-
-              <button
-                onClick={() => onViewDetails(currentProduct)}
-                className="flex items-center justify-center gap-2 bg-neutral-900/80 hover:bg-neutral-900 text-white border border-neutral-600 font-semibold text-base py-3 px-5 rounded-xl backdrop-blur-sm transition-colors cursor-pointer"
-              >
-                <Eye className="h-5 w-5" />
-                <span>View Details</span>
-              </button>
-            </div>
+        {/* Floating Controls */}
+        {activeSlides.length > 1 && (
+          <div className="absolute top-5 right-5 sm:top-6 sm:right-6 z-20 flex items-center gap-2">
+            <button
+              onClick={handlePrev}
+              aria-label="Previous slide"
+              className="p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/10 shadow-sm"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={handleNext}
+              aria-label="Next slide"
+              className="p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/10 shadow-sm"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* Bottom Switcher: 3 Products */}
-        <div className="absolute bottom-0 left-0 right-0 z-20 px-4 sm:px-8 py-2.5 sm:py-3 bg-neutral-950/85 backdrop-blur-md border-t border-neutral-800/90 flex items-center justify-between sm:justify-start gap-2 sm:gap-4 overflow-x-auto scrollbar-none">
-          {featuredProducts.map((prod, idx) => {
-            const isActive = idx === currentIndex;
-            return (
+        {/* Dash Indicators */}
+        {activeSlides.length > 1 && (
+          <div className="absolute bottom-5 right-5 sm:bottom-6 sm:right-6 z-20 flex items-center gap-1.5">
+            {activeSlides.map((_, idx) => (
               <button
-                key={prod.id}
+                key={idx}
                 onClick={() => setCurrentIndex(idx)}
-                className={`text-left py-1.5 px-3 rounded-lg transition-all cursor-pointer flex items-center gap-2.5 shrink-0 ${
-                  isActive
-                    ? 'bg-neutral-800 text-white border border-neutral-700'
-                    : 'text-neutral-400 hover:text-white hover:bg-neutral-900/50'
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                  currentIndex === idx
+                    ? 'w-7 bg-stone-100'
+                    : 'w-2 bg-white/30 hover:bg-white/60'
                 }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Main Content Card */}
+        <div className="relative z-10 p-6 sm:p-10 lg:p-12 max-w-xl text-white">
+          {linkedProduct && (
+            <span className="text-xs uppercase tracking-widest text-stone-300 font-semibold block mb-2">
+              {linkedProduct.category}
+            </span>
+          )}
+
+          <h1 className="font-heading font-bold text-2xl sm:text-3xl lg:text-4xl leading-tight mb-2.5 text-white tracking-tight">
+            {currentSlide.title || linkedProduct?.name}
+          </h1>
+
+          <p className="text-xs sm:text-sm text-neutral-300 line-clamp-2 mb-5 font-normal leading-relaxed">
+            {currentSlide.subtitle || linkedProduct?.description}
+          </p>
+
+          {/* Action Row */}
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            {linkedProduct ? (
+              <>
+                <div className="mr-2">
+                  <span className="font-heading font-extrabold text-xl sm:text-2xl text-stone-100">
+                    {formatBDT(linkedProduct.price)}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => onAddToCart(linkedProduct)}
+                  className="flex items-center gap-2 bg-[#283618] hover:bg-[#1f2b12] text-white border border-[#445837] font-bold px-5 py-3 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
+                >
+                  <Plus className="h-4 w-4 text-stone-200" />
+                  <span>Add to Bag</span>
+                </button>
+
+                <button
+                  onClick={() => onViewDetails(linkedProduct)}
+                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-md px-5 py-3 rounded-xl font-bold transition-all cursor-pointer active:scale-95 text-xs uppercase tracking-wider border border-white/15"
+                >
+                  <span>Details</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={onNavigateToShop}
+                className="flex items-center gap-2 bg-[#283618] hover:bg-[#1f2b12] text-white border border-[#445837] font-bold px-6 py-3.5 rounded-xl transition-all shadow-md cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
               >
-                <span className={`text-xs font-bold ${isActive ? 'text-white' : 'text-neutral-500'}`}>
-                  0{idx + 1}
-                </span>
-                <span className="text-xs sm:text-sm font-semibold truncate max-w-[130px] sm:max-w-none">
-                  {prod.name}
-                </span>
-                <span className="hidden sm:inline text-xs text-neutral-400">
-                  {formatBDT(prod.price)}
-                </span>
+                <span>{'buttonText' in currentSlide && currentSlide.buttonText ? currentSlide.buttonText : 'Discover Collection'}</span>
+                <ArrowRight className="h-4 w-4 text-stone-200" />
               </button>
-            );
-          })}
+            )}
+          </div>
         </div>
       </div>
     </section>

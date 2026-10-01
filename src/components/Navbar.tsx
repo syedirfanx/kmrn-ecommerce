@@ -1,17 +1,27 @@
-import React from 'react';
-import { ShoppingBag, Search, X, LogIn, LogOut, User as UserIcon, Heart } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  ShoppingBag,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+  Heart,
+  Package,
+  ChevronDown
+} from 'lucide-react';
 import { User } from 'firebase/auth';
+import { Logo } from './Logo';
 
 interface NavbarProps {
   cartCount: number;
   wishlistCount: number;
   onOpenCart: () => void;
-  onOpenAccount: () => void;
-  onOpenWishlist: () => void;
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-  onSelectCategory: (category: string) => void;
+  onOpenAccount: (tab?: 'profile' | 'wishlist' | 'orders') => void;
+  onNavigateToShop: () => void;
+  onNavigateToAbout: () => void;
+  onNavigateToContact: () => void;
+  currentPage: 'store' | 'admin' | 'account' | 'about' | 'contact';
   currentUser: User | null;
+  logoUrl?: string;
   onLogin: () => void;
   onLogout: () => void;
 }
@@ -21,163 +31,228 @@ export const Navbar: React.FC<NavbarProps> = ({
   wishlistCount,
   onOpenCart,
   onOpenAccount,
-  onOpenWishlist,
-  searchQuery,
-  onSearchChange,
-  onSelectCategory,
+  onNavigateToShop,
+  onNavigateToAbout,
+  onNavigateToContact,
+  currentPage,
   currentUser,
+  logoUrl,
   onLogin,
   onLogout
 }) => {
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-30 bg-[#faf9f6]/95 backdrop-blur-md border-b border-neutral-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-6">
-          {/* Top row on mobile: Logo + Controls */}
-          <div className="flex items-center justify-between w-full sm:w-auto">
-            {/* Logo */}
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md shadow-xs transition-all">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+        <div className="flex items-center justify-between gap-4">
+          {/* Brand Logo & Main Nav Links */}
+          <div className="flex items-center gap-6 sm:gap-8">
             <button
-              onClick={() => {
-                onSelectCategory('All');
-                onSearchChange('');
-              }}
+              onClick={onNavigateToShop}
               className="text-left group cursor-pointer focus:outline-none"
+              aria-label="Go to Aniq Lifestyle Homepage"
             >
-              <span className="font-heading font-extrabold text-2xl sm:text-3xl tracking-tight text-neutral-900 group-hover:text-neutral-700 transition-colors">
-                MAISON
-              </span>
+              <Logo variant="light" size="md" customLogoUrl={logoUrl} />
             </button>
 
-            {/* Mobile Actions: Wishlist, User/Account, Cart */}
-            <div className="sm:hidden flex items-center gap-2">
-              {currentUser ? (
-                <>
-                  <button
-                    onClick={onOpenWishlist}
-                    aria-label={`View wishlist with ${wishlistCount} items`}
-                    className="p-2 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-100 cursor-pointer relative"
-                  >
-                    <Heart className="h-4 w-4" />
-                    {wishlistCount > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
-                        {wishlistCount}
-                      </span>
-                    )}
-                  </button>
-
-                  <button
-                    onClick={onOpenAccount}
-                    title="Open My Account"
-                    className="p-2 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-                  >
-                    <UserIcon className="h-4 w-4 text-emerald-600" />
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={onLogin}
-                  title="Sign In / Register"
-                  className="p-2 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-                >
-                  <LogIn className="h-4 w-4" />
-                </button>
-              )}
-
+            {/* Desktop Navigation Links */}
+            <nav className="hidden md:flex items-center gap-1 font-medium text-sm text-neutral-600">
               <button
-                onClick={onOpenCart}
-                aria-label={`View cart with ${cartCount} items`}
-                className="flex items-center gap-1.5 bg-neutral-900 text-white hover:bg-neutral-800 px-3 py-2 rounded-lg font-medium text-sm transition-colors shadow-sm cursor-pointer"
+                onClick={onNavigateToShop}
+                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                  currentPage === 'store'
+                    ? 'bg-neutral-100 text-neutral-900 font-semibold'
+                    : 'hover:bg-neutral-50 hover:text-neutral-900'
+                }`}
               >
-                <ShoppingBag className="h-4 w-4" />
-                <span className="bg-white text-neutral-900 font-bold text-xs px-1.5 py-0.5 rounded">
-                  {cartCount}
-                </span>
+                Shop
               </button>
-            </div>
+              <button
+                onClick={onNavigateToAbout}
+                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                  currentPage === 'about'
+                    ? 'bg-neutral-100 text-neutral-900 font-semibold'
+                    : 'hover:bg-neutral-50 hover:text-neutral-900'
+                }`}
+              >
+                About
+              </button>
+              <button
+                onClick={onNavigateToContact}
+                className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer ${
+                  currentPage === 'contact'
+                    ? 'bg-neutral-100 text-neutral-900 font-semibold'
+                    : 'hover:bg-neutral-50 hover:text-neutral-900'
+                }`}
+              >
+                Contact
+              </button>
+            </nav>
           </div>
 
-          {/* Search Bar */}
-          <div className="w-full sm:flex-1 sm:max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-neutral-400 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search products or categories..."
-                className="w-full bg-white border border-neutral-300 rounded-lg pl-11 pr-10 py-2.5 text-base text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:border-transparent transition-all shadow-xs"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => onSearchChange('')}
-                  aria-label="Clear search"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Desktop Right Controls: Wishlist + Auth / Account + Cart */}
-          <div className="hidden sm:flex items-center gap-3">
+          {/* Right Side Controls */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Profile Menu or Sign In */}
             {currentUser ? (
-              <>
+              <div className="relative" ref={profileMenuRef}>
                 <button
-                  onClick={onOpenWishlist}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 text-neutral-700 hover:bg-neutral-100 text-sm font-semibold cursor-pointer relative"
-                  title="Wishlist"
+                  type="button"
+                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                  className="flex items-center gap-2.5 bg-[#283618] hover:bg-[#1f2b12] text-white px-3.5 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-all shadow-sm border border-[#445837] active:scale-95"
+                  aria-expanded={isProfileMenuOpen}
+                  aria-haspopup="true"
                 >
-                  <Heart className="h-4 w-4 text-neutral-600" />
-                  <span>Wishlist</span>
-                  {wishlistCount > 0 && (
-                    <span className="bg-neutral-900 text-white font-bold text-xs px-1.5 py-0.2 rounded-full">
-                      {wishlistCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  onClick={onOpenAccount}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-neutral-200 text-neutral-800 hover:bg-neutral-100 text-sm font-semibold cursor-pointer"
-                  title="Open My Account"
-                >
-                  <UserIcon className="h-4 w-4 text-emerald-600" />
-                  <span className="max-w-[120px] truncate">
+                  <span className="max-w-[140px] truncate font-medium text-stone-100">
                     {currentUser.displayName || currentUser.email?.split('@')[0]}
                   </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-stone-300" />
                 </button>
 
-                <button
-                  onClick={onLogout}
-                  className="p-2 rounded-lg border border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 cursor-pointer"
-                  title="Sign Out"
-                >
-                  <LogOut className="h-4 w-4" />
-                </button>
-              </>
+                {/* Profile Dropdown Menu */}
+                {isProfileMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150 border border-stone-200">
+                    <div className="px-4 py-2.5 bg-[#283618]/10 mb-1 border-b border-stone-100">
+                      <p className="text-[11px] text-[#495f33] font-semibold uppercase tracking-wider">Signed in as</p>
+                      <p className="text-sm font-bold text-neutral-900 truncate">
+                        {currentUser.displayName || currentUser.email}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        onOpenAccount('profile');
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <UserIcon className="h-4 w-4 text-[#495f33]" />
+                      <span>Personal Details</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        onOpenCart();
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <ShoppingBag className="h-4 w-4 text-[#495f33]" />
+                        <span>My Cart</span>
+                      </div>
+                      {cartCount > 0 && (
+                        <span className="bg-[#283618] text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                          {cartCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        onOpenAccount('wishlist');
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Heart className="h-4 w-4 text-[#495f33]" />
+                        <span>Wishlist</span>
+                      </div>
+                      {wishlistCount > 0 && (
+                        <span className="bg-stone-200 text-neutral-800 text-xs px-2 py-0.5 rounded-full font-bold">
+                          {wishlistCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        onOpenAccount('orders');
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-neutral-700 hover:bg-stone-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <Package className="h-4 w-4 text-[#495f33]" />
+                      <span>Order History</span>
+                    </button>
+
+                    <div className="h-px bg-stone-100 my-1" />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <button
                 onClick={onLogin}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-100 text-sm font-semibold cursor-pointer"
+                className="flex items-center gap-2 bg-[#283618] hover:bg-[#1f2b12] text-white px-4.5 py-2.5 rounded-xl text-sm font-semibold cursor-pointer transition-all shadow-sm border border-[#445837] active:scale-95"
               >
-                <LogIn className="h-4 w-4" />
-                <span>Sign In</span>
+                <LogIn className="h-4 w-4 text-stone-200" />
+                <span>Sign In / Register</span>
               </button>
             )}
 
+            {/* Cart Button */}
             <button
               onClick={onOpenCart}
               aria-label={`View cart with ${cartCount} items`}
-              className="flex items-center gap-2.5 bg-neutral-900 text-white hover:bg-neutral-800 px-4 py-2.5 rounded-lg font-medium text-base transition-colors shadow-sm cursor-pointer active:scale-95"
+              className="flex items-center gap-2.5 bg-[#283618] hover:bg-[#1f2b12] text-white px-4.5 py-2.5 rounded-xl font-medium text-sm transition-all shadow-sm cursor-pointer active:scale-95 border border-[#445837]"
             >
-              <ShoppingBag className="h-5 w-5" />
-              <span>Cart</span>
-              <span className="bg-white text-neutral-900 font-bold text-sm px-2 py-0.5 rounded">
+              <ShoppingBag className="h-4 w-4 text-stone-200" />
+              <span className="hidden sm:inline">Bag</span>
+              <span className="bg-white text-neutral-950 font-bold text-xs px-2 py-0.5 rounded-lg shadow-xs">
                 {cartCount}
               </span>
             </button>
           </div>
+        </div>
+
+        {/* Mobile Navigation bar */}
+        <div className="md:hidden flex items-center justify-around pt-2.5 mt-2 border-t border-neutral-100/50 text-xs font-semibold text-neutral-600">
+          <button
+            onClick={onNavigateToShop}
+            className={`py-1.5 px-3 rounded-lg ${currentPage === 'store' ? 'bg-neutral-100 text-neutral-900' : ''}`}
+          >
+            Shop
+          </button>
+          <button
+            onClick={onNavigateToAbout}
+            className={`py-1.5 px-3 rounded-lg ${currentPage === 'about' ? 'bg-neutral-100 text-neutral-900' : ''}`}
+          >
+            About
+          </button>
+          <button
+            onClick={onNavigateToContact}
+            className={`py-1.5 px-3 rounded-lg ${currentPage === 'contact' ? 'bg-neutral-100 text-neutral-900' : ''}`}
+          >
+            Contact
+          </button>
         </div>
       </div>
     </header>

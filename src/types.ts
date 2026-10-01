@@ -22,6 +22,28 @@ export interface Product {
   updatedAt?: string;
 }
 
+export interface BannerSlide {
+  id: string;
+  type: 'product' | 'custom';
+  productId?: string;
+  title?: string;
+  subtitle?: string;
+  image: string;
+  buttonText?: string;
+  linkUrl?: string;
+}
+
+export interface AnnouncementItem {
+  id: string;
+  text: string;
+  linkText?: string;
+  linkUrl?: string;
+  startDate?: string;
+  endDate?: string;
+  active: boolean;
+  createdAt?: string;
+}
+
 export interface CartItem {
   product: Product;
   quantity: number;
@@ -58,4 +80,10 @@ export interface ProductReview {
   rating: number;
   comment: string;
   createdAt: string;
+}
+
+export interface StoreSettings {
+  logoUrl?: string;
+  brandName?: string;
+  updatedAt?: string;
 }

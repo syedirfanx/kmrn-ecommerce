@@ -4,12 +4,20 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { SlidersHorizontal, ArrowUpDown } from 'lucide-react';
+import { SlidersHorizontal, ArrowUpDown, Search, X } from 'lucide-react';
 import { User, signOut, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDocFromServer } from 'firebase/firestore';
-import { db, auth } from './lib/firebase';
+import { auth } from './lib/firebase';
 import { PRODUCTS } from './data/products';
-import { Product, CategoryData, CartItem, OrderConfirmation, UserProfile } from './types';
+import {
+  Product,
+  CategoryData,
+  CartItem,
+  OrderConfirmation,
+  UserProfile,
+  BannerSlide,
+  AnnouncementItem,
+  StoreSettings
+} from './types';
 import {
   seedInitialDataIfEmpty,
   subscribeProducts,
@@ -23,8 +31,13 @@ import {
   toggleWishlistItemInDb,
   saveUserOrderToDb,
   subscribeUserOrders,
-  subscribeBannerSettings
+  subscribeBannerSlides,
+  subscribeAnnouncements,
+  subscribeStoreSettings,
+  DEFAULT_BANNER_SLIDES,
+  DEFAULT_ANNOUNCEMENTS
 } from './services/storeService';
+import { AnnouncementBar } from './components/AnnouncementBar';
 import { Navbar } from './components/Navbar';
 import { ProductCard } from './components/ProductCard';
 import { ProductModal } from './components/ProductModal';
@@ -35,13 +48,17 @@ import { FeaturedBanner } from './components/FeaturedBanner';
 import { AdminPortal } from './components/AdminPortal';
 import { AuthModal } from './components/AuthModal';
 import { AccountPage } from './components/AccountPage';
+import { AboutPage } from './components/AboutPage';
+import { ContactPage } from './components/ContactPage';
+import { Footer } from './components/Footer';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'rating-desc';
+type AppPage = 'store' | 'admin' | 'account' | 'about' | 'contact';
 
 const CART_STORAGE_KEY = 'maison_ecommerce_cart_v1';
 const WISHLIST_STORAGE_KEY = 'maison_ecommerce_wishlist_v1';
 
-const getInitialPage = (): 'store' | 'admin' | 'account' => {
+const getInitialPage = (): AppPage => {
   if (typeof window === 'undefined') return 'store';
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
@@ -52,22 +69,38 @@ const getInitialPage = (): 'store' | 'admin' | 'account' => {
   if (path === '/account' || hash === '#account') {
     return 'account';
   }
+  if (path === '/about' || hash === '#about') {
+    return 'about';
+  }
+  if (path === '/contact' || hash === '#contact') {
+    return 'contact';
+  }
   return 'store';
 };
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<'store' | 'admin' | 'account'>(getInitialPage);
+  const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [accountInitialTab, setAccountInitialTab] = useState<'profile' | 'cart' | 'wishlist' | 'orders'>('profile');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [categories, setCategories] = useState<CategoryData[]>([
-    { id: 'cat-audio', name: 'Audio', subcategories: ['Headphones', 'Earphones', 'Speakers'] },
-    { id: 'cat-timepieces', name: 'Timepieces', subcategories: ['Automatic', 'Chronograph', 'Field Watches'] },
-    { id: 'cat-kitchen', name: 'Kitchen & Dining', subcategories: ['Coffee & Tea', 'Ceramics', 'Barware'] },
-    { id: 'cat-apparel', name: 'Apparel', subcategories: ['Overshirts', 'Knitwear', 'Outerwear'] },
-    { id: 'cat-leather', name: 'Leather Goods', subcategories: ['Bags', 'Wallets', 'Accessories'] }
+    {
+      id: 'cat-womens-wear',
+      name: "Elegant Women's Wear",
+      subcategories: ['Original Pakistani Lawn', 'Luxury Chiffon', 'Festive Embroidered', 'Ready to Wear']
+    },
+    {
+      id: 'cat-home-decor',
+      name: 'Home Decor',
+      subcategories: ['Bedsheets', 'Comforters', 'Duvet Sets', 'Quilt Sets']
+    }
   ]);
+  const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>(DEFAULT_BANNER_SLIDES);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(DEFAULT_ANNOUNCEMENTS);
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>({});
 
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
@@ -76,7 +109,6 @@ export default function App() {
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [bannerProductIds, setBannerProductIds] = useState<string[]>([]);
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -107,45 +139,48 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isToastOpen, setIsToastOpen] = useState(false);
 
-  // Synchronize route changes for /admin, #admin, /account, #account
+  // Synchronize route changes for /admin, #admin, /account, #account, etc.
   useEffect(() => {
     const handleUrlChange = () => {
       setCurrentPage(getInitialPage());
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Secret admin shortcut: Ctrl+Shift+A or Alt+A
+      if ((e.altKey && e.key.toLowerCase() === 'a') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a')) {
+        e.preventDefault();
+        navigateTo('admin');
+      }
+    };
     window.addEventListener('popstate', handleUrlChange);
     window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('popstate', handleUrlChange);
       window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
 
-  const navigateToStore = () => {
-    setCurrentPage('store');
-    if (window.location.hash) {
-      window.location.hash = '';
-    }
-    if (window.location.pathname === '/admin' || window.location.pathname === '/account') {
-      window.history.pushState(null, '', '/');
+  // Update hash when currentPage changes
+  const navigateTo = (page: AppPage) => {
+    setCurrentPage(page);
+    try {
+      if (page === 'store') {
+        window.history.pushState(null, '', '/');
+      } else {
+        window.history.pushState(null, '', `#${page}`);
+      }
+    } catch {
+      // fallback
     }
   };
 
-  // 1. Initial connection verification & seed
+  // 1. Initial database seeding
   useEffect(() => {
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, 'test', 'connection'));
-      } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error('Please check your Firebase configuration.');
-        }
-      }
-    };
-    testConnection();
     seedInitialDataIfEmpty();
   }, []);
 
-  // 2. Auth listener
+  // 2. Authentication state listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -153,7 +188,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 3. Live database subscriptions for products, categories, and banner settings
+  // 3. Live database subscriptions for products, categories, banner, and announcements
   useEffect(() => {
     const unsubProducts = subscribeProducts((liveProducts) => {
       if (liveProducts.length > 0) {
@@ -167,20 +202,32 @@ export default function App() {
       }
     });
 
-    const unsubBanner = subscribeBannerSettings((liveBannerIds) => {
-      if (liveBannerIds.length > 0) {
-        setBannerProductIds(liveBannerIds);
+    const unsubBanner = subscribeBannerSlides((liveSlides) => {
+      if (liveSlides.length > 0) {
+        setBannerSlides(liveSlides);
       }
+    });
+
+    const unsubAnnouncements = subscribeAnnouncements((liveAnnouncements) => {
+      if (liveAnnouncements.length > 0) {
+        setAnnouncements(liveAnnouncements);
+      }
+    });
+
+    const unsubSettings = subscribeStoreSettings((liveSettings) => {
+      setStoreSettings(liveSettings || {});
     });
 
     return () => {
       unsubProducts();
       unsubCategories();
       unsubBanner();
+      unsubAnnouncements();
+      unsubSettings();
     };
   }, []);
 
-  // 4. Live database user profile, cart, wishlist, and orders subscription
+  // 4. User data subscriptions
   useEffect(() => {
     if (!currentUser) {
       try {
@@ -191,12 +238,10 @@ export default function App() {
       return;
     }
 
-    // Subscribe to profile
     const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
       setUserProfile(profile);
     });
 
-    // Subscribe to wishlist
     const unsubWishlist = subscribeUserWishlist(currentUser.uid, (ids) => {
       setWishlistProductIds(ids);
       try {
@@ -206,33 +251,14 @@ export default function App() {
       }
     });
 
-    // Subscribe to orders
     const unsubOrders = subscribeUserOrders(currentUser.uid, (userOrdersList) => {
       setOrders(userOrdersList);
     });
 
-    // Subscribe to cart
-    const unsubCart = subscribeUserCart(currentUser.uid, (cartItems) => {
-      setCart((prevCart) => {
-        const productMap = new Map<string, Product>();
-        for (const p of products) {
-          productMap.set(p.id, p);
-        }
-
-        const newCart: CartItem[] = [];
-        for (const item of cartItems) {
-          const product = productMap.get(item.productId);
-          if (product) {
-            newCart.push({ product, quantity: item.quantity });
-          } else {
-            const existing = prevCart.find((it) => it.product.id === item.productId);
-            if (existing) {
-              newCart.push({ product: existing.product, quantity: item.quantity });
-            }
-          }
-        }
-        return newCart;
-      });
+    const unsubCart = subscribeUserCart(currentUser.uid, (remoteCartItems) => {
+      if (remoteCartItems.length > 0) {
+        setCart(remoteCartItems);
+      }
     });
 
     return () => {
@@ -241,75 +267,18 @@ export default function App() {
       unsubOrders();
       unsubCart();
     };
-  }, [currentUser, products]);
+  }, [currentUser]);
 
-  // Auth actions
-  const handleLogout = async () => {
+  // Sync cart to localStorage
+  useEffect(() => {
     try {
-      await signOut(auth);
-      setUserProfile(null);
-      setCurrentPage('store');
-    } catch (err) {
-      console.error('Logout error:', err);
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // fallback
     }
-  };
+  }, [cart]);
 
-  // Cart operations
-  const handleAddToCart = async (product: Product, quantity: number = 1) => {
-    const existing = cart.find((item) => item.product.id === product.id);
-    const newQuantity = (existing ? existing.quantity : 0) + quantity;
-
-    if (currentUser) {
-      try {
-        await saveCartItemToDb(currentUser.uid, product.id, newQuantity);
-      } catch (err) {
-        console.error('Cart sync error:', err);
-      }
-    } else {
-      setCart((prev) => {
-        if (existing) {
-          return prev.map((item) =>
-            item.product.id === product.id
-              ? { ...item, quantity: item.quantity + quantity }
-              : item
-          );
-        }
-        return [...prev, { product, quantity }];
-      });
-    }
-
-    setToastMessage(`Added ${product.name} to cart`);
-    setIsToastOpen(true);
-  };
-
-  const handleUpdateQuantity = async (productId: string, quantity: number) => {
-    if (currentUser) {
-      if (quantity <= 0) {
-        await removeCartItemFromDb(currentUser.uid, productId);
-      } else {
-        await saveCartItemToDb(currentUser.uid, productId, quantity);
-      }
-    } else {
-      if (quantity <= 0) {
-        handleRemoveItem(productId);
-        return;
-      }
-      setCart((prev) =>
-        prev.map((item) =>
-          item.product.id === productId ? { ...item, quantity } : item
-        )
-      );
-    }
-  };
-
-  const handleRemoveItem = async (productId: string) => {
-    if (currentUser) {
-      await removeCartItemFromDb(currentUser.uid, productId);
-    } else {
-      setCart((prev) => prev.filter((item) => item.product.id !== productId));
-    }
-  };
-
+  // Wishlist handler
   const handleToggleWishlist = async (productId: string) => {
     const isCurrentlyWishlisted = wishlistProductIds.includes(productId);
     const updated = isCurrentlyWishlisted
@@ -323,118 +292,139 @@ export default function App() {
       // fallback
     }
 
+    setToastMessage(isCurrentlyWishlisted ? 'Removed from wishlist' : 'Saved to wishlist');
+    setIsToastOpen(true);
+
     if (currentUser) {
-      await toggleWishlistItemInDb(currentUser.uid, productId, isCurrentlyWishlisted);
+      await toggleWishlistItemInDb(currentUser.uid, productId, !isCurrentlyWishlisted);
+    }
+  };
+
+  // Cart handlers
+  const handleAddToCart = async (product: Product, quantity = 1) => {
+    setCart((prev) => {
+      const existing = prev.find((item) => item.product.id === product.id);
+      if (existing) {
+        return prev.map((item) =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      return [...prev, { product, quantity }];
+    });
+
+    setToastMessage(`Added ${quantity} ${product.name} to cart`);
+    setIsToastOpen(true);
+
+    if (currentUser) {
+      const existing = cart.find((item) => item.product.id === product.id);
+      const newQty = (existing?.quantity || 0) + quantity;
+      await saveCartItemToDb(currentUser.uid, product, newQty);
+    }
+  };
+
+  const handleUpdateQuantity = async (productId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      handleRemoveItem(productId);
+      return;
     }
 
-    const prod = products.find((p) => p.id === productId);
-    setToastMessage(
-      isCurrentlyWishlisted
-        ? `Removed ${prod?.name || 'item'} from wishlist`
-        : `Added ${prod?.name || 'item'} to wishlist`
+    setCart((prev) =>
+      prev.map((item) =>
+        item.product.id === productId ? { ...item, quantity: newQuantity } : item
+      )
     );
-    setIsToastOpen(true);
+
+    if (currentUser) {
+      const item = cart.find((i) => i.product.id === productId);
+      if (item) {
+        await saveCartItemToDb(currentUser.uid, item.product, newQuantity);
+      }
+    }
+  };
+
+  const handleRemoveItem = async (productId: string) => {
+    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+    if (currentUser) {
+      await removeCartItemFromDb(currentUser.uid, productId);
+    }
   };
 
   const handleOrderComplete = async (order: OrderConfirmation) => {
-    if (currentUser) {
-      const pids = cart.map((c) => c.product.id);
-      await clearUserCartInDb(currentUser.uid, pids);
-      await saveUserOrderToDb(currentUser.uid, order);
-    }
     setOrders((prev) => [order, ...prev]);
     setCart([]);
+
+    if (currentUser) {
+      await saveUserOrderToDb(currentUser.uid, order);
+      await clearUserCartInDb(currentUser.uid);
+    } else {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    }
   };
 
-  const totalCartCount = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.quantity, 0);
-  }, [cart]);
+  const handleLogout = async () => {
+    await signOut(auth);
+    setToastMessage('Signed out successfully');
+    setIsToastOpen(true);
+  };
 
-  const currentCategoryData = useMemo(() => {
-    return categories.find((c) => c.name === selectedCategory);
-  }, [categories, selectedCategory]);
-
+  // Filtered and Sorted Products
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesCategory =
-        selectedCategory === 'All' || product.category === selectedCategory;
+    return products
+      .filter((product) => {
+        const matchesCategory =
+          selectedCategory === 'All' || product.category === selectedCategory;
+        const matchesSubcategory =
+          selectedSubcategory === 'All' || product.subcategory === selectedSubcategory;
+        const matchesSearch =
+          !searchQuery.trim() ||
+          product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (product.subcategory &&
+            product.subcategory.toLowerCase().includes(searchQuery.toLowerCase()));
 
-      const matchesSubcategory =
-        selectedSubcategory === 'All' || product.subcategory === selectedSubcategory;
-
-      const query = searchQuery.trim().toLowerCase();
-      const matchesSearch =
-        !query ||
-        product.name.toLowerCase().includes(query) ||
-        product.category.toLowerCase().includes(query) ||
-        (product.subcategory && product.subcategory.toLowerCase().includes(query)) ||
-        product.description.toLowerCase().includes(query);
-
-      return matchesCategory && matchesSubcategory && matchesSearch;
-    }).sort((a, b) => {
-      if (sortBy === 'price-asc') return a.price - b.price;
-      if (sortBy === 'price-desc') return b.price - a.price;
-      if (sortBy === 'rating-desc') return b.rating - a.rating;
-      return 0;
-    });
+        return matchesCategory && matchesSubcategory && matchesSearch;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'price-asc') return a.price - b.price;
+        if (sortBy === 'price-desc') return b.price - a.price;
+        if (sortBy === 'rating-desc') return b.rating - a.rating;
+        return 0;
+      });
   }, [products, selectedCategory, selectedSubcategory, searchQuery, sortBy]);
 
-  const handleProductSavedLocally = (product: Product) => {
-    setProducts((prev) => {
-      const idx = prev.findIndex((p) => p.id === product.id);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = product;
-        return updated;
-      }
-      return [product, ...prev];
-    });
-  };
+  const currentCategoryData = categories.find((c) => c.name === selectedCategory);
+  const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
-  const handleProductDeletedLocally = (productId: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
-  };
-
-  const handleCategorySavedLocally = (category: CategoryData) => {
-    setCategories((prev) => {
-      const idx = prev.findIndex((c) => c.id === category.id);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = category;
-        return updated;
-      }
-      return [...prev, category];
-    });
-  };
-
-  const handleCategoryDeletedLocally = (categoryId: string) => {
-    setCategories((prev) => prev.filter((c) => c.id !== categoryId));
-  };
-
-  // Dedicated separate Admin Portal Page
+  // Dedicated Admin Portal Page
   if (currentPage === 'admin') {
     return (
       <AdminPortal
-        onNavigateToStore={navigateToStore}
+        onNavigateToStore={() => navigateTo('store')}
         products={products}
         categories={categories}
-        bannerProductIds={bannerProductIds}
-        onBannerProductIdsChange={setBannerProductIds}
-        onProductSavedLocally={handleProductSavedLocally}
-        onProductDeletedLocally={handleProductDeletedLocally}
-        onCategorySavedLocally={handleCategorySavedLocally}
-        onCategoryDeletedLocally={handleCategoryDeletedLocally}
+        bannerSlides={bannerSlides}
+        onBannerSlidesChange={setBannerSlides}
+        announcements={announcements}
+        onAnnouncementsChange={setAnnouncements}
+        storeSettings={storeSettings}
+        onStoreSettingsChange={setStoreSettings}
+        onProductSavedLocally={(p) => setProducts((prev) => [p, ...prev.filter((i) => i.id !== p.id)])}
+        onProductDeletedLocally={(id) => setProducts((prev) => prev.filter((i) => i.id !== id))}
+        onCategorySavedLocally={(c) => setCategories((prev) => [c, ...prev.filter((i) => i.id !== c.id)])}
+        onCategoryDeletedLocally={(id) => setCategories((prev) => prev.filter((i) => i.id !== id))}
       />
     );
   }
 
-  // Dedicated separate Account Page
+  // Dedicated Account Page
   if (currentPage === 'account') {
     if (!currentUser) {
-      // If not logged in, route back to store and open auth modal
       return (
         <div className="min-h-screen bg-[#faf9f6] flex items-center justify-center p-4">
-          <div className="text-center bg-white p-8 rounded-2xl border border-neutral-200 max-w-md w-full shadow-sm">
+          <div className="text-center bg-white p-8 rounded-3xl max-w-md w-full shadow-sm">
             <h2 className="font-heading font-extrabold text-2xl text-neutral-900 mb-2">
               Sign In Required
             </h2>
@@ -443,14 +433,14 @@ export default function App() {
             </p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={navigateToStore}
-                className="px-4 py-2 border border-neutral-300 rounded-xl font-bold text-sm text-neutral-700 hover:bg-neutral-100 cursor-pointer"
+                onClick={() => navigateTo('store')}
+                className="px-4 py-2 bg-neutral-100 rounded-xl font-bold text-xs text-neutral-700 hover:bg-neutral-200 cursor-pointer"
               >
                 Back to Store
               </button>
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="px-5 py-2 bg-neutral-900 text-white rounded-xl font-bold text-sm hover:bg-neutral-800 cursor-pointer shadow-xs"
+                className="px-5 py-2 bg-neutral-900 text-white rounded-xl font-bold text-xs hover:bg-neutral-800 cursor-pointer shadow-xs"
               >
                 Sign In
               </button>
@@ -465,7 +455,28 @@ export default function App() {
     }
 
     return (
-      <>
+      <div className="min-h-screen bg-[#faf9f6] flex flex-col">
+        <AnnouncementBar
+          announcements={announcements}
+          onNavigateToShop={() => navigateTo('store')}
+        />
+        <Navbar
+          cartCount={totalCartCount}
+          wishlistCount={wishlistProductIds.length}
+          logoUrl={storeSettings.logoUrl}
+          onOpenCart={() => setIsCartOpen(true)}
+          onOpenAccount={(tab) => {
+            if (tab) setAccountInitialTab(tab);
+            navigateTo('account');
+          }}
+          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+          currentPage={currentPage}
+          currentUser={currentUser}
+          onLogin={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
+        />
         <AccountPage
           currentUser={currentUser}
           userProfile={userProfile}
@@ -473,7 +484,9 @@ export default function App() {
           wishlistProductIds={wishlistProductIds}
           products={products}
           orders={orders}
-          onNavigateToStore={navigateToStore}
+          initialTab={accountInitialTab}
+          logoUrl={storeSettings.logoUrl}
+          onNavigateToStore={() => navigateTo('store')}
           onLogout={handleLogout}
           onUpdateCartQuantity={handleUpdateQuantity}
           onRemoveFromCart={handleRemoveItem}
@@ -481,6 +494,26 @@ export default function App() {
           onToggleWishlist={handleToggleWishlist}
           onAddToCart={handleAddToCart}
           onViewProductDetails={(p) => setActiveProduct(p)}
+        />
+        <Footer
+          logoUrl={storeSettings.logoUrl}
+          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+        />
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          items={cart}
+          onUpdateQuantity={handleUpdateQuantity}
+          onRemoveItem={handleRemoveItem}
+          onProceedToCheckout={() => setIsCheckoutOpen(true)}
+        />
+        <CheckoutModal
+          isOpen={isCheckoutOpen}
+          onClose={() => setIsCheckoutOpen(false)}
+          items={cart}
+          onOrderComplete={handleOrderComplete}
         />
         <ProductModal
           product={activeProduct}
@@ -491,132 +524,207 @@ export default function App() {
           onToggleWishlist={handleToggleWishlist}
           onOpenAuth={() => setIsAuthModalOpen(true)}
         />
-        <CheckoutModal
-          isOpen={isCheckoutOpen}
-          onClose={() => setIsCheckoutOpen(false)}
-          items={cart}
-          onOrderComplete={handleOrderComplete}
+        <Toast
+          isOpen={isToastOpen}
+          message={toastMessage}
+          onClose={() => setIsToastOpen(false)}
+          onOpenCart={() => {
+            setIsToastOpen(false);
+            setIsCartOpen(true);
+          }}
         />
-      </>
+      </div>
     );
   }
 
-  // Pure customer website view
+  // Dedicated About Page
+  if (currentPage === 'about') {
+    return (
+      <div className="min-h-screen bg-[#faf9f6] flex flex-col">
+        <AnnouncementBar
+          announcements={announcements}
+          onNavigateToShop={() => navigateTo('store')}
+        />
+        <Navbar
+          cartCount={totalCartCount}
+          wishlistCount={wishlistProductIds.length}
+          logoUrl={storeSettings.logoUrl}
+          onOpenCart={() => setIsCartOpen(true)}
+          onOpenAccount={(tab) => {
+            if (!currentUser) {
+              setIsAuthModalOpen(true);
+            } else {
+              setAccountInitialTab(tab || 'profile');
+              navigateTo('account');
+            }
+          }}
+          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+          currentPage={currentPage}
+          currentUser={currentUser}
+          onLogin={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
+        />
+        <AboutPage onNavigateToStore={() => navigateTo('store')} />
+        <Footer
+          logoUrl={storeSettings.logoUrl}
+          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+        />
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          items={cart}
+          onUpdateQuantity={handleUpdateQuantity}
+          onRemoveItem={handleRemoveItem}
+          onProceedToCheckout={() => setIsCheckoutOpen(true)}
+        />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  // Dedicated Contact Page
+  if (currentPage === 'contact') {
+    return (
+      <div className="min-h-screen bg-[#faf9f6] flex flex-col">
+        <AnnouncementBar
+          announcements={announcements}
+          onNavigateToShop={() => navigateTo('store')}
+        />
+        <Navbar
+          cartCount={totalCartCount}
+          wishlistCount={wishlistProductIds.length}
+          logoUrl={storeSettings.logoUrl}
+          onOpenCart={() => setIsCartOpen(true)}
+          onOpenAccount={(tab) => {
+            if (!currentUser) {
+              setIsAuthModalOpen(true);
+            } else {
+              setAccountInitialTab(tab || 'profile');
+              navigateTo('account');
+            }
+          }}
+          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+          currentPage={currentPage}
+          currentUser={currentUser}
+          onLogin={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
+        />
+        <ContactPage onNavigateToStore={() => navigateTo('store')} />
+        <Footer
+          logoUrl={storeSettings.logoUrl}
+          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+        />
+        <CartDrawer
+          isOpen={isCartOpen}
+          onClose={() => setIsCartOpen(false)}
+          items={cart}
+          onUpdateQuantity={handleUpdateQuantity}
+          onRemoveItem={handleRemoveItem}
+          onProceedToCheckout={() => setIsCheckoutOpen(true)}
+        />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  // Pure Storefront Customer Website
   return (
     <div className="min-h-screen bg-[#faf9f6] text-neutral-900 flex flex-col font-sans">
-      {/* Top Navigation for Customers */}
+      {/* Running News / Offers Bar */}
+      <AnnouncementBar
+        announcements={announcements}
+        onNavigateToShop={() => navigateTo('store')}
+      />
+
+      {/* Top Navbar */}
       <Navbar
         cartCount={totalCartCount}
         wishlistCount={wishlistProductIds.length}
+        logoUrl={storeSettings.logoUrl}
         onOpenCart={() => setIsCartOpen(true)}
-        onOpenAccount={() => {
+        onOpenAccount={(tab) => {
           if (!currentUser) {
             setIsAuthModalOpen(true);
           } else {
-            setCurrentPage('account');
+            setAccountInitialTab(tab || 'profile');
+            navigateTo('account');
           }
         }}
-        onOpenWishlist={() => {
-          if (!currentUser) {
-            setIsAuthModalOpen(true);
-          } else {
-            setCurrentPage('account');
-          }
-        }}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onSelectCategory={(cat) => {
-          setSelectedCategory(cat);
-          setSelectedSubcategory('All');
-        }}
+        onNavigateToShop={() => navigateTo('store')}
+        onNavigateToAbout={() => navigateTo('about')}
+        onNavigateToContact={() => navigateTo('contact')}
+        currentPage={currentPage}
         currentUser={currentUser}
         onLogin={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
       />
 
       {/* Main Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
-        {/* Cover Photo Advertisement Banner */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        {/* Cover Photo Advertisement Carousel Banner */}
         <FeaturedBanner
+          slides={bannerSlides}
           products={products}
-          bannerProductIds={bannerProductIds}
           onAddToCart={(p) => handleAddToCart(p, 1)}
           onViewDetails={(p) => setActiveProduct(p)}
+          onNavigateToShop={() => {
+            const el = document.getElementById('shop-catalog-section');
+            el?.scrollIntoView({ behavior: 'smooth' });
+          }}
         />
 
-        {/* Controls Section: Categories and Sorting */}
-        <section aria-label="Product filters and sorting" className="mb-8 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-neutral-200">
-            {/* Interactive Category Filter Controls */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-              <button
-                onClick={() => {
-                  setSelectedCategory('All');
-                  setSelectedSubcategory('All');
-                }}
-                className={`px-4 py-2.5 rounded-xl text-base font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                  selectedCategory === 'All'
-                    ? 'bg-neutral-900 text-white shadow-xs'
-                    : 'bg-white text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 border border-neutral-200'
-                }`}
-              >
-                <span>All</span>
-                <span
-                  className={`ml-2 text-xs font-bold ${
-                    selectedCategory === 'All' ? 'text-neutral-300' : 'text-neutral-400'
-                  }`}
+        {/* Search Bar & Filters Section (Positioned Directly After Banner) */}
+        <section id="shop-catalog-section" aria-label="Product search and filters" className="mb-8 space-y-4">
+          {/* Search Bar & Sorting Controls Row */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Search input */}
+            <div className="relative flex-1 sm:max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search products or categories..."
+                className="w-full bg-white border border-stone-300 rounded-2xl pl-11 pr-10 py-3 text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
                 >
-                  ({products.length})
-                </span>
-              </button>
-
-              {categories.map((cat) => {
-                const isActive = selectedCategory === cat.name;
-                const count = products.filter((p) => p.category === cat.name).length;
-
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => {
-                      setSelectedCategory(cat.name);
-                      setSelectedSubcategory('All');
-                    }}
-                    className={`px-4 py-2.5 rounded-xl text-base font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                      isActive
-                        ? 'bg-neutral-900 text-white shadow-xs'
-                        : 'bg-white text-neutral-700 hover:text-neutral-900 hover:bg-neutral-100 border border-neutral-200'
-                    }`}
-                  >
-                    <span>{cat.name}</span>
-                    <span
-                      className={`ml-2 text-xs font-bold ${
-                        isActive ? 'text-neutral-300' : 'text-neutral-400'
-                      }`}
-                    >
-                      ({count})
-                    </span>
-                  </button>
-                );
-              })}
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
-            {/* Sort & Results Count */}
-            <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-              <span className="text-base text-neutral-600 font-medium">
-                <span className="font-heading font-bold text-neutral-900">{filteredProducts.length}</span>{' '}
-                {filteredProducts.length === 1 ? 'Product' : 'Products'}
+            {/* Sort Dropdown */}
+            <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+              <span className="text-xs text-neutral-500 font-medium">
+                <strong className="text-neutral-900 font-bold">{filteredProducts.length}</strong> Products
               </span>
 
-              <div className="flex items-center gap-2 bg-white border border-neutral-200 rounded-xl px-3 py-2 shadow-xs">
-                <ArrowUpDown className="h-4 w-4 text-neutral-400" />
-                <label htmlFor="sort-select" className="sr-only">
-                  Sort products
-                </label>
+              <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-2xl px-4 py-2.5 shadow-xs">
+                <ArrowUpDown className="h-3.5 w-3.5 text-neutral-400" />
                 <select
                   id="sort-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="bg-transparent text-base text-neutral-900 font-semibold focus:outline-none cursor-pointer"
+                  className="bg-transparent text-xs sm:text-sm text-neutral-900 font-semibold focus:outline-none cursor-pointer"
                 >
                   <option value="featured">Featured Order</option>
                   <option value="price-asc">Price: Low to High</option>
@@ -627,15 +735,60 @@ export default function App() {
             </div>
           </div>
 
+          {/* Category Filter Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
+            <button
+              onClick={() => {
+                setSelectedCategory('All');
+                setSelectedSubcategory('All');
+              }}
+              className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 border ${
+                selectedCategory === 'All'
+                  ? 'bg-[#283618] text-white border-[#445837] shadow-xs'
+                  : 'bg-white text-stone-700 hover:bg-stone-50 border-stone-200/90 shadow-xs'
+              }`}
+            >
+              <span>All</span>
+              <span className={`ml-1.5 text-xs ${selectedCategory === 'All' ? 'text-stone-300' : 'text-stone-400'}`}>
+                ({products.length})
+              </span>
+            </button>
+
+            {categories.map((cat) => {
+              const isActive = selectedCategory === cat.name;
+              const count = products.filter((p) => p.category === cat.name).length;
+
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => {
+                    setSelectedCategory(cat.name);
+                    setSelectedSubcategory('All');
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap cursor-pointer shrink-0 border ${
+                    isActive
+                      ? 'bg-[#283618] text-white border-[#445837] shadow-xs'
+                      : 'bg-white text-stone-700 hover:bg-stone-50 border-stone-200/90 shadow-xs'
+                  }`}
+                >
+                  <span>{cat.name}</span>
+                  <span className={`ml-1.5 text-xs ${isActive ? 'text-stone-300' : 'text-stone-400'}`}>
+                    ({count})
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Subcategories Filter Bar */}
           {currentCategoryData && currentCategoryData.subcategories.length > 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
               <button
                 onClick={() => setSelectedSubcategory('All')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                   selectedSubcategory === 'All'
-                    ? 'bg-neutral-900 text-white'
-                    : 'bg-white text-neutral-600 hover:text-neutral-900 border border-neutral-200'
+                    ? 'bg-[#283618] text-white'
+                    : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200/70'
                 }`}
               >
                 All Subcategories
@@ -646,8 +799,8 @@ export default function App() {
                   onClick={() => setSelectedSubcategory(sub)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer shrink-0 ${
                     selectedSubcategory === sub
-                      ? 'bg-neutral-900 text-white'
-                      : 'bg-white text-neutral-600 hover:text-neutral-900 border border-neutral-200'
+                      ? 'bg-[#283618] text-white'
+                      : 'bg-white text-stone-600 hover:text-stone-900 border border-stone-200/70'
                   }`}
                 >
                   {sub}
@@ -656,15 +809,15 @@ export default function App() {
             </div>
           )}
 
-          {/* Active Search indicator */}
+          {/* Active Search Result Tag */}
           {searchQuery && (
-            <div className="flex items-center justify-between bg-neutral-100 px-4 py-3 rounded-xl text-sm sm:text-base text-neutral-700">
+            <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl text-xs sm:text-sm text-neutral-700 shadow-xs">
               <span>
                 Search results for: <strong className="text-neutral-900">&quot;{searchQuery}&quot;</strong>
               </span>
               <button
                 onClick={() => setSearchQuery('')}
-                className="font-bold underline hover:text-neutral-900 cursor-pointer"
+                className="font-bold underline text-neutral-900 cursor-pointer"
               >
                 Clear Search
               </button>
@@ -672,17 +825,17 @@ export default function App() {
           )}
         </section>
 
-        {/* Product Grid */}
+        {/* Compact Product Grid: 4 in desktop, 3 in tablet, 2 in mobile */}
         {filteredProducts.length > 0 ? (
           <section
             aria-label="Products catalog"
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8"
+            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
           >
             {filteredProducts.map((product) => (
               <ProductCard
                 key={product.id}
                 product={product}
-                onAddToCart={(p) => handleAddToCart(p, 1)}
+                onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
                 onViewDetails={(p) => setActiveProduct(p)}
                 isWishlisted={wishlistProductIds.includes(product.id)}
                 onToggleWishlist={handleToggleWishlist}
@@ -690,13 +843,15 @@ export default function App() {
             ))}
           </section>
         ) : (
-          <div className="py-16 sm:py-20 text-center bg-white rounded-2xl border border-neutral-200 max-w-lg mx-auto p-6 sm:p-8 shadow-xs">
-            <div className="h-14 w-14 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 mx-auto mb-4">
-              <SlidersHorizontal className="h-6 w-6" />
+          <div className="py-16 text-center bg-white rounded-3xl max-w-md mx-auto p-6 sm:p-8 shadow-xs">
+            <div className="h-12 w-12 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 mx-auto mb-3">
+              <SlidersHorizontal className="h-5 w-5" />
             </div>
-            <h2 className="font-heading font-extrabold text-xl sm:text-2xl text-neutral-900 mb-2">No matching products found</h2>
-            <p className="text-base text-neutral-600 mb-6">
-              Try changing your search query or selecting another category filter.
+            <h2 className="font-heading font-extrabold text-xl text-neutral-900 mb-2">
+              No matching products found
+            </h2>
+            <p className="text-sm text-neutral-500 mb-5">
+              Try adjusting your search query or selecting another category filter.
             </p>
             <button
               onClick={() => {
@@ -704,7 +859,7 @@ export default function App() {
                 setSelectedSubcategory('All');
                 setSearchQuery('');
               }}
-              className="bg-neutral-900 text-white hover:bg-neutral-800 px-6 py-3 rounded-xl font-bold text-base transition-colors cursor-pointer"
+              className="bg-neutral-900 text-white hover:bg-neutral-800 px-5 py-2.5 rounded-xl font-bold text-xs transition-colors cursor-pointer shadow-xs"
             >
               Reset Filters
             </button>
@@ -712,15 +867,15 @@ export default function App() {
         )}
       </main>
 
-      {/* Clean Customer Footer */}
-      <footer className="border-t border-neutral-200 bg-white mt-16 py-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left text-base text-neutral-600">
-          <span className="font-heading font-extrabold text-neutral-900 text-lg">MAISON</span>
-          <span className="text-sm text-neutral-400">All rights reserved</span>
-        </div>
-      </footer>
+      {/* Global Footer */}
+      <Footer
+        logoUrl={storeSettings.logoUrl}
+        onNavigateToShop={() => navigateTo('store')}
+        onNavigateToAbout={() => navigateTo('about')}
+        onNavigateToContact={() => navigateTo('contact')}
+      />
 
-      {/* Modals and Drawers */}
+      {/* Modals & Drawers */}
       <ProductModal
         product={activeProduct}
         currentUser={currentUser}

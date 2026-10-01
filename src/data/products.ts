@@ -1,128 +1,193 @@
 import { Product } from '../types';
 
 export const PRODUCTS: Product[] = [
+  // 1. Elegant Women's Wear (Original Pakistani Dresses)
   {
-    id: 'prod-1',
-    name: 'Studio Pro Headphones',
-    category: 'Audio',
-    price: 32000,
-    description: 'Over-ear acoustic architecture with precision 40mm titanium drivers and 40 hour battery life.',
-    details: 'Engineered for neutral sound reproduction and long listening sessions. Features memory foam ear cushions wrapped in protein leather, active noise cancellation, and low latency Bluetooth 5.3.',
+    id: 'prod-pw-1',
+    name: 'Baroque Luxury Embroidered Chiffon 3-Piece',
+    category: "Elegant Women's Wear",
+    subcategory: 'Luxury Chiffon',
+    price: 13500,
+    description: '100% original imported Pakistani 3-piece luxury unstitched suit featuring heavy hand-embellished zari and sequin embroidery.',
+    details: 'Complete 3-piece designer suit. Embroidered chiffon front and back, heavy hand-embellished neckline patch, embroidered chiffon sleeves, digital printed silk dupatta, and dyed raw silk trousers.',
     specs: [
-      { label: 'Driver Size', value: '40mm Titanium' },
-      { label: 'Battery Life', value: '40 Hours' },
-      { label: 'Connectivity', value: 'Bluetooth 5.3 and 3.5mm Aux' },
-      { label: 'Charging', value: 'USB-C Fast Charging' },
-      { label: 'Weight', value: '265 grams' }
+      { label: 'Origin', value: '100% Original Pakistani Import' },
+      { label: 'Shirt Fabric', value: 'Pure Chiffon with Zari & Sequins' },
+      { label: 'Dupatta', value: 'Embroidered Net with 4-Side Lace' },
+      { label: 'Trouser', value: 'Dyed Raw Silk (2.5 Meters)' },
+      { label: 'Type', value: 'Unstitched 3-Piece Luxury Suit' }
     ],
-    image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80',
     additionalImages: [
-      'https://images.unsplash.com/photo-1484704849700-f032a568e944?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1546435770-a3e426bf472b?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
     rating: 0,
     reviewsCount: 0
   },
   {
-    id: 'prod-2',
-    name: 'Automatic Field Watch',
-    category: 'Timepieces',
-    price: 39500,
-    description: 'Mechanical movement encased in brushed 316L stainless steel with scratch resistant sapphire crystal.',
-    details: 'A resilient field watch designed for daily wear. Driven by a 24 jewel Japanese automatic movement with a 41 hour power reserve. Water resistant to 50 meters with Super-LumiNova hour markers.',
+    id: 'prod-pw-2',
+    name: 'Maria.B M.Prints Luxury Lawn 3-Piece',
+    category: "Elegant Women's Wear",
+    subcategory: 'Original Pakistani Lawn',
+    price: 9800,
+    description: 'Premium Pakistani combed lawn with intricate schiffli embroidered front, printed chiffon dupatta, and cambric trousers.',
+    details: 'Authentic designer lawn collection. Includes embroidered neckline patch, printed fine lawn front and back, organza embroidered sleeve borders, chiffon dupatta, and cotton dyed trousers.',
     specs: [
-      { label: 'Case Diameter', value: '38mm' },
-      { label: 'Movement', value: 'Japanese Automatic (24 Jewels)' },
-      { label: 'Glass', value: 'Double Domed Sapphire Crystal' },
-      { label: 'Water Resistance', value: '50 Meters / 5 ATM' },
-      { label: 'Strap', value: '20mm Horween Leather' }
+      { label: 'Origin', value: '100% Original Pakistani Brand' },
+      { label: 'Shirt Fabric', value: 'Superfine Combed Lawn' },
+      { label: 'Dupatta', value: 'Digital Printed Pure Chiffon' },
+      { label: 'Trouser', value: 'Dyed Cambric Cotton' },
+      { label: 'Type', value: 'Unstitched 3-Piece' }
     ],
-    image: 'https://images.unsplash.com/photo-1524805444758-089113d48a6d?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80',
     additionalImages: [
-      'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
     rating: 0,
     reviewsCount: 0
   },
   {
-    id: 'prod-3',
-    name: 'Stoneware Pour-Over Carafe',
-    category: 'Kitchen & Dining',
-    price: 7800,
-    description: 'Heat retentive stoneware dripper and matched carafe with a hand glazed matte volcanic stone finish.',
-    details: 'Hand thrown ceramic coffee maker optimized for extraction. The cone interior features balanced spiral ribs for consistent flow rate, while the thick ceramic walls preserve brew temperature.',
+    id: 'prod-pw-3',
+    name: 'Asim Jofa Festive Embroidered Organza Suit',
+    category: "Elegant Women's Wear",
+    subcategory: 'Festive Embroidered',
+    price: 15500,
+    description: 'Original Pakistani festive couture piece crafted on pure organza with tilla work and crushed silk dupatta.',
+    details: 'Grand formal festive dress. Fully embroidered organza kalis, embellished bodice, embroidered organza border for front and back daman, embroidered organza dupatta, and silk slip and trousers.',
     specs: [
-      { label: 'Carafe Volume', value: '650 ml' },
-      { label: 'Material', value: 'High Fire Stoneware Ceramic' },
-      { label: 'Compatibility', value: 'Standard Size 02 Paper Filters' },
-      { label: 'Care', value: 'Dishwasher and Microwave Safe' },
-      { label: 'Origin', value: 'Handmade in Portugal' }
+      { label: 'Origin', value: '100% Original Pakistani Formal' },
+      { label: 'Shirt Fabric', value: 'Embroidered Pure Organza' },
+      { label: 'Dupatta', value: 'Embroidered Organza with Tassels' },
+      { label: 'Slip & Trouser', value: 'Dyed Viscose Raw Silk' },
+      { label: 'Work Technique', value: 'Tilla, Dori and Threadwork' }
     ],
-    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1200&q=80',
     additionalImages: [
-      'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1498804103079-a6351b050096?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
     rating: 0,
     reviewsCount: 0
   },
   {
-    id: 'prod-4',
-    name: 'Heavyweight Merino Overshirt',
-    category: 'Apparel',
-    price: 22500,
-    description: 'Dense 350 GSM boiled merino wool with genuine horn buttons and twin utility chest pockets.',
-    details: 'Constructed from extra fine Australian merino wool naturally resistant to wind, moisture, and odors. Tailored with reinforced seams, clean button cuffs, and a versatile structured collar.',
+    id: 'prod-pw-4',
+    name: 'Sana Safinaz Muzlin Festive 3-Piece',
+    category: "Elegant Women's Wear",
+    subcategory: 'Original Pakistani Lawn',
+    price: 8900,
+    description: 'Contemporary original Pakistani silhouette with digital printed lawn, resham threadwork, and printed woven net dupatta.',
+    details: 'Original Pakistani designer daily luxury wear. Breathable high-density lawn shirt with resham floral embroidery, woven net dupatta with printed borders, and tailored cotton trousers.',
     specs: [
-      { label: 'Material', value: '100% Boiled Merino Wool' },
-      { label: 'Weight', value: '350 GSM Heavyweight' },
-      { label: 'Hardware', value: 'Natural Horn Buttons' },
-      { label: 'Fit', value: 'Relaxed Tailored Cut' },
-      { label: 'Care', value: 'Dry Clean Only' }
+      { label: 'Origin', value: '100% Original Pakistani Import' },
+      { label: 'Shirt Fabric', value: 'Digital Printed Slub Lawn' },
+      { label: 'Dupatta', value: 'Printed Woven Net' },
+      { label: 'Trouser', value: 'Dyed Cotton' },
+      { label: 'Type', value: 'Unstitched 3-Piece' }
     ],
-    image: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?auto=format&fit=crop&w=1200&q=80',
     additionalImages: [
-      'https://images.unsplash.com/photo-1576995853123-5a10305d93c0?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80'
+    ],
+    inStock: true,
+    rating: 0,
+    reviewsCount: 0
+  },
+
+  // 2. Home Decor (Bedsheets & Comforters)
+  {
+    id: 'prod-hd-1',
+    name: '1000 TC Egyptian Cotton King Bedsheet Set',
+    category: 'Home Decor',
+    subcategory: 'Bedsheets',
+    price: 7500,
+    description: 'Ultra-luxurious 1000 thread count sateen weave sheet set with deep pocket fitted sheet, flat sheet, and 2 pillowcases.',
+    details: 'Woven from 100% certified long-staple Egyptian cotton. Silky smooth sateen finish with high breathability and anti-pilling durability. Fits king mattresses up to 16 inches deep.',
+    specs: [
+      { label: 'Material', value: '100% Long-Staple Egyptian Cotton' },
+      { label: 'Thread Count', value: '1000 TC Sateen Weave' },
+      { label: 'Set Includes', value: '1 Flat Sheet, 1 Fitted Sheet, 2 Pillowcases' },
+      { label: 'Bed Size', value: 'King (7.5 ft x 8 ft)' },
+      { label: 'Care', value: 'Machine Washable at 40°C' }
+    ],
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80',
+    additionalImages: [
+      'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
     rating: 0,
     reviewsCount: 0
   },
   {
-    id: 'prod-5',
-    name: 'Tuscan Leather Briefcase',
-    category: 'Leather Goods',
-    price: 48000,
-    description: 'Vegetable tanned full grain leather with solid brushed brass hardware and a padded 16 inch laptop compartment.',
-    details: 'Built by heritage leather artisans in Tuscany. Treated with natural vegetable waxes that develop a rich patina through years of use. Includes a removable padded shoulder strap and dual organizer pockets.',
+    id: 'prod-hd-2',
+    name: 'Royal Velvet Quilted Winter Comforter Set',
+    category: 'Home Decor',
+    subcategory: 'Comforters',
+    price: 11500,
+    description: 'Plush velvet quilted king comforter filled with 400 GSM microfiber down alternative, including 2 pillow shams.',
+    details: 'Opulent winter warmth. Features diamond stitch quilting on crushed micro-velvet with a soft brushed cotton underside for breathable sleeping comfort. Hypoallergenic and lightweight yet thermal.',
     specs: [
-      { label: 'Leather Type', value: 'Full Grain Tuscan Cowhide' },
-      { label: 'Hardware', value: 'Solid Antiqued Brass' },
-      { label: 'Capacity', value: 'Fits up to 16 inch Laptops' },
-      { label: 'Dimensions', value: '41cm x 30cm x 9cm' },
-      { label: 'Strap', value: 'Detachable Cotton Canvas & Leather' }
+      { label: 'Top Fabric', value: 'Premium Crushed Micro-Velvet' },
+      { label: 'Reverse Fabric', value: '100% Brushed Cotton' },
+      { label: 'Filling', value: '400 GSM Microfiber Down Alternative' },
+      { label: 'Dimensions', value: 'King (90 x 100 Inches)' },
+      { label: 'Set Includes', value: '1 King Comforter, 2 Pillow Shams' }
     ],
-    image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
     additionalImages: [
-      'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80'
+    ],
+    inStock: true,
+    rating: 0,
+    reviewsCount: 0
+  },
+  {
+    id: 'prod-hd-3',
+    name: 'Hotel Satin Stripe Luxury Bedsheet Set',
+    category: 'Home Decor',
+    subcategory: 'Bedsheets',
+    price: 6200,
+    description: 'Classic 1cm damask satin stripe sheets crafted from 100% combed cotton with cool, crisp hotel-grade comfort.',
+    details: 'Engineered for luxury hospitality comfort. 600 thread count combed cotton provides crisp softness and temperature regulation for year-round restful sleep.',
+    specs: [
+      { label: 'Material', value: '100% Combed Cotton' },
+      { label: 'Pattern', value: '1cm Damask Satin Stripe' },
+      { label: 'Thread Count', value: '600 TC Hotel Grade' },
+      { label: 'Set Includes', value: '1 Flat Sheet (100x108 in), 2 Pillow Covers' },
+      { label: 'Finish', value: 'Mercerized Lustre Finish' }
+    ],
+    image: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1200&q=80',
+    additionalImages: [
+      'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80'
+    ],
+    inStock: true,
+    rating: 0,
+    reviewsCount: 0
+  },
+  {
+    id: 'prod-hd-4',
+    name: 'All-Season Sateen Cloud Comforter',
+    category: 'Home Decor',
+    subcategory: 'Comforters',
+    price: 9500,
+    description: 'Box-stitched lightweight comforter with silky 300 TC cotton sateen shell and cloud-soft microfiber loft.',
+    details: 'Designed for moderate and air-conditioned bedrooms. Baffle box construction keeps fill evenly distributed without shifting or clumping. Machine washable on gentle cycle.',
+    specs: [
+      { label: 'Outer Shell', value: '100% Cotton Sateen (300 TC)' },
+      { label: 'Filling', value: '300 GSM Virgin Hollowfiber' },
+      { label: 'Construction', value: 'End-to-End Baffle Box Stitching' },
+      { label: 'Size', value: 'Queen / King (88 x 96 Inches)' },
+      { label: 'Hypoallergenic', value: 'Yes, Dust-Mite Resistant' }
+    ],
+    image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1200&q=80',
+    additionalImages: [
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80'
     ],
     inStock: true,
     rating: 0,
     reviewsCount: 0
   }
 ];
-
-export const CATEGORIES = [
-  'All',
-  'Audio',
-  'Timepieces',
-  'Kitchen & Dining',
-  'Apparel',
-  'Leather Goods'
-] as const;

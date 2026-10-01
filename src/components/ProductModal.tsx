@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Star, Plus, Minus, ShoppingBag, Heart, MessageSquare, Check, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Star, Plus, Minus, ShoppingBag, Heart, MessageSquare, Check, AlertCircle, Sparkles } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Product, ProductReview } from '../types';
 import { formatBDT } from '../utils/format';
@@ -14,6 +14,14 @@ interface ProductModalProps {
   onToggleWishlist?: (productId: string) => void;
   onOpenAuth: () => void;
 }
+
+const PREBUILT_COMMENTS = [
+  'Outstanding build quality and craftsmanship.',
+  'Fast and secure delivery, authentic piece.',
+  'Exceeded my expectations, true to description.',
+  'Clean aesthetics and very comfortable to use.',
+  'Great value for money, highly recommended.'
+];
 
 const RATING_LABELS: Record<number, string> = {
   1: '1 Star - Poor',
@@ -45,8 +53,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [reviewNotice, setReviewNotice] = useState<string>('');
   const [reviewError, setReviewError] = useState<string>('');
 
-  const reviewFormRef = useRef<HTMLDivElement>(null);
-
   useEffect(() => {
     if (product) {
       setSelectedImage(product.image);
@@ -56,8 +62,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setReviewError('');
       setNewComment('');
       setNewRating(5);
+      setHoverRating(0);
 
-      // Subscribe to real-time reviews from Firestore database
       const unsub = subscribeProductReviews(product.id, (liveReviews) => {
         setReviews(liveReviews);
       });
@@ -96,11 +102,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     onClose();
   };
 
-  const scrollToReviewForm = (presetStar?: number) => {
-    if (presetStar) {
-      setNewRating(presetStar);
+  const handleSelectPrebuiltComment = (commentText: string) => {
+    if (!newComment.trim()) {
+      setNewComment(commentText);
+    } else if (!newComment.includes(commentText)) {
+      setNewComment(`${newComment} ${commentText}`);
     }
-    reviewFormRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -124,7 +131,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
     setIsSubmittingReview(false);
     if (res.success) {
-      setReviewNotice('Thank you! Your review and star rating have been saved.');
+      setReviewNotice('Thank you! Your review and rating have been saved.');
       setNewComment('');
       setTimeout(() => setReviewNotice(''), 4000);
     } else {
@@ -132,7 +139,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     }
   };
 
-  // When no reviews exist in database, default to 0.0 score and 0 reviews
   const hasReviews = reviews.length > 0;
   const effectiveRatingNumber = hasReviews
     ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length
@@ -141,7 +147,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const effectiveRating = effectiveRatingNumber > 0 ? effectiveRatingNumber.toFixed(1) : '0.0';
   const effectiveCount = hasReviews ? reviews.length : (product.reviewsCount || 0);
 
-  // Star breakdown calculation
   const ratingCounts: Record<number, number> = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
   if (hasReviews) {
     reviews.forEach((r) => {
@@ -177,6 +182,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     );
   };
 
+  const displayedRatingValue = hoverRating > 0 ? hoverRating : newRating;
+
   return (
     <div
       role="dialog"
@@ -186,7 +193,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
     >
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-neutral-200 z-10 my-8">
+      <div className="relative bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl z-10 my-8">
         <button
           onClick={onClose}
           aria-label="Close modal"
@@ -197,8 +204,8 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Gallery Column */}
-          <div className="p-6 md:p-8 bg-neutral-50/80 flex flex-col justify-between border-b md:border-b-0 md:border-r border-neutral-200">
-            <div className="aspect-4/3 rounded-2xl overflow-hidden bg-white border border-neutral-200 shadow-xs mb-4">
+          <div className="p-6 md:p-8 bg-neutral-50 flex flex-col justify-between">
+            <div className="aspect-4/3 rounded-2xl overflow-hidden bg-white shadow-xs mb-4">
               <img
                 src={selectedImage || product.image}
                 alt={product.name}
@@ -213,10 +220,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <button
                     key={i}
                     onClick={() => setSelectedImage(img)}
-                    className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
+                    className={`relative w-16 h-16 rounded-xl overflow-hidden shadow-xs transition-all shrink-0 cursor-pointer ${
                       selectedImage === img
-                        ? 'border-neutral-900 ring-2 ring-neutral-900/20'
-                        : 'border-transparent opacity-70 hover:opacity-100'
+                        ? 'ring-2 ring-neutral-900 scale-105'
+                        : 'opacity-70 hover:opacity-100'
                     }`}
                   >
                     <img
@@ -235,15 +242,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             <div>
               {/* Header Info */}
               <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-neutral-500">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
                   {product.category}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => scrollToReviewForm()}
-                  className="flex items-center gap-1.5 hover:underline cursor-pointer"
-                  title="Jump to reviews"
-                >
+                <div className="flex items-center gap-1.5">
                   {renderStars(effectiveRatingNumber, 'h-4 w-4')}
                   <span className="font-bold text-sm text-neutral-900">
                     {effectiveRating}
@@ -251,7 +253,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <span className="text-neutral-400 text-xs">
                     ({effectiveCount})
                   </span>
-                </button>
+                </div>
               </div>
 
               <h1 className="font-heading font-extrabold text-2xl sm:text-3xl text-neutral-900 mb-3">
@@ -264,54 +266,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </span>
               </div>
 
-              {/* Quick Star Rating Bar for User */}
-              <div className="mb-5 p-3.5 bg-neutral-50 border border-neutral-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div>
-                  <span className="text-xs font-bold text-neutral-800 block">
-                    Rate this product:
-                  </span>
-                  <span className="text-[11px] text-neutral-500">
-                    Click a star to give your score
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => {
-                        if (!currentUser) {
-                          onOpenAuth();
-                        } else {
-                          scrollToReviewForm(star);
-                        }
-                      }}
-                      className="p-1 rounded hover:scale-115 transition-transform cursor-pointer"
-                      title={RATING_LABELS[star]}
-                      aria-label={RATING_LABELS[star]}
-                    >
-                      <Star className="h-6 w-6 text-neutral-300 hover:text-amber-400 hover:fill-amber-400" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Description */}
               <div className="prose prose-neutral mb-6 text-sm text-neutral-600 leading-relaxed">
                 <p>{product.details || product.description}</p>
               </div>
 
               {/* Specifications */}
-              <div className="border-t border-neutral-100 pt-4 mb-6">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
+              <div className="pt-2 mb-6">
+                <span className="text-xs font-bold uppercase tracking-wider text-neutral-400 block mb-3">
                   Specifications
-                </h2>
+                </span>
                 <dl className="grid grid-cols-1 gap-2 text-sm">
                   {product.specs.map((spec, i) => (
-                    <div key={i} className="flex justify-between py-1 border-b border-neutral-50 last:border-0">
-                      <dt className="text-neutral-500 font-medium">{spec.label}</dt>
-                      <dd className="text-neutral-900 font-semibold">{spec.value}</dd>
+                    <div key={i} className="flex justify-between py-1.5 px-3 bg-neutral-50 rounded-lg">
+                      <dt className="text-neutral-500 font-medium text-xs">{spec.label}</dt>
+                      <dd className="text-neutral-900 font-semibold text-xs">{spec.value}</dd>
                     </div>
                   ))}
                 </dl>
@@ -320,9 +289,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 
             <div>
               {/* Quantity and Actions */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-6">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mb-2">
                 {/* Stepper */}
-                <div className="flex items-center justify-between border border-neutral-300 rounded-xl px-3 py-2.5 bg-neutral-50 sm:w-36">
+                <div className="flex items-center justify-between rounded-xl px-3 py-2.5 bg-neutral-100 sm:w-36">
                   <button
                     onClick={handleDecrease}
                     disabled={quantity <= 1}
@@ -347,9 +316,9 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 {/* Add Button */}
                 <button
                   onClick={handleAdd}
-                  className="flex-1 flex items-center justify-center gap-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer active:scale-98"
+                  className="flex-1 flex items-center justify-center gap-2.5 bg-[#283618] hover:bg-[#1f2b12] text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer active:scale-98 border border-[#445837]"
                 >
-                  <ShoppingBag className="h-5 w-5" />
+                  <Plus className="h-5 w-5 text-stone-200" />
                   <span>Add to Cart ({quantity})</span>
                 </button>
 
@@ -358,10 +327,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   <button
                     type="button"
                     onClick={() => onToggleWishlist(product.id)}
-                    className={`p-3.5 rounded-xl border transition-colors flex items-center justify-center cursor-pointer ${
+                    className={`p-3.5 rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
                       isWishlisted
-                        ? 'border-red-200 bg-red-50 text-red-600'
-                        : 'border-neutral-300 text-neutral-700 hover:bg-neutral-100'
+                        ? 'bg-red-50 text-red-600'
+                        : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
                     }`}
                     aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
                   >
@@ -374,29 +343,21 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         </div>
 
         {/* Database Customer Reviews & Stars Average Section */}
-        <div className="border-t border-neutral-200 p-6 md:p-8 bg-neutral-50/50">
+        <div className="p-6 md:p-8 bg-neutral-50">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5 text-neutral-900" />
               <h2 className="font-heading font-extrabold text-xl text-neutral-900">
-                Customer Reviews & Ratings
+                Customer Reviews
               </h2>
             </div>
-
-            <button
-              type="button"
-              onClick={() => scrollToReviewForm()}
-              className="text-xs font-bold bg-neutral-900 text-white px-3.5 py-1.5 rounded-lg hover:bg-neutral-800 cursor-pointer shadow-xs"
-            >
-              Write a Review
-            </button>
           </div>
 
           {/* Stars Average and Score Card */}
-          <div className="bg-white rounded-2xl border border-neutral-200 p-6 mb-8 shadow-xs">
+          <div className="bg-white rounded-2xl p-6 mb-8 shadow-xs">
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
               {/* Overall Score Box */}
-              <div className="md:col-span-5 flex flex-col items-center justify-center text-center p-4 border-b md:border-b-0 md:border-r border-neutral-200">
+              <div className="md:col-span-5 flex flex-col items-center justify-center text-center p-4">
                 <span className="font-heading font-extrabold text-5xl text-neutral-900 mb-1">
                   {effectiveRating}
                 </span>
@@ -435,7 +396,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </span>
 
                       {/* Bar */}
-                      <div className="flex-1 bg-neutral-100 rounded-full h-2.5 overflow-hidden border border-neutral-200">
+                      <div className="flex-1 bg-neutral-100 rounded-full h-2.5 overflow-hidden">
                         <div
                           className="bg-neutral-900 h-full rounded-full transition-all duration-500"
                           style={{ width: `${pct}%` }}
@@ -467,57 +428,53 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             </div>
           </div>
 
-          {/* User Star Giving Option & Review Form */}
-          <div
-            ref={reviewFormRef}
-            className="bg-white rounded-2xl border-2 border-neutral-900/10 p-5 mb-8 shadow-sm"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-heading font-extrabold text-base text-neutral-900">
-                Give Your Rating & Review
-              </h3>
-              <span className="text-xs font-semibold text-neutral-500">
-                {currentUser ? `Reviewing as ${currentUser.displayName || currentUser.email}` : 'Sign in to review'}
-              </span>
-            </div>
+          {/* Single Clean Review & Star Giving Form */}
+          <div className="bg-white rounded-2xl p-6 mb-8 shadow-xs">
+            <h3 className="font-heading font-extrabold text-base text-neutral-900 mb-4">
+              Write a Review
+            </h3>
 
             {reviewNotice && (
-              <div className="mb-4 p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <div className="mb-4 p-3.5 bg-emerald-50 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                 <Check className="h-4 w-4 text-emerald-600 shrink-0" />
                 <span>{reviewNotice}</span>
               </div>
             )}
 
             {reviewError && (
-              <div className="mb-4 p-3 bg-red-50 text-red-800 border border-red-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <div className="mb-4 p-3.5 bg-red-50 text-red-800 rounded-xl text-xs font-semibold flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
                 <span>{reviewError}</span>
               </div>
             )}
 
             {!currentUser ? (
-              <div className="py-5 text-center bg-neutral-50 rounded-xl border border-neutral-200">
+              <div className="py-6 text-center bg-neutral-50 rounded-xl">
                 <p className="text-sm font-semibold text-neutral-800 mb-1">
-                  Want to rate this product?
+                  Want to review this product?
                 </p>
                 <p className="text-xs text-neutral-500 mb-4">
-                  Sign in with your email and password to submit your star rating and feedback.
+                  Sign in with your email and password to share your experience.
                 </p>
                 <button
                   type="button"
                   onClick={onOpenAuth}
                   className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-6 py-2.5 rounded-xl cursor-pointer shadow-xs transition-colors"
                 >
-                  Sign In to Rate & Review
+                  Sign In to Review
                 </button>
               </div>
             ) : (
               <form onSubmit={handleSubmitReview} className="space-y-4">
+                {/* Clean Star Rating Picker with Smooth Hover */}
                 <div>
-                  <label className="block text-xs font-bold text-neutral-800 mb-2">
-                    Select Your Star Rating:
+                  <label className="block text-xs font-bold text-neutral-700 mb-2">
+                    Your Rating
                   </label>
-                  <div className="flex flex-wrap items-center gap-2 bg-neutral-50 p-3 rounded-xl border border-neutral-200">
+                  <div
+                    className="inline-flex items-center gap-2 bg-neutral-50 p-2 rounded-xl"
+                    onMouseLeave={() => setHoverRating(0)}
+                  >
                     <div className="flex items-center gap-1">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button
@@ -525,14 +482,13 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                           type="button"
                           onClick={() => setNewRating(star)}
                           onMouseEnter={() => setHoverRating(star)}
-                          onMouseLeave={() => setHoverRating(0)}
-                          className="p-1.5 rounded-lg hover:bg-white transition-all cursor-pointer"
+                          className="p-1 rounded-lg hover:scale-115 transition-transform cursor-pointer"
                           aria-label={RATING_LABELS[star]}
                         >
                           <Star
-                            className={`h-7 w-7 transition-all ${
-                              (hoverRating || newRating) >= star
-                                ? 'fill-amber-400 text-amber-400 scale-110'
+                            className={`h-7 w-7 transition-colors ${
+                              displayedRatingValue >= star
+                                ? 'fill-amber-400 text-amber-400'
                                 : 'text-neutral-300'
                             }`}
                           />
@@ -540,22 +496,46 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       ))}
                     </div>
 
-                    <span className="text-xs font-bold text-neutral-900 bg-white px-3 py-1.5 rounded-lg border border-neutral-200 ml-auto">
-                      {RATING_LABELS[hoverRating || newRating]}
+                    <span className="text-xs font-bold text-neutral-800 bg-white px-3 py-1.5 rounded-lg shadow-xs ml-2">
+                      {RATING_LABELS[displayedRatingValue]}
                     </span>
                   </div>
                 </div>
 
+                {/* Pre-built Comment Chips */}
                 <div>
-                  <label className="block text-xs font-bold text-neutral-800 mb-1.5">
-                    Your Review Comments:
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                    <span className="text-xs font-bold text-neutral-700">
+                      Quick Suggestions (Click to add):
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {PREBUILT_COMMENTS.map((chip, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => handleSelectPrebuiltComment(chip)}
+                        className="text-xs font-medium bg-neutral-100 hover:bg-neutral-200 text-neutral-800 px-3 py-1.5 rounded-lg transition-colors cursor-pointer text-left"
+                      >
+                        + {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Review Text */}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+                    Your Review
                   </label>
                   <textarea
                     required
                     rows={3}
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
-                    className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 shadow-xs"
+                    placeholder="Describe your experience with this product..."
+                    className="w-full bg-white border border-stone-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                   />
                 </div>
 
@@ -565,7 +545,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                     disabled={isSubmittingReview}
                     className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold text-xs px-6 py-2.5 rounded-xl cursor-pointer shadow-xs transition-colors"
                   >
-                    {isSubmittingReview ? 'Submitting...' : 'Submit Star Rating & Review'}
+                    {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
                   </button>
                 </div>
               </form>
@@ -577,14 +557,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
             {filteredReviews.length === 0 ? (
               <div className="text-center py-8 text-neutral-500 text-sm">
                 {filterRating
-                  ? `No ${filterRating}-star reviews found.`
+                  ? `No ${filterRating} star reviews found.`
                   : 'No customer reviews yet. Be the first to rate and review this product.'}
               </div>
             ) : (
               filteredReviews.map((rev) => (
                 <div
                   key={rev.id}
-                  className="p-4 bg-white border border-neutral-200 rounded-2xl shadow-2xl/2 flex flex-col gap-2"
+                  className="p-4 bg-white rounded-2xl shadow-xs flex flex-col gap-2"
                 >
                   <div className="flex items-center justify-between">
                     <div>

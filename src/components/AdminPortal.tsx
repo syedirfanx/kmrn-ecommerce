@@ -13,9 +13,13 @@ import {
   Lock,
   ArrowLeft,
   Layout,
+  Megaphone,
+  Calendar,
+  X,
+  Image as ImageIcon,
   Sparkles
 } from 'lucide-react';
-import { Product, CategoryData } from '../types';
+import { Product, CategoryData, BannerSlide, AnnouncementItem, StoreSettings } from '../types';
 import { formatBDT } from '../utils/format';
 import { ADMIN_CREDENTIALS } from '../config/adminAuth';
 import { ImageCropperModal } from './ImageCropperModal';
@@ -24,15 +28,22 @@ import {
   deleteProductFromDb,
   saveCategoryToDb,
   deleteCategoryFromDb,
-  saveBannerSettings
+  saveBannerSlides,
+  saveAnnouncements,
+  saveStoreSettings
 } from '../services/storeService';
+import { Logo } from './Logo';
 
 interface AdminPortalProps {
   onNavigateToStore: () => void;
   products: Product[];
   categories: CategoryData[];
-  bannerProductIds: string[];
-  onBannerProductIdsChange?: (ids: string[]) => void;
+  bannerSlides: BannerSlide[];
+  onBannerSlidesChange?: (slides: BannerSlide[]) => void;
+  announcements: AnnouncementItem[];
+  onAnnouncementsChange?: (items: AnnouncementItem[]) => void;
+  storeSettings?: StoreSettings;
+  onStoreSettingsChange?: (settings: StoreSettings) => void;
   onProductSavedLocally: (product: Product) => void;
   onProductDeletedLocally: (productId: string) => void;
   onCategorySavedLocally: (category: CategoryData) => void;
@@ -43,14 +54,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onNavigateToStore,
   products,
   categories,
-  bannerProductIds,
-  onBannerProductIdsChange,
+  bannerSlides,
+  onBannerSlidesChange,
+  announcements,
+  onAnnouncementsChange,
+  storeSettings,
+  onStoreSettingsChange,
   onProductSavedLocally,
   onProductDeletedLocally,
   onCategorySavedLocally,
   onCategoryDeletedLocally
 }) => {
-  // Admin authentication state based on hardcoded credentials
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
     try {
       return localStorage.getItem('maison_admin_session') === 'active';
@@ -63,64 +77,93 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banner'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'categories' | 'banner' | 'announcements' | 'branding'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
-  const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Banner selection state for exactly 3 products
-  const [selectedBannerIds, setSelectedBannerIds] = useState<string[]>(() => {
-    if (bannerProductIds && bannerProductIds.length >= 3) {
-      return bannerProductIds.slice(0, 3);
-    }
-    return products.slice(0, 3).map((p) => p.id);
-  });
-  const [isSavingBanner, setIsSavingBanner] = useState(false);
+  // Image Cropper State
+  const [isCropperOpen, setIsCropperOpen] = useState(false);
+  const [cropperTarget, setCropperTarget] = useState<{ type: 'product' | 'banner' | 'logo'; index?: number }>({ type: 'product' });
 
-  useEffect(() => {
-    if (bannerProductIds && bannerProductIds.length > 0) {
-      setSelectedBannerIds(bannerProductIds.slice(0, 3));
-    } else if (products.length >= 3 && selectedBannerIds.length < 3) {
-      setSelectedBannerIds(products.slice(0, 3).map((p) => p.id));
-    }
-  }, [bannerProductIds, products]);
+  // Store Logo Branding State
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string>(storeSettings?.logoUrl || '');
+  const [isSavingLogo, setIsSavingLogo] = useState(false);
 
-  // Product form state
+  // 3-Image Product State
+  const [productImages, setProductImages] = useState<[string, string, string]>(['', '', '']);
+
+  // Product Form Data
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
     category: categories[0]?.name || 'Audio',
     subcategory: '',
-    price: 10000,
+    price: 15000,
     description: '',
     details: '',
-    image: '',
-    inStock: true
+    specs: [{ label: 'Origin', value: 'Imported' }],
+    inStock: true,
+    rating: 0,
+    reviewsCount: 0
   });
 
-  // Category form state
+  // Category Form State
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [selectedCatForSub, setSelectedCatForSub] = useState<string>(categories[0]?.id || '');
+  const [selectedCatForSub, setSelectedCatForSub] = useState('');
   const [newSubcategoryName, setNewSubcategoryName] = useState('');
-  const [statusNotice, setStatusNotice] = useState<string>('');
-  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  // Banner Slides State (2 to 5 slides)
+  const [localBannerSlides, setLocalBannerSlides] = useState<BannerSlide[]>(() => {
+    return bannerSlides && bannerSlides.length >= 2 ? bannerSlides : [];
+  });
+  const [isSavingBanner, setIsSavingBanner] = useState(false);
+
+  // Announcements State
+  const [localAnnouncements, setLocalAnnouncements] = useState<AnnouncementItem[]>(() => {
+    return announcements || [];
+  });
+  const [newAnnouncementText, setNewAnnouncementText] = useState('');
+  const [newAnnouncementLinkText, setNewAnnouncementLinkText] = useState('Shop Now');
+  const [newAnnouncementLinkUrl, setNewAnnouncementLinkUrl] = useState('#shop');
+  const [newAnnouncementStartDate, setNewAnnouncementStartDate] = useState('');
+  const [newAnnouncementEndDate, setNewAnnouncementEndDate] = useState('');
+  const [isSavingAnnouncements, setIsSavingAnnouncements] = useState(false);
+
+  // UI Toast State
+  const [statusNotice, setStatusNotice] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
+    type: 'product' | 'category' | 'banner' | 'announcement';
+    id: string;
+    name: string;
+    index?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (bannerSlides && bannerSlides.length > 0) {
+      setLocalBannerSlides(bannerSlides);
+    }
+  }, [bannerSlides]);
+
+  useEffect(() => {
+    if (announcements) {
+      setLocalAnnouncements(announcements);
+    }
+  }, [announcements]);
 
   const handleAdminLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-
     if (
-      usernameInput.trim() === ADMIN_CREDENTIALS.username &&
-      passwordInput.trim() === ADMIN_CREDENTIALS.password
+      usernameInput === ADMIN_CREDENTIALS.username &&
+      passwordInput === ADMIN_CREDENTIALS.password
     ) {
       setIsAdminLoggedIn(true);
       try {
         localStorage.setItem('maison_admin_session', 'active');
       } catch {
-        // fallback
+        // storage fallback
       }
-      setUsernameInput('');
-      setPasswordInput('');
     } else {
       setLoginError('Invalid username or password.');
     }
@@ -135,8 +178,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
+  // Product actions
   const openNewProductForm = () => {
     setEditingProduct(null);
+    setProductImages(['https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80', '', '']);
     setFormData({
       id: `prod-${Date.now()}`,
       name: '',
@@ -145,7 +190,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       price: 15000,
       description: '',
       details: '',
-      image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=1200&q=80',
       specs: [{ label: 'Origin', value: 'Imported' }],
       inStock: true,
       rating: 0,
@@ -156,61 +200,133 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const openEditProductForm = (product: Product) => {
     setEditingProduct(product);
+    const img1 = product.image || '';
+    const img2 = product.additionalImages?.[0] || '';
+    const img3 = product.additionalImages?.[1] || '';
+    setProductImages([img1, img2, img3]);
     setFormData({ ...product });
     setIsProductFormOpen(true);
   };
 
   const handleCropComplete = (croppedDataUrl: string) => {
-    setFormData((prev) => ({ ...prev, image: croppedDataUrl }));
+    if (cropperTarget.type === 'product' && typeof cropperTarget.index === 'number') {
+      const idx = cropperTarget.index;
+      setProductImages((prev) => {
+        const next: [string, string, string] = [...prev];
+        next[idx] = croppedDataUrl;
+        return next;
+      });
+    } else if (cropperTarget.type === 'banner' && typeof cropperTarget.index === 'number') {
+      const idx = cropperTarget.index;
+      setLocalBannerSlides((prev) => {
+        const next = [...prev];
+        if (next[idx]) {
+          next[idx] = { ...next[idx], image: croppedDataUrl };
+        }
+        return next;
+      });
+    } else if (cropperTarget.type === 'logo') {
+      setCurrentLogoUrl(croppedDataUrl);
+    }
+  };
+
+  const handleSaveStoreLogo = async () => {
+    setIsSavingLogo(true);
+    setStatusNotice('');
+    setErrorMessage('');
+    try {
+      const res = await saveStoreSettings({ logoUrl: currentLogoUrl });
+      if (res.success) {
+        if (onStoreSettingsChange) {
+          onStoreSettingsChange({ ...storeSettings, logoUrl: currentLogoUrl });
+        }
+        setStatusNotice('Store logo updated successfully');
+        setTimeout(() => setStatusNotice(''), 4000);
+      } else {
+        setErrorMessage(res.error || 'Failed to update store logo');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsSavingLogo(false);
+    }
+  };
+
+  const handleRemoveStoreLogo = async () => {
+    setCurrentLogoUrl('');
+    setIsSavingLogo(true);
+    try {
+      const res = await saveStoreSettings({ logoUrl: '' });
+      if (res.success) {
+        if (onStoreSettingsChange) {
+          onStoreSettingsChange({ ...storeSettings, logoUrl: '' });
+        }
+        setStatusNotice('Logo reset to clean ANIQ typography');
+        setTimeout(() => setStatusNotice(''), 4000);
+      }
+    } catch {
+      // fallback
+    } finally {
+      setIsSavingLogo(false);
+    }
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    if (!formData.name || !formData.category || !formData.price || !formData.image) return;
 
-    const targetProduct: Product = {
-      id: editingProduct ? editingProduct.id : formData.id || `prod-${Date.now()}`,
-      name: formData.name,
-      category: formData.category,
-      subcategory: formData.subcategory || '',
-      price: Number(formData.price),
+    if (!productImages[0].trim()) {
+      setErrorMessage('Primary image (Image 1) is mandatory.');
+      return;
+    }
+
+    const additionalImgs = [productImages[1], productImages[2]].filter((img) => img.trim().length > 0);
+
+    const productToSave: Product = {
+      ...(formData as Product),
+      id: formData.id || `prod-${Date.now()}`,
+      name: formData.name || 'Untitled Product',
+      category: formData.category || 'Audio',
+      price: Number(formData.price) || 1000,
       description: formData.description || '',
       details: formData.details || formData.description || '',
-      specs: formData.specs || [{ label: 'Quality', value: 'Premium Grade' }],
-      image: formData.image,
+      image: productImages[0],
+      additionalImages: additionalImgs,
       inStock: formData.inStock ?? true,
-      rating: editingProduct ? editingProduct.rating : 5.0,
-      reviewsCount: editingProduct ? editingProduct.reviewsCount : 1
+      specs: formData.specs || [{ label: 'Origin', value: 'Imported' }],
+      rating: formData.rating || 0,
+      reviewsCount: formData.reviewsCount || 0
     };
 
-    onProductSavedLocally(targetProduct);
+    onProductSavedLocally(productToSave);
     setIsProductFormOpen(false);
 
-    const res = await saveProductToDb(targetProduct);
+    const res = await saveProductToDb(productToSave);
     if (res.success) {
-      setStatusNotice(editingProduct ? 'Product updated in live database' : 'Product published to live database');
+      setStatusNotice('Product saved to live database');
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+  const handleDeleteProduct = (product: Product) => {
+    setDeleteConfirmModal({ type: 'product', id: product.id, name: product.name });
+  };
+
+  const executeDeleteProduct = async (productId: string) => {
     setErrorMessage('');
-
-    onProductDeletedLocally(id);
-
-    const res = await deleteProductFromDb(id);
+    onProductDeletedLocally(productId);
+    const res = await deleteProductFromDb(productId);
     if (res.success) {
-      setStatusNotice('Product removed from live database');
+      setStatusNotice('Product deleted from live database');
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
     }
   };
 
+  // Category Actions
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -218,7 +334,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     if (!name) return;
 
     const newCat: CategoryData = {
-      id: `cat-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+      id: `cat-${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
       name,
       subcategories: []
     };
@@ -235,12 +351,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
+  const handleDeleteCategory = (cat: CategoryData) => {
+    setDeleteConfirmModal({ type: 'category', id: cat.id, name: cat.name });
+  };
+
+  const executeDeleteCategory = async (id: string) => {
     setErrorMessage('');
-
     onCategoryDeletedLocally(id);
-
     const res = await deleteCategoryFromDb(id);
     if (res.success) {
       setStatusNotice('Category deleted from live database');
@@ -298,25 +415,139 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleBannerSlotChange = (slotIndex: number, newProductId: string) => {
-    setSelectedBannerIds((prev) => {
+  // Banner Actions (2 to 5 slides)
+  const handleAddBannerSlide = () => {
+    if (localBannerSlides.length >= 5) {
+      setErrorMessage('Maximum 5 banner slides allowed.');
+      return;
+    }
+    const newSlide: BannerSlide = {
+      id: `slide-${Date.now()}`,
+      type: 'custom',
+      title: 'Seasonal Offer',
+      subtitle: 'Special promotion across curated items',
+      image: 'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?auto=format&fit=crop&w=1600&q=80',
+      buttonText: 'Shop Now',
+      linkUrl: '#shop'
+    };
+    setLocalBannerSlides([...localBannerSlides, newSlide]);
+  };
+
+  const handleRemoveBannerSlide = (index: number) => {
+    if (localBannerSlides.length <= 2) {
+      setErrorMessage('Minimum 2 banner slides are required.');
+      return;
+    }
+    setDeleteConfirmModal({
+      type: 'banner',
+      id: `banner-${index}`,
+      name: `Slide ${index + 1}`,
+      index
+    });
+  };
+
+  const executeRemoveBanner = (index: number) => {
+    setLocalBannerSlides(localBannerSlides.filter((_, i) => i !== index));
+    setStatusNotice('Banner slide removed');
+    setTimeout(() => setStatusNotice(''), 3000);
+  };
+
+  const handleUpdateBannerSlide = (index: number, updates: Partial<BannerSlide>) => {
+    setLocalBannerSlides((prev) => {
       const next = [...prev];
-      next[slotIndex] = newProductId;
+      if (next[index]) {
+        next[index] = { ...next[index], ...updates };
+        if (updates.type === 'product' && updates.productId) {
+          const prod = products.find((p) => p.id === updates.productId);
+          if (prod) {
+            next[index].image = prod.image;
+            next[index].title = prod.name;
+            next[index].subtitle = prod.description;
+          }
+        }
+      }
       return next;
     });
   };
 
-  const handleSaveBannerSelection = async () => {
+  const handleSaveBanner = async () => {
+    if (localBannerSlides.length < 2) {
+      setErrorMessage('Minimum 2 banner slides required.');
+      return;
+    }
     setErrorMessage('');
     setIsSavingBanner(true);
-    const res = await saveBannerSettings(selectedBannerIds);
+    const res = await saveBannerSlides(localBannerSlides);
     setIsSavingBanner(false);
     if (res.success) {
-      setStatusNotice('Banner advertisement selection saved to live database');
-      onBannerProductIdsChange?.(selectedBannerIds);
+      setStatusNotice('Banner ads configuration saved to live database');
+      onBannerSlidesChange?.(localBannerSlides);
       setTimeout(() => setStatusNotice(''), 3500);
     } else {
-      setErrorMessage(res.error || 'Failed to save banner selection');
+      setErrorMessage(res.error || 'Failed to save banner');
+    }
+  };
+
+  // Announcements Actions
+  const handleAddAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAnnouncementText.trim()) return;
+    const newItem: AnnouncementItem = {
+      id: `ann-${Date.now()}`,
+      text: newAnnouncementText.trim(),
+      linkText: newAnnouncementLinkText.trim() || '',
+      linkUrl: newAnnouncementLinkUrl.trim() || '',
+      startDate: newAnnouncementStartDate || '',
+      endDate: newAnnouncementEndDate || '',
+      active: true,
+      createdAt: new Date().toISOString()
+    };
+
+    const updated = [newItem, ...localAnnouncements];
+    setLocalAnnouncements(updated);
+    setNewAnnouncementText('');
+    setNewAnnouncementStartDate('');
+    setNewAnnouncementEndDate('');
+
+    setIsSavingAnnouncements(true);
+    const res = await saveAnnouncements(updated);
+    setIsSavingAnnouncements(false);
+    if (res.success) {
+      setStatusNotice('Running announcement added and saved to database');
+      onAnnouncementsChange?.(updated);
+      setTimeout(() => setStatusNotice(''), 3500);
+    } else {
+      setErrorMessage(res.error || 'Failed to save announcement');
+    }
+  };
+
+  const handleToggleAnnouncementActive = async (id: string) => {
+    const updated = localAnnouncements.map((item) =>
+      item.id === id ? { ...item, active: !item.active } : item
+    );
+    setLocalAnnouncements(updated);
+    const res = await saveAnnouncements(updated);
+    if (res.success) {
+      onAnnouncementsChange?.(updated);
+    }
+  };
+
+  const handleDeleteAnnouncement = (item: AnnouncementItem) => {
+    setDeleteConfirmModal({
+      type: 'announcement',
+      id: item.id,
+      name: item.text.length > 30 ? item.text.substring(0, 30) + '...' : item.text
+    });
+  };
+
+  const executeDeleteAnnouncement = async (id: string) => {
+    const updated = localAnnouncements.filter((item) => item.id !== id);
+    setLocalAnnouncements(updated);
+    const res = await saveAnnouncements(updated);
+    if (res.success) {
+      setStatusNotice('Announcement removed');
+      onAnnouncementsChange?.(updated);
+      setTimeout(() => setStatusNotice(''), 3000);
     }
   };
 
@@ -328,18 +559,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   return (
     <div className="min-h-screen bg-neutral-100 flex flex-col font-sans">
-      {/* Top Standalone Header */}
-      <header className="bg-white border-b border-neutral-200 sticky top-0 z-30 shadow-xs">
+      {/* Top Header */}
+      <header className="bg-white sticky top-0 z-30 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center">
               <Shield className="h-5 w-5" />
             </div>
-            <div>
-              <h1 className="font-heading font-extrabold text-xl text-neutral-900">
-                Admin Portal
-              </h1>
-            </div>
+            <h1 className="font-heading font-extrabold text-xl text-neutral-900">
+              Admin Portal
+            </h1>
           </div>
 
           <div className="flex items-center gap-3">
@@ -350,7 +579,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </span>
                 <button
                   onClick={handleAdminLogout}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-100 text-xs font-semibold cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-100 text-neutral-700 hover:bg-neutral-200 text-xs font-semibold cursor-pointer transition-colors"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   <span>Sign Out</span>
@@ -369,11 +598,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
       </header>
 
-      {/* Main Page Area */}
+      {/* Main Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         {!isAdminLoggedIn ? (
-          /* Separate Login Page View */
-          <div className="max-w-md mx-auto my-12 bg-white rounded-2xl border border-neutral-200 p-8 shadow-sm flex flex-col items-center">
+          /* Login Screen */
+          <div className="max-w-md mx-auto my-12 bg-white rounded-3xl p-8 shadow-sm flex flex-col items-center">
             <div className="h-14 w-14 rounded-2xl bg-neutral-900 text-white flex items-center justify-center mb-5 shadow-xs">
               <Lock className="h-7 w-7" />
             </div>
@@ -383,7 +612,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <form onSubmit={handleAdminLogin} className="w-full space-y-4">
               {loginError && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs font-semibold flex items-center gap-2">
+                <div className="p-3 bg-red-50 rounded-xl text-red-700 text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 shrink-0" />
                   <span>{loginError}</span>
                 </div>
@@ -398,7 +627,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   required
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 shadow-xs"
+                  className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2.5 text-base text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                 />
               </div>
 
@@ -411,7 +640,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   required
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2.5 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 shadow-xs"
+                  className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2.5 text-base text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                 />
               </div>
 
@@ -424,16 +653,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </form>
           </div>
         ) : (
-          /* Separate Admin Dashboard View */
-          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden flex flex-col">
-            {/* Tab Navigation */}
-            <div className="px-6 pt-5 border-b border-neutral-200 flex gap-6 bg-neutral-50/50">
+          /* Admin Dashboard */
+          <div className="bg-white rounded-3xl shadow-sm overflow-hidden flex flex-col">
+            {/* Tabs */}
+            <div className="px-6 pt-5 flex gap-4 sm:gap-6 bg-neutral-50 overflow-x-auto scrollbar-none">
               <button
                 onClick={() => setActiveTab('products')}
-                className={`pb-3.5 px-1 border-b-2 font-heading font-bold text-base transition-colors flex items-center gap-2 cursor-pointer ${
+                className={`pb-3.5 px-1 font-heading font-bold text-sm sm:text-base transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeTab === 'products'
-                    ? 'border-neutral-900 text-neutral-900'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                    ? 'text-neutral-900 font-extrabold border-b-2 border-neutral-900'
+                    : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
                 <Package className="h-4 w-4" />
@@ -442,10 +671,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <button
                 onClick={() => setActiveTab('categories')}
-                className={`pb-3.5 px-1 border-b-2 font-heading font-bold text-base transition-colors flex items-center gap-2 cursor-pointer ${
+                className={`pb-3.5 px-1 font-heading font-bold text-sm sm:text-base transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeTab === 'categories'
-                    ? 'border-neutral-900 text-neutral-900'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                    ? 'text-neutral-900 font-extrabold border-b-2 border-neutral-900'
+                    : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
                 <Layers className="h-4 w-4" />
@@ -454,28 +683,51 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
               <button
                 onClick={() => setActiveTab('banner')}
-                className={`pb-3.5 px-1 border-b-2 font-heading font-bold text-base transition-colors flex items-center gap-2 cursor-pointer ${
+                className={`pb-3.5 px-1 font-heading font-bold text-sm sm:text-base transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
                   activeTab === 'banner'
-                    ? 'border-neutral-900 text-neutral-900'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                    ? 'text-neutral-900 font-extrabold border-b-2 border-neutral-900'
+                    : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
                 <Layout className="h-4 w-4" />
-                <span>Banner Ads (3 Selected)</span>
+                <span>Banner Ads ({localBannerSlides.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('announcements')}
+                className={`pb-3.5 px-1 font-heading font-bold text-sm sm:text-base transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
+                  activeTab === 'announcements'
+                    ? 'text-neutral-900 font-extrabold border-b-2 border-neutral-900'
+                    : 'text-neutral-400 hover:text-neutral-700'
+                }`}
+              >
+                <Megaphone className="h-4 w-4" />
+                <span>News & Offers ({localAnnouncements.length})</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('branding')}
+                className={`pb-3.5 px-1 font-heading font-bold text-sm sm:text-base transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
+                  activeTab === 'branding'
+                    ? 'text-neutral-900 font-extrabold border-b-2 border-neutral-900'
+                    : 'text-neutral-400 hover:text-neutral-700'
+                }`}
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>Store Logo</span>
               </button>
             </div>
 
-            {/* Notification Toast */}
+            {/* Notifications */}
             {statusNotice && (
-              <div className="mx-6 mt-4 p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-sm font-semibold flex items-center gap-2">
+              <div className="mx-6 mt-4 p-3 bg-emerald-50 text-emerald-800 rounded-xl text-sm font-semibold flex items-center gap-2">
                 <Check className="h-4 w-4 text-emerald-600" />
                 <span>{statusNotice}</span>
               </div>
             )}
 
-            {/* Error Notice */}
             {errorMessage && (
-              <div className="mx-6 mt-4 p-3 bg-red-50 text-red-800 border border-red-200 rounded-xl text-sm font-semibold flex items-center gap-2">
+              <div className="mx-6 mt-4 p-3 bg-red-50 text-red-800 rounded-xl text-sm font-semibold flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 text-red-600" />
                 <span>{errorMessage}</span>
               </div>
@@ -483,537 +735,766 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             {/* Tab Contents */}
             <div className="p-6">
+              {/* TAB 1: Products */}
               {activeTab === 'products' && (
                 <div>
-                  {/* Action Bar */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
                     <input
                       type="text"
                       value={searchFilter}
                       onChange={(e) => setSearchFilter(e.target.value)}
-                      aria-label="Search products"
-                      className="border border-neutral-300 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-900 sm:max-w-xs"
+                      placeholder="Filter products..."
+                      className="bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 sm:max-w-xs"
                     />
 
                     <button
                       onClick={openNewProductForm}
-                      className="flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm px-4 py-2.5 rounded-xl cursor-pointer shadow-xs"
+                      className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-sm transition-all"
                     >
                       <Plus className="h-4 w-4" />
-                      <span>Add Product</span>
+                      <span>Add New Product</span>
                     </button>
                   </div>
 
-                  {/* Product Form */}
+                  {/* Add/Edit Product Modal */}
                   {isProductFormOpen && (
-                    <form
-                      onSubmit={handleSaveProduct}
-                      className="mb-8 p-6 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-4"
-                    >
-                      <div className="flex items-center justify-between pb-3 border-b border-neutral-200">
-                        <h3 className="font-heading font-bold text-base text-neutral-900">
-                          {editingProduct ? 'Edit Product' : 'Add New Product'}
-                        </h3>
-                        <button
-                          type="button"
-                          onClick={() => setIsProductFormOpen(false)}
-                          className="text-neutral-500 hover:text-neutral-900 p-1 cursor-pointer font-bold text-sm"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                        <div className="sm:col-span-2">
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Product Name
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={formData.name || ''}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Category
-                          </label>
-                          <select
-                            value={formData.category || ''}
-                            onChange={(e) => {
-                              const catName = e.target.value;
-                              const found = categories.find((c) => c.name === catName);
-                              setFormData({
-                                ...formData,
-                                category: catName,
-                                subcategory: found?.subcategories[0] || ''
-                              });
-                            }}
-                            className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                    <div className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                      <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl my-8">
+                        <div className="flex items-center justify-between pb-4 mb-4">
+                          <h2 className="font-heading font-extrabold text-xl text-neutral-900">
+                            {editingProduct ? 'Edit Product' : 'Add New Product'}
+                          </h2>
+                          <button
+                            onClick={() => setIsProductFormOpen(false)}
+                            className="p-2 rounded-full bg-neutral-100 text-neutral-500 hover:text-neutral-900 cursor-pointer"
                           >
-                            {categories.map((c) => (
-                              <option key={c.id} value={c.name}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
 
-                        <div>
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Subcategory
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.subcategory || ''}
-                            onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
-                            list="subcategories-datalist"
-                            className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-                          />
-                          <datalist id="subcategories-datalist">
-                            {currentCategoryObj?.subcategories.map((sub, i) => (
-                              <option key={i} value={sub} />
-                            ))}
-                          </datalist>
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Price (BDT)
-                          </label>
-                          <input
-                            type="number"
-                            required
-                            min="1"
-                            value={formData.price || ''}
-                            onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
-                            className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-                          />
-                        </div>
-
-                        {/* Image Upload & Crop Integration */}
-                        <div className="sm:col-span-2">
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Product Photo
-                          </label>
-
-                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <form onSubmit={handleSaveProduct} className="space-y-4">
+                          <div>
+                            <label className="block text-xs font-bold text-neutral-800 mb-1">
+                              Product Name *
+                            </label>
                             <input
                               type="text"
                               required
-                              value={formData.image || ''}
-                              onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                              className="flex-1 bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                              value={formData.name || ''}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                              className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                             />
-
-                            <button
-                              type="button"
-                              onClick={() => setIsCropperOpen(true)}
-                              className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs py-2.5 px-4 rounded-xl cursor-pointer flex items-center justify-center gap-2 shrink-0 shadow-xs"
-                            >
-                              <Upload className="h-4 w-4" />
-                              <span>Upload & Crop Photo</span>
-                            </button>
                           </div>
 
-                          {/* Image Thumbnail Preview in Fixed 4:3 Aspect Ratio */}
-                          {formData.image && (
-                            <div className="mt-3 flex items-center gap-4 p-3 bg-white border border-neutral-200 rounded-xl">
-                              <div
-                                className="w-24 rounded-lg overflow-hidden border border-neutral-200 bg-neutral-100 shrink-0"
-                                style={{ aspectRatio: '4/3' }}
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-bold text-neutral-800 mb-1">
+                                Category *
+                              </label>
+                              <select
+                                value={formData.category || ''}
+                                onChange={(e) => {
+                                  const catName = e.target.value;
+                                  const found = categories.find((c) => c.name === catName);
+                                  setFormData({
+                                    ...formData,
+                                    category: catName,
+                                    subcategory: found?.subcategories[0] || ''
+                                  });
+                                }}
+                                className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                               >
-                                <img
-                                  src={formData.image}
-                                  alt="Preview"
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                              <div className="text-xs text-neutral-600">
-                                <span className="font-bold text-neutral-900 block mb-0.5">
-                                  Current Photo Preview (Fixed 4:3 Ratio)
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsCropperOpen(true)}
-                                  className="text-neutral-900 underline font-semibold cursor-pointer"
-                                >
-                                  Re-crop or change photo
-                                </button>
-                              </div>
+                                {categories.map((cat) => (
+                                  <option key={cat.id} value={cat.name}>
+                                    {cat.name}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="sm:col-span-2">
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Short Description
-                          </label>
-                          <textarea
-                            required
-                            rows={2}
-                            value={formData.description || ''}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-                          />
-                        </div>
+                            <div>
+                              <label className="block text-xs font-bold text-neutral-800 mb-1">
+                                Subcategory
+                              </label>
+                              <input
+                                type="text"
+                                list="admin-subcat-list"
+                                value={formData.subcategory || ''}
+                                onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                                className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                              />
+                              <datalist id="admin-subcat-list">
+                                {currentCategoryObj?.subcategories.map((sub, i) => (
+                                  <option key={i} value={sub} />
+                                ))}
+                              </datalist>
+                            </div>
 
-                        <div className="sm:col-span-2">
-                          <label className="block font-semibold text-neutral-800 mb-1">
-                            Full Product Details
-                          </label>
-                          <textarea
-                            rows={3}
-                            value={formData.details || ''}
-                            onChange={(e) => setFormData({ ...formData, details: e.target.value })}
-                            className="w-full bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
-                          />
-                        </div>
+                            <div>
+                              <label className="block text-xs font-bold text-neutral-800 mb-1">
+                                Price (BDT) *
+                              </label>
+                              <input
+                                type="number"
+                                required
+                                min="1"
+                                value={formData.price || ''}
+                                onChange={(e) => setFormData({ ...formData, price: Number(e.target.value) })}
+                                className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                              />
+                            </div>
+                          </div>
 
-                        <div className="flex items-center gap-2 sm:col-span-2 pt-1">
-                          <input
-                            type="checkbox"
-                            id="inStockCheck"
-                            checked={formData.inStock ?? true}
-                            onChange={(e) => setFormData({ ...formData, inStock: e.target.checked })}
-                            className="h-4 w-4 text-neutral-900 rounded"
-                          />
-                          <label htmlFor="inStockCheck" className="font-semibold text-neutral-900">
-                            In Stock & Available
-                          </label>
-                        </div>
+                          {/* 3 Images Upload Control */}
+                          <div className="pt-2">
+                            <span className="block text-xs font-bold text-neutral-800 mb-2">
+                              Product Photos (Minimum 1 Required, Up to 3)
+                            </span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              {[0, 1, 2].map((slotIdx) => {
+                                const isRequired = slotIdx === 0;
+                                const imgUrl = productImages[slotIdx];
+
+                                return (
+                                  <div key={slotIdx} className="bg-neutral-50 p-3 rounded-2xl flex flex-col justify-between">
+                                    <div>
+                                      <div className="flex items-center justify-between mb-2">
+                                        <span className="text-[11px] font-bold text-neutral-700">
+                                          Image {slotIdx + 1} {isRequired ? '(Required)' : '(Optional)'}
+                                        </span>
+                                        {imgUrl && !isRequired && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setProductImages((prev) => {
+                                                const next: [string, string, string] = [...prev];
+                                                next[slotIdx] = '';
+                                                return next;
+                                              });
+                                            }}
+                                            className="text-xs text-red-500 hover:text-red-700"
+                                          >
+                                            Clear
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {imgUrl ? (
+                                        <div className="aspect-4/3 rounded-xl overflow-hidden bg-white shadow-xs mb-2">
+                                          <img src={imgUrl} alt={`Slot ${slotIdx + 1}`} className="w-full h-full object-cover" />
+                                        </div>
+                                      ) : (
+                                        <div className="aspect-4/3 rounded-xl bg-neutral-200/50 flex flex-col items-center justify-center text-neutral-400 text-xs mb-2">
+                                          <ImageIcon className="h-6 w-6 mb-1" />
+                                          <span>No photo</span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="space-y-1.5 mt-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCropperTarget({ type: 'product', index: slotIdx });
+                                          setIsCropperOpen(true);
+                                        }}
+                                        className="w-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                      >
+                                        <Upload className="h-3.5 w-3.5" />
+                                        <span>{imgUrl ? 'Replace Photo' : 'Upload Photo'}</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-neutral-800 mb-1">
+                              Short Description
+                            </label>
+                            <textarea
+                              rows={2}
+                              required
+                              value={formData.description || ''}
+                              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                              className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-neutral-800 mb-1">
+                              Detailed Specifications & Story
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={formData.details || ''}
+                              onChange={(e) => setFormData({ ...formData, details: e.target.value })}
+                              className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-end gap-3 pt-4">
+                            <button
+                              type="button"
+                              onClick={() => setIsProductFormOpen(false)}
+                              className="px-4 py-2.5 bg-neutral-100 text-neutral-700 font-semibold rounded-xl text-xs hover:bg-neutral-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-6 py-2.5 bg-neutral-900 text-white font-bold rounded-xl text-xs hover:bg-neutral-800 cursor-pointer shadow-md"
+                            >
+                              Save Product
+                            </button>
+                          </div>
+                        </form>
                       </div>
-
-                      <div className="flex items-center justify-end gap-3 pt-3 border-t border-neutral-200">
-                        <button
-                          type="button"
-                          onClick={() => setIsProductFormOpen(false)}
-                          className="px-4 py-2 border border-neutral-300 rounded-xl font-semibold text-neutral-700 hover:bg-neutral-100 cursor-pointer"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-5 py-2 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl font-bold cursor-pointer"
-                        >
-                          {editingProduct ? 'Save Changes' : 'Publish Product'}
-                        </button>
-                      </div>
-                    </form>
+                    </div>
                   )}
 
-                  {/* Products Table */}
-                  <div className="border border-neutral-200 rounded-2xl overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="bg-neutral-50 border-b border-neutral-200 text-neutral-600 font-semibold">
-                          <tr>
-                            <th className="py-3 px-4">Product</th>
-                            <th className="py-3 px-4">Category</th>
-                            <th className="py-3 px-4">Price</th>
-                            <th className="py-3 px-4">Stock</th>
-                            <th className="py-3 px-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-neutral-200">
-                          {filteredProducts.map((p) => (
-                            <tr key={p.id} className="hover:bg-neutral-50/50">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-3">
-                                  <div
-                                    className="w-12 rounded-lg overflow-hidden border border-neutral-200 bg-neutral-100 shrink-0"
-                                    style={{ aspectRatio: '4/3' }}
-                                  >
-                                    <img
-                                      src={p.image}
-                                      alt={p.name}
-                                      className="w-full h-full object-cover"
-                                    />
-                                  </div>
-                                  <div>
-                                    <p className="font-heading font-bold text-neutral-900">
-                                      {p.name}
-                                    </p>
-                                    {p.subcategory && (
-                                      <p className="text-xs text-neutral-500">
-                                        {p.subcategory}
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-neutral-700">
-                                {p.category}
-                              </td>
-                              <td className="py-3 px-4 font-heading font-bold text-neutral-900">
-                                {formatBDT(p.price)}
-                              </td>
-                              <td className="py-3 px-4">
-                                <span
-                                  className={`text-xs font-bold px-2 py-0.5 rounded ${
-                                    p.inStock
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-red-100 text-red-800'
-                                  }`}
-                                >
-                                  {p.inStock ? 'Available' : 'Out of Stock'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <button
-                                    onClick={() => openEditProductForm(p)}
-                                    className="p-2 text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg cursor-pointer"
-                                    aria-label={`Edit ${p.name}`}
-                                  >
-                                    <Edit2 className="h-4 w-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteProduct(p.id)}
-                                    className="p-2 text-neutral-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
-                                    aria-label={`Delete ${p.name}`}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                  {/* Products Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredProducts.map((product) => (
+                      <div
+                        key={product.id}
+                        className="bg-neutral-50 rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex gap-3 mb-3">
+                          <div className="w-20 h-20 rounded-xl overflow-hidden bg-white shrink-0 shadow-xs">
+                            <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-[10px] font-bold uppercase text-neutral-400 block truncate">
+                              {product.category}
+                            </span>
+                            <h3 className="font-heading font-bold text-sm text-neutral-900 truncate">
+                              {product.name}
+                            </h3>
+                            <span className="font-heading font-extrabold text-sm text-neutral-900 block mt-1">
+                              {formatBDT(product.price)}
+                            </span>
+                            <span className="text-[11px] text-neutral-400 block">
+                              Rating: {product.rating} ({product.reviewsCount} reviews)
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2">
+                          <button
+                            onClick={() => openEditProductForm(product)}
+                            className="p-2 rounded-lg bg-white text-neutral-700 hover:bg-neutral-200 text-xs font-semibold cursor-pointer shadow-xs"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteProduct(product)}
+                            className="p-2 rounded-lg bg-white text-red-600 hover:bg-red-50 text-xs font-semibold cursor-pointer shadow-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
+              {/* TAB 2: Categories */}
               {activeTab === 'categories' && (
                 <div className="space-y-8">
-                  {/* Add New Category */}
-                  <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200">
+                  {/* Add category */}
+                  <div className="bg-neutral-50 rounded-2xl p-6 shadow-xs">
                     <h3 className="font-heading font-bold text-base text-neutral-900 mb-3">
                       Add New Category
                     </h3>
-                    <form onSubmit={handleAddCategory} className="flex gap-3">
+                    <form onSubmit={handleAddCategory} className="flex gap-3 max-w-md">
                       <input
                         type="text"
                         required
+                        placeholder="Category Name..."
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
-                        className="flex-1 bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                        className="flex-1 bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                       />
                       <button
                         type="submit"
-                        className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm px-5 py-2 rounded-xl cursor-pointer shadow-xs shrink-0"
+                        className="bg-neutral-900 text-white font-bold text-xs px-5 py-2.5 rounded-xl hover:bg-neutral-800 cursor-pointer shadow-xs"
                       >
-                        Add Category
+                        Add
                       </button>
                     </form>
                   </div>
 
-                  {/* Add Subcategory */}
-                  <div className="p-5 bg-neutral-50 rounded-2xl border border-neutral-200">
+                  {/* Add subcategory */}
+                  <div className="bg-neutral-50 rounded-2xl p-6 shadow-xs">
                     <h3 className="font-heading font-bold text-base text-neutral-900 mb-3">
-                      Add Subcategory
+                      Add Subcategory to Existing Category
                     </h3>
-                    <form onSubmit={handleAddSubcategory} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <form onSubmit={handleAddSubcategory} className="flex flex-col sm:flex-row gap-3 max-w-xl">
                       <select
                         value={selectedCatForSub}
                         onChange={(e) => setSelectedCatForSub(e.target.value)}
-                        className="bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                        className="bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 sm:w-48"
                       >
+                        <option value="">Select Category</option>
                         {categories.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
+                          <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
-
                       <input
                         type="text"
-                        required
+                        placeholder="Subcategory Name..."
                         value={newSubcategoryName}
                         onChange={(e) => setNewSubcategoryName(e.target.value)}
-                        className="bg-white border border-neutral-300 rounded-xl px-3.5 py-2 text-base text-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900"
+                        className="flex-1 bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
                       />
-
                       <button
                         type="submit"
-                        className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm px-5 py-2 rounded-xl cursor-pointer shadow-xs shrink-0"
+                        className="bg-neutral-900 text-white font-bold text-xs px-5 py-2.5 rounded-xl hover:bg-neutral-800 cursor-pointer shadow-xs"
                       >
-                        Add Subcategory
+                        Add
                       </button>
                     </form>
                   </div>
 
-                  {/* Existing Categories & Subcategories List */}
-                  <div className="space-y-4">
-                    <h3 className="font-heading font-bold text-lg text-neutral-900">
-                      Current Categories & Subcategories
-                    </h3>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {categories.map((cat) => (
-                        <div
-                          key={cat.id}
-                          className="p-5 bg-white rounded-2xl border border-neutral-200 shadow-xs flex flex-col justify-between"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between mb-3 pb-2 border-b border-neutral-100">
-                              <h4 className="font-heading font-bold text-lg text-neutral-900">
-                                {cat.name}
-                              </h4>
-                              <button
-                                onClick={() => handleDeleteCategory(cat.id)}
-                                className="text-neutral-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 cursor-pointer"
-                                aria-label={`Delete category ${cat.name}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
-                            </div>
-
-                            {/* Subcategory chips */}
-                            <div className="flex flex-wrap gap-2 mb-4">
-                              {cat.subcategories.length === 0 ? (
-                                <span className="text-xs text-neutral-400">
-                                  No subcategories yet
-                                </span>
-                              ) : (
-                                cat.subcategories.map((sub, i) => (
-                                  <span
-                                    key={i}
-                                    className="inline-flex items-center gap-1.5 bg-neutral-100 text-neutral-800 px-3 py-1 rounded-lg text-xs font-semibold"
-                                  >
-                                    <span>{sub}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteSubcategory(cat.id, sub)}
-                                      className="text-neutral-400 hover:text-neutral-900 cursor-pointer"
-                                      aria-label={`Remove subcategory ${sub}`}
-                                    >
-                                      <span className="text-neutral-400 hover:text-neutral-900 text-xs">x</span>
-                                    </button>
-                                  </span>
-                                ))
-                              )}
-                            </div>
+                  {/* List Categories */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {categories.map((cat) => (
+                      <div key={cat.id} className="bg-neutral-50 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-heading font-bold text-base text-neutral-900">{cat.name}</h4>
+                            <button
+                              onClick={() => handleDeleteCategory(cat)}
+                              className="text-red-500 hover:text-red-700 text-xs font-semibold cursor-pointer"
+                            >
+                              Delete Category
+                            </button>
                           </div>
-
-                          <div className="text-xs text-neutral-400 font-medium">
-                            {products.filter((p) => p.category === cat.name).length} products in this category
+                          <div className="flex flex-wrap gap-1.5">
+                            {cat.subcategories.map((sub, idx) => (
+                              <span key={idx} className="bg-white px-2.5 py-1 rounded-lg text-xs font-medium text-neutral-800 shadow-xs flex items-center gap-1.5">
+                                <span>{sub}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSubcategory(cat.id, sub)}
+                                  className="text-neutral-400 hover:text-neutral-900"
+                                >
+                                  x
+                                </button>
+                              </span>
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
+              {/* TAB 3: Banner Ads (2 to 5 slides, product or custom promotional cover) */}
               {activeTab === 'banner' && (
                 <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
                     <div>
                       <h2 className="font-heading font-extrabold text-xl text-neutral-900">
                         Cover Banner Advertisements
                       </h2>
                       <p className="text-sm text-neutral-600 mt-1">
-                        Select which 3 products appear in the top rotating advertisement banner on the website.
+                        Configure 2 to 5 slides. Choose catalog products or create custom covers (e.g. Eid Wishes, Festive Offers).
                       </p>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={handleSaveBannerSelection}
-                      disabled={isSavingBanner}
-                      className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <Check className="h-4 w-4" />
-                      <span>{isSavingBanner ? 'Saving...' : 'Save Banner Selection'}</span>
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {localBannerSlides.length < 5 && (
+                        <button
+                          type="button"
+                          onClick={handleAddBannerSlide}
+                          className="bg-neutral-100 hover:bg-neutral-200 text-neutral-900 font-bold text-xs px-4 py-2.5 rounded-xl cursor-pointer"
+                        >
+                          + Add Slide
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleSaveBanner}
+                        disabled={isSavingBanner}
+                        className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold text-xs px-6 py-2.5 rounded-xl cursor-pointer shadow-md"
+                      >
+                        {isSavingBanner ? 'Saving...' : 'Save Banner Slides'}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 3 Slot Selectors */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[0, 1, 2].map((slotIndex) => {
-                      const selectedId = selectedBannerIds[slotIndex];
-                      const selectedProduct = products.find((p) => p.id === selectedId);
-
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {localBannerSlides.map((slide, sIdx) => {
                       return (
-                        <div
-                          key={slotIndex}
-                          className="bg-white border-2 border-neutral-200 hover:border-neutral-300 rounded-2xl p-5 shadow-xs flex flex-col justify-between"
-                        >
+                        <div key={slide.id || sIdx} className="bg-neutral-50 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
                           <div>
                             <div className="flex items-center justify-between mb-3">
-                              <span className="font-heading font-bold text-sm text-neutral-900 uppercase tracking-wider">
-                                Slot {slotIndex + 1} ({slotIndex === 0 ? 'Lead Slide' : slotIndex === 1 ? 'Second Slide' : 'Third Slide'})
+                              <span className="font-heading font-bold text-sm text-neutral-900">
+                                Slide {sIdx + 1}
                               </span>
-                              <span className="text-xs bg-neutral-100 text-neutral-700 font-bold px-2 py-0.5 rounded">
-                                Slide {slotIndex + 1}
-                              </span>
+                              {localBannerSlides.length > 2 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveBannerSlide(sIdx)}
+                                  className="text-xs text-red-500 hover:text-red-700"
+                                >
+                                  Remove
+                                </button>
+                              )}
                             </div>
 
-                            <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                              Select Featured Product:
-                            </label>
-                            <select
-                              value={selectedId || ''}
-                              onChange={(e) => handleBannerSlotChange(slotIndex, e.target.value)}
-                              className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2.5 text-sm text-neutral-900 font-semibold focus:outline-none focus:ring-2 focus:ring-neutral-900 mb-4 cursor-pointer shadow-xs"
-                            >
-                              <option value="" disabled>Choose a product</option>
-                              {products.map((prod) => (
-                                <option key={prod.id} value={prod.id}>
-                                  {prod.name} ({prod.category}) - {formatBDT(prod.price)}
-                                </option>
-                              ))}
-                            </select>
+                            {/* Type Selector */}
+                            <div className="mb-3">
+                              <label className="block text-[11px] font-bold text-neutral-700 mb-1">
+                                Slide Type:
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateBannerSlide(sIdx, { type: 'product' })}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                                    slide.type === 'product'
+                                      ? 'bg-neutral-900 text-white'
+                                      : 'bg-white text-neutral-700'
+                                  }`}
+                                >
+                                  Product Link
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateBannerSlide(sIdx, { type: 'custom' })}
+                                  className={`py-1.5 px-3 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
+                                    slide.type === 'custom'
+                                      ? 'bg-neutral-900 text-white'
+                                      : 'bg-white text-neutral-700'
+                                  }`}
+                                >
+                                  Custom Cover
+                                </button>
+                              </div>
+                            </div>
 
-                            {/* Product Preview Card */}
-                            {selectedProduct ? (
-                              <div className="rounded-xl overflow-hidden border border-neutral-200 bg-neutral-50 p-3">
-                                <div className="aspect-4/3 rounded-lg overflow-hidden bg-neutral-200 mb-3 border border-neutral-200">
-                                  <img
-                                    src={selectedProduct.image}
-                                    alt={selectedProduct.name}
-                                    className="w-full h-full object-cover"
-                                  />
+                            {slide.type === 'product' ? (
+                              <div className="space-y-3 mb-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-neutral-700 mb-1">
+                                    Select Catalog Product:
+                                  </label>
+                                  <select
+                                    value={slide.productId || ''}
+                                    onChange={(e) => handleUpdateBannerSlide(sIdx, { productId: e.target.value })}
+                                    className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                                  >
+                                    <option value="" disabled>Choose a product</option>
+                                    {products.map((p) => (
+                                      <option key={p.id} value={p.id}>
+                                        {p.name} - {formatBDT(p.price)}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 block mb-1">
-                                  {selectedProduct.category}
-                                </span>
-                                <h3 className="font-heading font-bold text-base text-neutral-900 truncate mb-1">
-                                  {selectedProduct.name}
-                                </h3>
-                                <span className="font-heading font-extrabold text-base text-neutral-900 block">
-                                  {formatBDT(selectedProduct.price)}
-                                </span>
                               </div>
                             ) : (
-                              <div className="p-8 text-center bg-neutral-50 rounded-xl border border-dashed border-neutral-300 text-neutral-400 text-sm">
-                                No product chosen for this slot
+                              <div className="space-y-2.5 mb-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-neutral-700 mb-1">
+                                    Custom Title (e.g. Eid Mubarak)
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={slide.title || ''}
+                                    onChange={(e) => handleUpdateBannerSlide(sIdx, { title: e.target.value })}
+                                    className="w-full bg-white border border-stone-300 rounded-xl px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-bold text-neutral-700 mb-1">
+                                    Subtitle / Campaign Note
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={slide.subtitle || ''}
+                                    onChange={(e) => handleUpdateBannerSlide(sIdx, { subtitle: e.target.value })}
+                                    className="w-full bg-white border border-stone-300 rounded-xl px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                                  />
+                                </div>
+
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setCropperTarget({ type: 'banner', index: sIdx });
+                                      setIsCropperOpen(true);
+                                    }}
+                                    className="w-full bg-white hover:bg-neutral-200 text-neutral-900 text-xs font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                                  >
+                                    <Upload className="h-3.5 w-3.5" />
+                                    <span>Upload Custom Cover Image</span>
+                                  </button>
+                                </div>
                               </div>
                             )}
+
+                            {/* Preview */}
+                            <div className="aspect-16/9 rounded-xl overflow-hidden bg-neutral-200 shadow-xs">
+                              <img src={slide.image} alt={slide.title || 'Banner'} className="w-full h-full object-cover" />
+                            </div>
                           </div>
                         </div>
                       );
                     })}
                   </div>
+                </div>
+              )}
 
-                  <div className="p-4 bg-neutral-50 border border-neutral-200 rounded-xl flex items-center justify-between text-xs text-neutral-600">
-                    <span>
-                      The customer homepage rotates through these 3 chosen products in order.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleSaveBannerSelection}
-                      disabled={isSavingBanner}
-                      className="bg-neutral-900 text-white font-bold px-4 py-2 rounded-lg hover:bg-neutral-800 cursor-pointer shadow-xs"
-                    >
-                      {isSavingBanner ? 'Saving...' : 'Save Changes'}
-                    </button>
+              {/* TAB 4: Running News & Offers Announcements */}
+              {activeTab === 'announcements' && (
+                <div className="space-y-8">
+                  {/* Create announcement */}
+                  <div className="bg-neutral-50 rounded-3xl p-6 sm:p-8 shadow-xs">
+                    <h3 className="font-heading font-bold text-lg text-neutral-900 mb-2">
+                      Add Running News / Top Offer Ticker
+                    </h3>
+                    <p className="text-xs text-neutral-600 mb-5">
+                      This headline appears in the top announcement bar under the navbar. You can set active dates to run seasonal campaigns automatically.
+                    </p>
+
+                    <form onSubmit={handleAddAnnouncement} className="space-y-4 max-w-2xl">
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1">
+                          Announcement Headline Text *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. Eid Mubarak: Free Nationwide Delivery on All Orders Over 10,000 BDT"
+                          value={newAnnouncementText}
+                          onChange={(e) => setNewAnnouncementText(e.target.value)}
+                          className="w-full bg-white border border-stone-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-neutral-800 mb-1">
+                            Action Link Text (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="Shop Now"
+                            value={newAnnouncementLinkText}
+                            onChange={(e) => setNewAnnouncementLinkText(e.target.value)}
+                            className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-neutral-800 mb-1">
+                            Link Destination (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="#shop"
+                            value={newAnnouncementLinkUrl}
+                            onChange={(e) => setNewAnnouncementLinkUrl(e.target.value)}
+                            className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-neutral-800 mb-1">
+                            Start Date (Optional)
+                          </label>
+                          <input
+                            type="date"
+                            value={newAnnouncementStartDate}
+                            onChange={(e) => setNewAnnouncementStartDate(e.target.value)}
+                            className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-neutral-800 mb-1">
+                            End Date (Optional)
+                          </label>
+                          <input
+                            type="date"
+                            value={newAnnouncementEndDate}
+                            onChange={(e) => setNewAnnouncementEndDate(e.target.value)}
+                            className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSavingAnnouncements}
+                        className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold text-xs px-6 py-3 rounded-xl cursor-pointer shadow-md transition-all"
+                      >
+                        {isSavingAnnouncements ? 'Adding...' : 'Publish Announcement'}
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* List Announcements */}
+                  <div className="space-y-3">
+                    <h4 className="font-heading font-bold text-base text-neutral-900">
+                      Existing Announcements & Offers ({localAnnouncements.length})
+                    </h4>
+
+                    {localAnnouncements.length === 0 ? (
+                      <p className="text-sm text-neutral-500 py-4">No active announcements configured.</p>
+                    ) : (
+                      localAnnouncements.map((item) => (
+                        <div
+                          key={item.id}
+                          className="bg-neutral-50 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+                        >
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  item.active ? 'bg-emerald-100 text-emerald-800' : 'bg-neutral-200 text-neutral-600'
+                                }`}
+                              >
+                                {item.active ? 'Active' : 'Disabled'}
+                              </span>
+                              {(item.startDate || item.endDate) && (
+                                <span className="text-[11px] text-neutral-500 flex items-center gap-1 font-mono">
+                                  <Calendar className="h-3 w-3" />
+                                  {item.startDate || 'Anytime'} to {item.endDate || 'Ongoing'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm font-semibold text-neutral-900">{item.text}</p>
+                            {item.linkText && (
+                              <span className="text-xs text-neutral-500">
+                                Button: {item.linkText} ({item.linkUrl})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleAnnouncementActive(item.id)}
+                              className="px-3 py-1.5 bg-white text-xs font-semibold rounded-xl text-neutral-800 hover:bg-neutral-200 shadow-xs cursor-pointer"
+                            >
+                              {item.active ? 'Deactivate' : 'Activate'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAnnouncement(item)}
+                              className="p-2 bg-white text-red-600 hover:bg-red-50 text-xs rounded-xl shadow-xs cursor-pointer"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: Store Logo & Brand Settings */}
+              {activeTab === 'branding' && (
+                <div className="space-y-8 max-w-2xl">
+                  <div className="bg-neutral-50 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6">
+                    <div>
+                      <h3 className="font-heading font-bold text-lg text-neutral-900 mb-1">
+                        ANIQ Store Logo
+                      </h3>
+                      <p className="text-xs text-neutral-600">
+                        Upload your custom ANIQ logo image (PNG, JPG, or SVG). If removed, the store automatically renders clean, elegant ANIQ typography.
+                      </p>
+                    </div>
+
+                    {/* Live Preview Box */}
+                    <div>
+                      <span className="block text-xs font-bold text-neutral-700 mb-2">
+                        Live Storefront Preview
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Light Preview (Navbar style) */}
+                        <div className="p-5 rounded-2xl bg-white shadow-xs flex flex-col items-center justify-center min-h-[90px]">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
+                            Header Preview (Light)
+                          </span>
+                          <Logo variant="light" size="md" customLogoUrl={currentLogoUrl} />
+                        </div>
+
+                        {/* Dark Preview (Footer style) */}
+                        <div className="p-5 rounded-2xl bg-neutral-900 shadow-xs flex flex-col items-center justify-center min-h-[90px]">
+                          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-2">
+                            Footer Preview (Dark)
+                          </span>
+                          <Logo variant="dark" size="md" customLogoUrl={currentLogoUrl} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Logo Image URL / Upload Controls */}
+                    <div className="space-y-4 pt-2">
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1.5">
+                          Logo Image Source (Upload or Path/URL)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="e.g. /images/logo.png or https://..."
+                            value={currentLogoUrl}
+                            onChange={(e) => setCurrentLogoUrl(e.target.value)}
+                            className="flex-1 bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCropperTarget({ type: 'logo' });
+                              setIsCropperOpen(true);
+                            }}
+                            className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs whitespace-nowrap"
+                          >
+                            <Upload className="h-4 w-4" />
+                            <span>Upload Image</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-3 pt-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveStoreLogo}
+                          disabled={isSavingLogo}
+                          className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold text-xs px-6 py-3 rounded-xl cursor-pointer shadow-md transition-all"
+                        >
+                          {isSavingLogo ? 'Saving...' : 'Save Logo Settings'}
+                        </button>
+
+                        {currentLogoUrl && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveStoreLogo}
+                            disabled={isSavingLogo}
+                            className="bg-white hover:bg-red-50 text-red-600 font-semibold text-xs px-4 py-3 rounded-xl cursor-pointer shadow-xs transition-colors"
+                          >
+                            Reset to Clean Typography
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1027,8 +1508,50 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         isOpen={isCropperOpen}
         onClose={() => setIsCropperOpen(false)}
         onCropComplete={handleCropComplete}
-        aspectRatio={4 / 3}
+        aspectRatio={cropperTarget.type === 'banner' ? 16 / 9 : cropperTarget.type === 'logo' ? 3 / 1 : 4 / 3}
       />
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+            <h3 className="font-heading font-extrabold text-xl text-neutral-900">
+              Confirm Deletion
+            </h3>
+            <p className="text-sm text-neutral-600 leading-relaxed">
+              Are you sure you want to delete <span className="font-bold text-neutral-900">"{deleteConfirmModal.name}"</span>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal(null)}
+                className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 font-bold py-3 px-4 rounded-xl text-sm transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const target = deleteConfirmModal;
+                  setDeleteConfirmModal(null);
+                  if (target.type === 'product') {
+                    await executeDeleteProduct(target.id);
+                  } else if (target.type === 'category') {
+                    await executeDeleteCategory(target.id);
+                  } else if (target.type === 'banner' && typeof target.index === 'number') {
+                    executeRemoveBanner(target.index);
+                  } else if (target.type === 'announcement') {
+                    await executeDeleteAnnouncement(target.id);
+                  }
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl text-sm transition-all shadow-md cursor-pointer"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

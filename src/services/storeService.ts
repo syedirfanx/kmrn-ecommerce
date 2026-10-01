@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getDoc,
   setDoc,
   updateDoc,
   deleteDoc,
@@ -9,34 +10,68 @@ import {
   writeBatch
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Product, CategoryData, UserProfile, OrderConfirmation, ProductReview } from '../types';
+import {
+  Product,
+  CategoryData,
+  UserProfile,
+  OrderConfirmation,
+  ProductReview,
+  BannerSlide,
+  AnnouncementItem,
+  StoreSettings
+} from '../types';
 import { PRODUCTS } from '../data/products';
 
-const DEFAULT_CATEGORIES: CategoryData[] = [
+export const DEFAULT_CATEGORIES: CategoryData[] = [
   {
-    id: 'cat-audio',
-    name: 'Audio',
-    subcategories: ['Headphones', 'Earphones', 'Speakers']
+    id: 'cat-womens-wear',
+    name: "Elegant Women's Wear",
+    subcategories: ['Original Pakistani Lawn', 'Luxury Chiffon', 'Festive Embroidered', 'Ready to Wear']
   },
   {
-    id: 'cat-timepieces',
-    name: 'Timepieces',
-    subcategories: ['Automatic', 'Chronograph', 'Field Watches']
+    id: 'cat-home-decor',
+    name: 'Home Decor',
+    subcategories: ['Bedsheets', 'Comforters', 'Duvet Sets', 'Quilt Sets']
+  }
+];
+
+export const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
+  {
+    id: 'banner-slide-1',
+    type: 'product',
+    productId: 'prod-pw-1',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1600&q=80',
+    title: 'Baroque Luxury Embroidered Chiffon 3-Piece',
+    subtitle: '100% Original Pakistani Designer Collection with Hand-Embellished Zari'
   },
   {
-    id: 'cat-kitchen',
-    name: 'Kitchen & Dining',
-    subcategories: ['Coffee & Tea', 'Ceramics', 'Barware']
+    id: 'banner-slide-2',
+    type: 'custom',
+    title: 'Home Decor & Luxury Bedding',
+    subtitle: '1000 TC Egyptian Cotton Bedsheets & Quilted Velvet Comforters',
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1600&q=80',
+    buttonText: 'Shop Home Decor',
+    linkUrl: '#shop'
   },
   {
-    id: 'cat-apparel',
-    name: 'Apparel',
-    subcategories: ['Overshirts', 'Knitwear', 'Outerwear']
-  },
+    id: 'banner-slide-3',
+    type: 'product',
+    productId: 'prod-hd-2',
+    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=80',
+    title: 'Royal Velvet Quilted Winter Comforter Set',
+    subtitle: 'Plush Velvet Quilting with 400 GSM Down-Alternative Loft'
+  }
+];
+
+export const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
   {
-    id: 'cat-leather',
-    name: 'Leather Goods',
-    subcategories: ['Bags', 'Wallets', 'Accessories']
+    id: 'ann-1',
+    text: 'Special Offer: Free Express Delivery Across Bangladesh on Original Pakistani Suits and Home Decor',
+    linkText: 'Shop Now',
+    linkUrl: '#shop',
+    active: true,
+    startDate: '',
+    endDate: ''
   }
 ];
 
@@ -58,38 +93,23 @@ export const seedInitialDataIfEmpty = async () => {
       }
       await batch.commit();
     } else {
-      // Ensure existing products in database reflect true review count (zero if no reviews)
+      // Migrate any products that still have the old "ANIQ - " category prefix
       const batch = writeBatch(db);
-      let needsCommit = false;
+      let needsProductMigration = false;
       for (const pDoc of productsSnap.docs) {
         const data = pDoc.data();
-        try {
-          const reviewsSnap = await getDocs(collection(db, 'products', pDoc.id, 'reviews'));
-          if (reviewsSnap.empty) {
-            if (data.rating !== 0 || data.reviewsCount !== 0) {
-              batch.update(pDoc.ref, { rating: 0, reviewsCount: 0 });
-              needsCommit = true;
-            }
-          } else {
-            let sum = 0;
-            reviewsSnap.forEach((r) => {
-              sum += Number(r.data().rating) || 5;
-            });
-            const avg = Math.round((sum / reviewsSnap.size) * 10) / 10;
-            if (data.rating !== avg || data.reviewsCount !== reviewsSnap.size) {
-              batch.update(pDoc.ref, { rating: avg, reviewsCount: reviewsSnap.size });
-              needsCommit = true;
-            }
-          }
-        } catch {
-          // fallback if subcollection not yet populated
-          if (data.rating !== 0 && (!data.reviewsCount || data.reviewsCount > 0)) {
-            batch.update(pDoc.ref, { rating: 0, reviewsCount: 0 });
-            needsCommit = true;
-          }
+        let updatedCat = data.category;
+        if (data.category === "ANIQ - Elegant Women's Wear") {
+          updatedCat = "Elegant Women's Wear";
+        } else if (data.category === 'ANIQ - Home Decor') {
+          updatedCat = 'Home Decor';
+        }
+        if (updatedCat !== data.category) {
+          needsProductMigration = true;
+          batch.update(pDoc.ref, { category: updatedCat });
         }
       }
-      if (needsCommit) {
+      if (needsProductMigration) {
         await batch.commit();
       }
     }
@@ -97,13 +117,45 @@ export const seedInitialDataIfEmpty = async () => {
     const categoriesRef = collection(db, 'categories');
     const categoriesSnap = await getDocs(categoriesRef);
 
-    if (categoriesSnap.empty) {
+    // Sync categories to "Elegant Women's Wear" and "Home Decor"
+    const existingCatNames = categoriesSnap.docs.map((d) => d.data().name);
+    const hasOnlyTargetCategories =
+      existingCatNames.length === 2 &&
+      existingCatNames.includes("Elegant Women's Wear") &&
+      existingCatNames.includes('Home Decor');
+
+    if (!hasOnlyTargetCategories) {
       const batch = writeBatch(db);
+      // Remove outdated categories
+      for (const catDoc of categoriesSnap.docs) {
+        batch.delete(catDoc.ref);
+      }
+      // Set the 2 official categories
       for (const cat of DEFAULT_CATEGORIES) {
         const docRef = doc(db, 'categories', cat.id);
         batch.set(docRef, cat);
       }
       await batch.commit();
+    }
+
+    // Seed banner slides if empty or outdated
+    const bannerDocRef = doc(db, 'settings', 'banner');
+    const bannerSnap = await getDoc(bannerDocRef);
+    if (!bannerSnap.exists() || !bannerSnap.data()?.slides?.some((s: BannerSlide) => s.title?.includes('Baroque') || s.title?.includes('ANIQ'))) {
+      await setDoc(bannerDocRef, {
+        slides: DEFAULT_BANNER_SLIDES,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    // Seed announcements if empty
+    const annDocRef = doc(db, 'settings', 'announcements');
+    const annSnap = await getDoc(annDocRef);
+    if (!annSnap.exists()) {
+      await setDoc(annDocRef, {
+        items: DEFAULT_ANNOUNCEMENTS,
+        updatedAt: new Date().toISOString()
+      });
     }
   } catch (error) {
     console.warn('Initial database seed check:', error);
@@ -140,10 +192,13 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
       });
       if (list.length > 0) {
         onUpdate(list);
+      } else {
+        onUpdate(DEFAULT_CATEGORIES);
       }
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
+      onUpdate(DEFAULT_CATEGORIES);
     }
   );
 };
@@ -154,139 +209,56 @@ export interface DbResult {
 }
 
 export const saveProductToDb = async (product: Product): Promise<DbResult> => {
-  const path = 'products';
+  const path = `products/${product.id}`;
   try {
-    const docRef = doc(db, path, product.id);
-    await setDoc(docRef, {
-      ...product,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
+    const docRef = doc(db, 'products', product.id);
+    await setDoc(
+      docRef,
+      {
+        ...product,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
     return { success: true };
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `${path}/${product.id}`);
+    handleFirestoreError(error, OperationType.WRITE, path);
     return { success: false, error: String(error) };
   }
 };
 
 export const deleteProductFromDb = async (productId: string): Promise<DbResult> => {
-  const path = 'products';
+  const path = `products/${productId}`;
   try {
-    const docRef = doc(db, path, productId);
+    const docRef = doc(db, 'products', productId);
     await deleteDoc(docRef);
     return { success: true };
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `${path}/${productId}`);
+    handleFirestoreError(error, OperationType.DELETE, path);
     return { success: false, error: String(error) };
   }
 };
 
 export const saveCategoryToDb = async (category: CategoryData): Promise<DbResult> => {
-  const path = 'categories';
+  const path = `categories/${category.id}`;
   try {
-    const docRef = doc(db, path, category.id);
+    const docRef = doc(db, 'categories', category.id);
     await setDoc(docRef, category, { merge: true });
     return { success: true };
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `${path}/${category.id}`);
+    handleFirestoreError(error, OperationType.WRITE, path);
     return { success: false, error: String(error) };
   }
 };
 
 export const deleteCategoryFromDb = async (categoryId: string): Promise<DbResult> => {
-  const path = 'categories';
+  const path = `categories/${categoryId}`;
   try {
-    const docRef = doc(db, path, categoryId);
+    const docRef = doc(db, 'categories', categoryId);
     await deleteDoc(docRef);
     return { success: true };
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `${path}/${categoryId}`);
-    return { success: false, error: String(error) };
-  }
-};
-
-export const subscribeUserCart = (
-  userId: string,
-  onUpdate: (cartItems: { productId: string; quantity: number }[]) => void
-) => {
-  const path = `users/${userId}/cart`;
-  return onSnapshot(
-    collection(db, path),
-    (snapshot) => {
-      const items: { productId: string; quantity: number }[] = [];
-      snapshot.forEach((d) => {
-        const data = d.data();
-        items.push({
-          productId: d.id,
-          quantity: Number(data.quantity) || 1
-        });
-      });
-      onUpdate(items);
-    },
-    (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
-    }
-  );
-};
-
-export const saveCartItemToDb = async (userId: string, productId: string, quantity: number): Promise<void> => {
-  if (!auth.currentUser) return;
-  const path = `users/${userId}/cart/${productId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'cart', productId);
-    if (quantity <= 0) {
-      await deleteDoc(docRef);
-    } else {
-      await setDoc(docRef, {
-        productId,
-        quantity,
-        userId,
-        updatedAt: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
-};
-
-export const removeCartItemFromDb = async (userId: string, productId: string): Promise<void> => {
-  if (!auth.currentUser) return;
-  const path = `users/${userId}/cart/${productId}`;
-  try {
-    const docRef = doc(db, 'users', userId, 'cart', productId);
-    await deleteDoc(docRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
-  }
-};
-
-export const clearUserCartInDb = async (userId: string, productIds: string[]): Promise<void> => {
-  if (!auth.currentUser) return;
-  try {
-    const batch = writeBatch(db);
-    for (const pid of productIds) {
-      const docRef = doc(db, 'users', userId, 'cart', pid);
-      batch.delete(docRef);
-    }
-    await batch.commit();
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `users/${userId}/cart`);
-  }
-};
-
-// User Profile
-export const saveUserProfileToDb = async (userId: string, profile: Partial<UserProfile>): Promise<DbResult> => {
-  if (!auth.currentUser) return { success: false, error: 'Not authenticated' };
-  const path = `users/${userId}/profile/info`;
-  try {
-    const docRef = doc(db, 'users', userId, 'profile', 'info');
-    await setDoc(docRef, {
-      ...profile,
-      uid: userId,
-      updatedAt: new Date().toISOString()
-    }, { merge: true });
-    return { success: true };
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
     return { success: false, error: String(error) };
   }
 };
@@ -295,13 +267,12 @@ export const subscribeUserProfile = (
   userId: string,
   onUpdate: (profile: UserProfile | null) => void
 ) => {
-  const path = `users/${userId}/profile/info`;
-  const docRef = doc(db, 'users', userId, 'profile', 'info');
+  const path = `users/${userId}/profile/main`;
   return onSnapshot(
-    docRef,
-    (snap) => {
-      if (snap.exists()) {
-        onUpdate(snap.data() as UserProfile);
+    doc(db, 'users', userId, 'profile', 'main'),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        onUpdate(snapshot.data() as UserProfile);
       } else {
         onUpdate(null);
       }
@@ -312,17 +283,117 @@ export const subscribeUserProfile = (
   );
 };
 
-// Wishlist
+export const saveUserProfileToDb = async (
+  userId: string,
+  profile: Partial<UserProfile>
+): Promise<DbResult> => {
+  const path = `users/${userId}/profile/main`;
+  try {
+    const docRef = doc(db, 'users', userId, 'profile', 'main');
+    await setDoc(
+      docRef,
+      {
+        ...profile,
+        uid: userId,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const subscribeUserCart = (
+  userId: string,
+  onUpdate: (items: { product: Product; quantity: number }[]) => void
+) => {
+  const path = `users/${userId}/cart`;
+  return onSnapshot(
+    collection(db, 'users', userId, 'cart'),
+    (snapshot) => {
+      const items: { product: Product; quantity: number }[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        if (data.product && data.quantity) {
+          items.push({
+            product: data.product as Product,
+            quantity: data.quantity as number
+          });
+        }
+      });
+      onUpdate(items);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+};
+
+export const saveCartItemToDb = async (
+  userId: string,
+  product: Product,
+  quantity: number
+): Promise<DbResult> => {
+  const path = `users/${userId}/cart/${product.id}`;
+  try {
+    const docRef = doc(db, 'users', userId, 'cart', product.id);
+    await setDoc(docRef, {
+      product,
+      quantity,
+      updatedAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const removeCartItemFromDb = async (
+  userId: string,
+  productId: string
+): Promise<DbResult> => {
+  const path = `users/${userId}/cart/${productId}`;
+  try {
+    const docRef = doc(db, 'users', userId, 'cart', productId);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const clearUserCartInDb = async (userId: string): Promise<DbResult> => {
+  const path = `users/${userId}/cart`;
+  try {
+    const cartRef = collection(db, 'users', userId, 'cart');
+    const snap = await getDocs(cartRef);
+    const batch = writeBatch(db);
+    snap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
 export const subscribeUserWishlist = (
   userId: string,
   onUpdate: (productIds: string[]) => void
 ) => {
   const path = `users/${userId}/wishlist`;
   return onSnapshot(
-    collection(db, path),
+    collection(db, 'users', userId, 'wishlist'),
     (snapshot) => {
       const ids: string[] = [];
-      snapshot.forEach((d) => ids.push(d.id));
+      snapshot.forEach((d) => {
+        ids.push(d.id);
+      });
       onUpdate(ids);
     },
     (error) => {
@@ -334,34 +405,38 @@ export const subscribeUserWishlist = (
 export const toggleWishlistItemInDb = async (
   userId: string,
   productId: string,
-  isCurrentlyWishlisted: boolean
-): Promise<void> => {
-  if (!auth.currentUser) return;
+  shouldAdd: boolean
+): Promise<DbResult> => {
   const path = `users/${userId}/wishlist/${productId}`;
   try {
     const docRef = doc(db, 'users', userId, 'wishlist', productId);
-    if (isCurrentlyWishlisted) {
-      await deleteDoc(docRef);
-    } else {
+    if (shouldAdd) {
       await setDoc(docRef, {
         productId,
         addedAt: new Date().toISOString()
       });
+    } else {
+      await deleteDoc(docRef);
     }
+    return { success: true };
   } catch (error) {
-    handleFirestoreError(error, isCurrentlyWishlisted ? OperationType.DELETE : OperationType.WRITE, path);
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
   }
 };
 
-// Orders
-export const saveUserOrderToDb = async (userId: string, order: OrderConfirmation): Promise<void> => {
-  if (!auth.currentUser) return;
+export const saveUserOrderToDb = async (
+  userId: string,
+  order: OrderConfirmation
+): Promise<DbResult> => {
   const path = `users/${userId}/orders/${order.orderId}`;
   try {
     const docRef = doc(db, 'users', userId, 'orders', order.orderId);
     await setDoc(docRef, order);
+    return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
   }
 };
 
@@ -371,11 +446,17 @@ export const subscribeUserOrders = (
 ) => {
   const path = `users/${userId}/orders`;
   return onSnapshot(
-    collection(db, path),
+    collection(db, 'users', userId, 'orders'),
     (snapshot) => {
-      const list: OrderConfirmation[] = [];
-      snapshot.forEach((d) => list.push(d.data() as OrderConfirmation));
-      onUpdate(list.sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()));
+      const orders: OrderConfirmation[] = [];
+      snapshot.forEach((d) => {
+        orders.push(d.data() as OrderConfirmation);
+      });
+      onUpdate(
+        orders.sort(
+          (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
+        )
+      );
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -383,7 +464,6 @@ export const subscribeUserOrders = (
   );
 };
 
-// Customer Reviews stored in Firestore
 export const saveProductReviewToDb = async (
   productId: string,
   review: {
@@ -393,12 +473,11 @@ export const saveProductReviewToDb = async (
     comment: string;
   }
 ): Promise<DbResult> => {
-  if (!auth.currentUser) return { success: false, error: 'Sign in required to submit a review' };
-  const reviewId = `rev-${review.userId}`;
+  const reviewId = `rev-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const path = `products/${productId}/reviews/${reviewId}`;
   try {
     const docRef = doc(db, 'products', productId, 'reviews', reviewId);
-    const reviewData: ProductReview = {
+    const newRev: ProductReview = {
       id: reviewId,
       productId,
       userId: review.userId,
@@ -407,16 +486,14 @@ export const saveProductReviewToDb = async (
       comment: review.comment,
       createdAt: new Date().toISOString()
     };
-    await setDoc(docRef, reviewData);
+    await setDoc(docRef, newRev);
 
-    // Automatically recalculate product rating and total review count
     try {
       const allReviewsSnap = await getDocs(collection(db, 'products', productId, 'reviews'));
       let sum = 0;
       let count = 0;
-      allReviewsSnap.forEach((d) => {
-        const data = d.data();
-        sum += Number(data.rating) || 5;
+      allReviewsSnap.forEach((r) => {
+        sum += Number(r.data().rating) || 5;
         count += 1;
       });
       if (count > 0) {
@@ -428,7 +505,7 @@ export const saveProductReviewToDb = async (
         });
       }
     } catch {
-      // rating aggregation fallback
+      // aggregation fallback
     }
 
     return { success: true };
@@ -463,32 +540,94 @@ export const subscribeProductReviews = (
 };
 
 // Banner Ads Configuration
-export const subscribeBannerSettings = (onUpdate: (productIds: string[]) => void) => {
+export const subscribeBannerSlides = (onUpdate: (slides: BannerSlide[]) => void) => {
   const path = 'settings/banner';
   return onSnapshot(
     doc(db, 'settings', 'banner'),
     (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
-        if (Array.isArray(data.featuredProductIds)) {
-          onUpdate(data.featuredProductIds);
+        if (Array.isArray(data.slides) && data.slides.length > 0) {
+          onUpdate(data.slides);
           return;
         }
       }
-      onUpdate([]);
+      onUpdate(DEFAULT_BANNER_SLIDES);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
+      onUpdate(DEFAULT_BANNER_SLIDES);
     }
   );
 };
 
-export const saveBannerSettings = async (productIds: string[]): Promise<DbResult> => {
+export const saveBannerSlides = async (slides: BannerSlide[]): Promise<DbResult> => {
   const path = 'settings/banner';
   try {
     const docRef = doc(db, 'settings', 'banner');
+    const sanitizedSlides = slides.slice(0, 5).map((s) => ({
+      id: s.id || `slide-${Date.now()}`,
+      type: s.type || 'custom',
+      productId: s.productId || '',
+      title: s.title || '',
+      subtitle: s.subtitle || '',
+      image: s.image || '',
+      buttonText: s.buttonText || '',
+      linkUrl: s.linkUrl || ''
+    }));
+    await setDoc(
+      docRef,
+      {
+        slides: sanitizedSlides,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+// Running News & Offers Announcements
+export const subscribeAnnouncements = (onUpdate: (items: AnnouncementItem[]) => void) => {
+  const path = 'settings/announcements';
+  return onSnapshot(
+    doc(db, 'settings', 'announcements'),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (Array.isArray(data.items)) {
+          onUpdate(data.items);
+          return;
+        }
+      }
+      onUpdate(DEFAULT_ANNOUNCEMENTS);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      onUpdate(DEFAULT_ANNOUNCEMENTS);
+    }
+  );
+};
+
+export const saveAnnouncements = async (items: AnnouncementItem[]): Promise<DbResult> => {
+  const path = 'settings/announcements';
+  try {
+    const docRef = doc(db, 'settings', 'announcements');
+    const sanitizedItems = items.map((item) => ({
+      id: item.id || `ann-${Date.now()}`,
+      text: item.text || '',
+      linkText: item.linkText || '',
+      linkUrl: item.linkUrl || '',
+      startDate: item.startDate || '',
+      endDate: item.endDate || '',
+      active: item.active ?? true,
+      createdAt: item.createdAt || new Date().toISOString()
+    }));
     await setDoc(docRef, {
-      featuredProductIds: productIds.slice(0, 3),
+      items: sanitizedItems,
       updatedAt: new Date().toISOString()
     });
     return { success: true };
@@ -498,5 +637,39 @@ export const saveBannerSettings = async (productIds: string[]): Promise<DbResult
   }
 };
 
+export const subscribeStoreSettings = (onUpdate: (settings: StoreSettings) => void) => {
+  const path = 'settings/store';
+  return onSnapshot(
+    doc(db, 'settings', 'store'),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        onUpdate(snapshot.data() as StoreSettings);
+      } else {
+        onUpdate({});
+      }
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      onUpdate({});
+    }
+  );
+};
 
-
+export const saveStoreSettings = async (settings: Partial<StoreSettings>): Promise<DbResult> => {
+  const path = 'settings/store';
+  try {
+    const docRef = doc(db, 'settings', 'store');
+    await setDoc(
+      docRef,
+      {
+        ...settings,
+        updatedAt: new Date().toISOString()
+      },
+      { merge: true }
+    );
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};

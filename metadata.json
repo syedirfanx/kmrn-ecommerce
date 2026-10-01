@@ -1,6 +1,6 @@
 {
-  "name": "Maison Minimal Goods",
-  "description": "A curated ecommerce store featuring five essential products across five categories.",
+  "name": "Aniq Lifestyle",
+  "description": "Aniq Lifestyle features curated original Pakistani designer dresses and luxury home decor bedsheets and comforters.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
