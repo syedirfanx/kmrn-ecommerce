@@ -751,42 +751,68 @@ export default function App() {
         onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
       />
 
-      {/* Top Navbar */}
-      <Navbar
-        cartCount={totalCartCount}
-        wishlistCount={wishlistProductIds.length}
-        categories={categories}
-        logoUrl={storeSettings.logoUrl}
-        onOpenCart={() => setIsCartOpen(true)}
-        onOpenAccount={(tab) => {
-          if (!currentUser) {
-            setIsAuthModalOpen(true);
-          } else {
-            setAccountInitialTab(tab || 'profile');
-            navigateTo('account');
-          }
-        }}
-        onNavigateToHome={() => navigateTo('home')}
-        onNavigateToCategory={navigateToCategory}
-        onNavigateToAbout={() => navigateTo('about')}
-        onNavigateToContact={() => navigateTo('contact')}
-        currentPage={currentPage}
-        selectedCategory={selectedCategory}
-        currentUser={currentUser}
-        onLogin={() => setIsAuthModalOpen(true)}
-        onLogout={handleLogout}
-      />
+      {/* Top Navbar & Home Hero Banner */}
+      {currentPage === 'home' ? (
+        <div className="relative w-full m-0 p-0 border-0 outline-none">
+          <Navbar
+            cartCount={totalCartCount}
+            wishlistCount={wishlistProductIds.length}
+            categories={categories}
+            logoUrl={storeSettings.logoUrl}
+            onOpenCart={() => setIsCartOpen(true)}
+            onOpenAccount={(tab) => {
+              if (!currentUser) {
+                setIsAuthModalOpen(true);
+              } else {
+                setAccountInitialTab(tab || 'profile');
+                navigateTo('account');
+              }
+            }}
+            onNavigateToHome={() => navigateTo('home')}
+            onNavigateToCategory={navigateToCategory}
+            onNavigateToAbout={() => navigateTo('about')}
+            onNavigateToContact={() => navigateTo('contact')}
+            currentPage={currentPage}
+            selectedCategory={selectedCategory}
+            currentUser={currentUser}
+            onLogin={() => setIsAuthModalOpen(true)}
+            onLogout={handleLogout}
+          />
 
-      {/* Full-bleed Home Hero Banner (fit full on left, top, and right) */}
-      {currentPage === 'home' && (
-        <FeaturedBanner
-          slides={bannerSlides}
-          products={products}
-          onAddToCart={(p) => handleAddToCart(p, 1)}
-          onViewDetails={(p) => setActiveProduct(p)}
-          onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+          <FeaturedBanner
+            slides={bannerSlides}
+            products={products}
+            onAddToCart={(p) => handleAddToCart(p, 1)}
+            onViewDetails={(p) => setActiveProduct(p)}
+            onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+            onNavigateToCategory={navigateToCategory}
+            onNavigateToPage={navigateTo}
+          />
+        </div>
+      ) : (
+        <Navbar
+          cartCount={totalCartCount}
+          wishlistCount={wishlistProductIds.length}
+          categories={categories}
+          logoUrl={storeSettings.logoUrl}
+          onOpenCart={() => setIsCartOpen(true)}
+          onOpenAccount={(tab) => {
+            if (!currentUser) {
+              setIsAuthModalOpen(true);
+            } else {
+              setAccountInitialTab(tab || 'profile');
+              navigateTo('account');
+            }
+          }}
+          onNavigateToHome={() => navigateTo('home')}
           onNavigateToCategory={navigateToCategory}
-          onNavigateToPage={navigateTo}
+          onNavigateToAbout={() => navigateTo('about')}
+          onNavigateToContact={() => navigateTo('contact')}
+          currentPage={currentPage}
+          selectedCategory={selectedCategory}
+          currentUser={currentUser}
+          onLogin={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
         />
       )}
 

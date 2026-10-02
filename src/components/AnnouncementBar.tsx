@@ -40,11 +40,11 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
   return (
     <aside
       aria-label="Announcements"
-      className="bg-neutral-950 text-stone-200 py-2.5 overflow-hidden border-0 border-none select-none cursor-pointer"
+      className="w-full bg-neutral-950 text-stone-200 h-9 sm:h-10 flex items-center overflow-hidden border-0 border-none outline-none shadow-none m-0 p-0 select-none cursor-pointer"
       onClick={onNavigateToShop}
     >
-      <div className="w-full overflow-hidden flex">
-        {/* Continuous Marquee Track (Repeated twice for seamless loop) */}
+      <div className="w-full overflow-hidden flex items-center">
+        {/* Continuous Marquee Track (Repeated for seamless infinite loop) */}
         <div className="animate-marquee shrink-0 flex items-center gap-12 text-[10.5px] sm:text-[11px] font-heading font-medium tracking-[0.2em] uppercase text-stone-200">
           <span>{fullMarqueeString}</span>
           <span>✦</span>

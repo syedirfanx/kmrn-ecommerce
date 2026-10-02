@@ -69,7 +69,7 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
   return (
     <section
       aria-label="Featured collection showcase"
-      className="relative w-full -mt-[61px] sm:-mt-[69px] mb-8 bg-neutral-950 border-0"
+      className="relative w-full m-0 mb-8 bg-neutral-950 border-0 border-none outline-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >

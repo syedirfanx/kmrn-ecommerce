@@ -107,7 +107,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const userName = getCleanUserName();
-  const isContrastActive = isScrolled || isHovered || isDrawerOpen;
+  const isContrastActive =
+    currentPage !== 'home' || isScrolled || isHovered || isDrawerOpen;
 
   const handleCategoryClick = (catName: string) => {
     onNavigateToCategory(catName);
@@ -119,10 +120,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       <header
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`sticky top-0 z-40 w-full transition-all duration-300 ease-in-out border-0 outline-none ${
-          isContrastActive
-            ? 'bg-white shadow-md text-neutral-900'
-            : 'bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white shadow-none'
+        className={`w-full transition-all duration-300 ease-in-out border-0 border-none outline-none ${
+          currentPage === 'home'
+            ? isScrolled
+              ? 'fixed top-0 left-0 right-0 z-40 bg-white shadow-md text-neutral-900'
+              : isHovered || isDrawerOpen
+                ? 'absolute top-0 left-0 right-0 z-30 bg-white shadow-md text-neutral-900'
+                : 'absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 via-black/30 to-transparent text-white shadow-none'
+            : 'sticky top-0 z-40 bg-white shadow-xs text-neutral-900'
         }`}
       >
         <div className="w-full px-4 sm:px-8 lg:px-12 py-3.5 sm:py-4">
