@@ -215,12 +215,32 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Gallery Column */}
           <div className="p-6 md:p-8 bg-stone-50 flex flex-col justify-between">
-            <div className="aspect-[3/4] rounded-xl overflow-hidden bg-white shadow-xs mb-4 border border-stone-200/60">
+            <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-white shadow-xs mb-4 border border-stone-200/60">
               <img
                 src={selectedImage || product.image}
                 alt={product.name}
                 className="w-full h-full object-cover object-center"
               />
+
+              {/* Category Brand Watermark */}
+              {(() => {
+                const cat = (product.category || '').toLowerCase();
+                const logoSrc = cat.includes('women') || cat.includes('lawn') || cat.includes('wear') || cat.includes('dress') || cat.includes('chiffon')
+                  ? '/images/aniq-1.png'
+                  : cat.includes('home') || cat.includes('decor') || cat.includes('bed')
+                    ? '/images/aniq-2.png'
+                    : null;
+                if (!logoSrc) return null;
+                return (
+                  <div className="absolute bottom-3 right-3 z-10 pointer-events-none bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-lg shadow-md border border-stone-200/90">
+                    <img
+                      src={logoSrc}
+                      alt="Brand mark"
+                      className="h-6 sm:h-7 w-auto object-contain filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)]"
+                    />
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Thumbnail selector */}

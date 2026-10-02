@@ -94,21 +94,53 @@ export default function App() {
   const [accountInitialTab, setAccountInitialTab] = useState<'profile' | 'cart' | 'wishlist' | 'orders'>('profile');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
-  const [categories, setCategories] = useState<CategoryData[]>([
-    {
-      id: 'cat-womens-wear',
-      name: "Elegant Women's Wear",
-      subcategories: ['Original Pakistani Lawn', 'Luxury Chiffon', 'Festive Embroidered', 'Ready to Wear']
-    },
-    {
-      id: 'cat-home-decor',
-      name: 'Home Decor',
-      subcategories: ['Bedsheets', 'Comforters', 'Duvet Sets', 'Quilt Sets']
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const cached = localStorage.getItem('aniq_cached_products');
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // storage fallback
     }
-  ]);
-  const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>(DEFAULT_BANNER_SLIDES);
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(DEFAULT_ANNOUNCEMENTS);
+    return PRODUCTS;
+  });
+  const [categories, setCategories] = useState<CategoryData[]>(() => {
+    try {
+      const cached = localStorage.getItem('aniq_cached_categories');
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // storage fallback
+    }
+    return [
+      {
+        id: 'cat-womens-wear',
+        name: "Elegant Women's Wear",
+        subcategories: ['Original Pakistani Lawn', 'Luxury Chiffon', 'Festive Embroidered', 'Ready to Wear']
+      },
+      {
+        id: 'cat-home-decor',
+        name: 'Home Decor',
+        subcategories: ['Bedsheets', 'Comforters', 'Duvet Sets', 'Quilt Sets']
+      }
+    ];
+  });
+  const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>(() => {
+    try {
+      const cached = localStorage.getItem('aniq_cached_banner_slides');
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // storage fallback
+    }
+    return DEFAULT_BANNER_SLIDES;
+  });
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(() => {
+    try {
+      const cached = localStorage.getItem('aniq_cached_announcements');
+      if (cached) return JSON.parse(cached);
+    } catch {
+      // storage fallback
+    }
+    return DEFAULT_ANNOUNCEMENTS;
+  });
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({});
   const [featuredProductIds, setFeaturedProductIds] = useState<string[]>([]);
 
@@ -224,10 +256,20 @@ export default function App() {
   useEffect(() => {
     const unsubProducts = subscribeProducts((liveProducts) => {
       setProducts(liveProducts);
+      try {
+        localStorage.setItem('aniq_cached_products', JSON.stringify(liveProducts));
+      } catch {
+        // fallback
+      }
     });
 
     const unsubCategories = subscribeCategories((liveCategories) => {
       setCategories(liveCategories);
+      try {
+        localStorage.setItem('aniq_cached_categories', JSON.stringify(liveCategories));
+      } catch {
+        // fallback
+      }
       if (liveCategories.length > 0) {
         // Ensure selected category is valid
         setSelectedCategory((prev) => {
@@ -240,11 +282,21 @@ export default function App() {
     const unsubBanner = subscribeBannerSlides((liveSlides) => {
       if (liveSlides && liveSlides.length > 0) {
         setBannerSlides(liveSlides);
+        try {
+          localStorage.setItem('aniq_cached_banner_slides', JSON.stringify(liveSlides));
+        } catch {
+          // fallback
+        }
       }
     });
 
     const unsubAnnouncements = subscribeAnnouncements((liveAnnouncements) => {
       setAnnouncements(liveAnnouncements);
+      try {
+        localStorage.setItem('aniq_cached_announcements', JSON.stringify(liveAnnouncements));
+      } catch {
+        // fallback
+      }
     });
 
     const unsubSettings = subscribeStoreSettings((liveSettings) => {
@@ -608,7 +660,7 @@ export default function App() {
   // Dedicated About Page (Back to Store button removed per instruction 1)
   if (currentPage === 'about') {
     return (
-      <div className="min-h-screen bg-[#faf9f6] flex flex-col">
+      <div className="min-h-screen bg-[#faf9f6] text-neutral-900 flex flex-col font-sans">
         <AnnouncementBar
           announcements={announcements}
           onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
@@ -664,7 +716,7 @@ export default function App() {
   // Dedicated Contact Page (Back to Store button removed per instruction 1)
   if (currentPage === 'contact') {
     return (
-      <div className="min-h-screen bg-[#faf9f6] flex flex-col">
+      <div className="min-h-screen bg-[#faf9f6] text-neutral-900 flex flex-col font-sans">
         <AnnouncementBar
           announcements={announcements}
           onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
@@ -764,6 +816,8 @@ export default function App() {
               onAddToCart={(p) => handleAddToCart(p, 1)}
               onViewDetails={(p) => setActiveProduct(p)}
               onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+              onNavigateToCategory={navigateToCategory}
+              onNavigateToPage={navigateTo}
             />
 
             {/* Featured Collection: (Requirements 7: Hide if 0, show exact count if 1, 2, etc.) */}
@@ -837,31 +891,54 @@ export default function App() {
         {currentPage === 'category' && (
           <div className="space-y-6">
             {/* Editorial Header */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200/80 shadow-xs">
-              <div className="flex items-center gap-2 text-xs text-stone-400 mb-2">
-                <button
-                  onClick={() => navigateTo('home')}
-                  className="hover:text-neutral-900 transition-colors cursor-pointer"
-                >
-                  Home
-                </button>
-                <span>/</span>
-                <span className="text-neutral-900 font-semibold">
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 text-xs text-stone-400 mb-2">
+                  <button
+                    onClick={() => navigateTo('home')}
+                    className="hover:text-neutral-900 transition-colors cursor-pointer"
+                  >
+                    Home
+                  </button>
+                  <span>/</span>
+                  <span className="text-neutral-900 font-semibold">
+                    {selectedCategory}
+                  </span>
+                </div>
+
+                <h1 className="font-heading font-medium text-2xl sm:text-3xl text-neutral-900 mb-2 tracking-tight">
                   {selectedCategory}
-                </span>
+                </h1>
+
+                <p className="text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
+                  {selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')
+                    ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.'
+                    : selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
+                      ? 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.'
+                      : `Explore our collection of authentic ${selectedCategory} products.`}
+                </p>
               </div>
 
-              <h1 className="font-heading font-medium text-2xl sm:text-3xl text-neutral-900 mb-2 tracking-tight">
-                {selectedCategory}
-              </h1>
+              {/* Right side category logo badge */}
+              {(selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')) && (
+                <div className="shrink-0 flex items-center justify-center p-4 bg-white rounded-2xl border border-stone-300 shadow-md max-w-[170px] sm:max-w-[220px]">
+                  <img
+                    src="/images/aniq-1.png"
+                    alt="ANIQ Women's Wear"
+                    className="w-full h-auto object-contain max-h-24 sm:max-h-28 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.18)]"
+                  />
+                </div>
+              )}
 
-              <p className="text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
-                {selectedCategory.toLowerCase().includes('women')
-                  ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.'
-                  : selectedCategory.toLowerCase().includes('decor')
-                    ? 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.'
-                    : `Explore our collection of authentic ${selectedCategory} products.`}
-              </p>
+              {(selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')) && (
+                <div className="shrink-0 flex items-center justify-center p-4 bg-white rounded-2xl border border-stone-300 shadow-md max-w-[170px] sm:max-w-[220px]">
+                  <img
+                    src="/images/aniq-2.png"
+                    alt="ANIQ Home Decor"
+                    className="w-full h-auto object-contain max-h-24 sm:max-h-28 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.18)]"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Search Bar & Sorting Controls */}

@@ -832,27 +832,52 @@ export const submitContactMessage = async (
     read: false
   };
 
-  // Always cache locally first so admin sees it immediately in browser
-  try {
-    const existing: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
-    localStorage.setItem('maison_local_messages', JSON.stringify([newMsg, ...existing]));
-  } catch {
-    // storage fallback
-  }
-
   try {
     const docRef = doc(db, 'messages', messageId);
     await setDoc(docRef, newMsg);
+
+    try {
+      const existing: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+      localStorage.setItem('maison_local_messages', JSON.stringify([newMsg, ...existing]));
+    } catch {
+      // storage fallback
+    }
+
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    // Even if Firestore returns an error, we saved to localStorage
+    try {
+      const existing: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+      localStorage.setItem('maison_local_messages', JSON.stringify([newMsg, ...existing]));
+    } catch {
+      // storage fallback
+    }
     return { success: true };
   }
 };
 
 export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) => void) => {
   const path = 'messages';
+
+  // Initial immediate fetch for cross-browser reliability
+  getDocs(collection(db, path))
+    .then((snap) => {
+      if (!snap.empty) {
+        const list: ContactMessage[] = [];
+        snap.forEach((d) => {
+          list.push({ id: d.id, ...d.data() } as ContactMessage);
+        });
+        onUpdate(
+          list.sort(
+            (a, b) => (new Date(b.createdAt || 0).getTime() || 0) - (new Date(a.createdAt || 0).getTime() || 0)
+          )
+        );
+      }
+    })
+    .catch(() => {
+      // fallback
+    });
+
   return onSnapshot(
     collection(db, path),
     (snapshot) => {
@@ -861,7 +886,7 @@ export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) 
         list.push({ id: d.id, ...d.data() } as ContactMessage);
       });
 
-      // Merge with any offline local messages
+      // Merge with any offline local backup
       try {
         const local: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
         local.forEach((lm) => {
@@ -875,7 +900,7 @@ export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) 
 
       onUpdate(
         list.sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          (a, b) => (new Date(b.createdAt || 0).getTime() || 0) - (new Date(a.createdAt || 0).getTime() || 0)
         )
       );
     },

@@ -99,25 +99,25 @@ export const AboutPage: React.FC<AboutPageProps> = () => {
 
             <div className="p-5 bg-stone-50 rounded-2xl border border-stone-100">
               <div className="h-10 w-10 rounded-xl bg-neutral-900 text-white flex items-center justify-center mb-3">
-                <RefreshCw className="h-5 w-5" />
+                <ShieldCheck className="h-5 w-5" />
               </div>
               <h3 className="font-heading font-semibold text-sm text-neutral-900 mb-1">
-                Inspection on Arrival
+                Secure Ordering
               </h3>
               <p className="text-xs text-stone-600 leading-relaxed">
-                Verify embroidery, fabric quality, and bedding dimensions upon delivery.
+                Verified Cash on Delivery with complete transparency.
               </p>
             </div>
 
             <div className="p-5 bg-stone-50 rounded-2xl border border-stone-100">
               <div className="h-10 w-10 rounded-xl bg-neutral-900 text-white flex items-center justify-center mb-3">
-                <ShieldCheck className="h-5 w-5" />
+                <RefreshCw className="h-5 w-5" />
               </div>
               <h3 className="font-heading font-semibold text-sm text-neutral-900 mb-1">
-                Client Support
+                Customer Support
               </h3>
               <p className="text-xs text-stone-600 leading-relaxed">
-                Direct WhatsApp and phone assistance for sizing and bedroom styling.
+                Dedicated WhatsApp assistance from inquiry through delivery.
               </p>
             </div>
           </div>

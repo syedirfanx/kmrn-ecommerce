@@ -9,6 +9,8 @@ interface FeaturedBannerProps {
   onAddToCart: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onNavigateToShop?: () => void;
+  onNavigateToCategory?: (categoryName: string) => void;
+  onNavigateToPage?: (page: 'home' | 'about' | 'contact' | 'account') => void;
 }
 
 export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
@@ -16,7 +18,9 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
   products,
   onAddToCart,
   onViewDetails,
-  onNavigateToShop
+  onNavigateToShop,
+  onNavigateToCategory,
+  onNavigateToPage
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -147,7 +151,7 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
 
                 <button
                   onClick={() => onAddToCart(linkedProduct)}
-                  className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-5 py-2.5 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
+                  className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-5 py-2.5 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase"
                 >
                   <Plus className="h-3.5 w-3.5 text-neutral-900" />
                   <span>Add to Bag</span>
@@ -155,15 +159,69 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
 
                 <button
                   onClick={() => onViewDetails(linkedProduct)}
-                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs px-5 py-2.5 rounded-lg font-semibold transition-all cursor-pointer active:scale-95 text-xs uppercase tracking-wider border border-white/20"
+                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs px-5 py-2.5 rounded-lg font-semibold transition-all cursor-pointer active:scale-95 text-xs uppercase border border-white/20"
                 >
                   <span>Details</span>
                 </button>
               </>
             ) : (
               <button
-                onClick={onNavigateToShop}
-                className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-6 py-3 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase tracking-wider"
+                onClick={() => {
+                  const targetUrl = 'linkUrl' in currentSlide && typeof currentSlide.linkUrl === 'string' ? currentSlide.linkUrl.trim() : '';
+
+                  if (!targetUrl) {
+                    if (onNavigateToShop) onNavigateToShop();
+                    return;
+                  }
+
+                  // 1. External URL
+                  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+                    window.location.href = targetUrl;
+                    return;
+                  }
+
+                  // 2. Specific pages
+                  const cleaned = targetUrl.replace(/^[#/]/, '').trim().toLowerCase();
+                  if (cleaned === 'about' || cleaned === 'about-us' || cleaned === 'aboutpage') {
+                    if (onNavigateToPage) {
+                      onNavigateToPage('about');
+                      return;
+                    }
+                  }
+                  if (cleaned === 'contact' || cleaned === 'contact-us' || cleaned === 'contactpage') {
+                    if (onNavigateToPage) {
+                      onNavigateToPage('contact');
+                      return;
+                    }
+                  }
+                  if (cleaned === 'account' || cleaned === 'profile') {
+                    if (onNavigateToPage) {
+                      onNavigateToPage('account');
+                      return;
+                    }
+                  }
+                  if (cleaned === 'home') {
+                    if (onNavigateToPage) {
+                      onNavigateToPage('home');
+                      return;
+                    }
+                  }
+
+                  // 3. Category matching (by exact name or cleaned name)
+                  if (onNavigateToCategory) {
+                    const rawTarget = targetUrl.replace(/^[#/]/, '').trim();
+                    if (rawTarget && rawTarget.toLowerCase() !== 'shop' && rawTarget.toLowerCase() !== 'home') {
+                      onNavigateToCategory(rawTarget);
+                      return;
+                    }
+                  }
+
+                  // 4. Fallback to shop
+                  if (onNavigateToShop) {
+                    onNavigateToShop();
+                  }
+                }}
+                className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-6 py-3 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase"
               >
                 <span>{'buttonText' in currentSlide && currentSlide.buttonText ? currentSlide.buttonText : 'Discover Collection'}</span>
                 <ArrowRight className="h-3.5 w-3.5 text-neutral-900" />

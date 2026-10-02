@@ -87,6 +87,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </button>
         )}
 
+        {/* Category Brand Watermark in Bottom Right Corner */}
+        {(() => {
+          const cat = (product.category || '').toLowerCase();
+          const logoSrc = cat.includes('women') || cat.includes('lawn') || cat.includes('wear') || cat.includes('dress') || cat.includes('chiffon')
+            ? '/images/aniq-1.png'
+            : cat.includes('home') || cat.includes('decor') || cat.includes('bed')
+              ? '/images/aniq-2.png'
+              : null;
+          if (!logoSrc) return null;
+          return (
+            <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none bg-white/95 backdrop-blur-md px-2 py-1 rounded-lg shadow-md border border-stone-200/90 transition-all">
+              <img
+                src={logoSrc}
+                alt="Brand mark"
+                className="h-5 sm:h-6 w-auto object-contain filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)]"
+              />
+            </div>
+          );
+        })()}
+
         {/* Quick View Hover Bar */}
         <div className="absolute inset-x-0 bottom-0 py-2.5 bg-white/95 backdrop-blur-xs text-neutral-900 text-center text-[11px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden sm:block border-t border-stone-200/60">
           Quick View

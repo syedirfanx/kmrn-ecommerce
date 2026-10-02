@@ -230,11 +230,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           <span>Continue with Google</span>
         </button>
 
-        <div className="relative flex items-center justify-center my-4">
-          <div className="w-full border-t border-stone-200" />
-          <span className="bg-white px-3 text-[11px] font-bold text-stone-400 uppercase tracking-wider relative">
+        <div className="flex items-center my-4">
+          <div className="flex-1 border-t border-stone-200" />
+          <span className="shrink-0 px-3 text-[11px] font-bold text-stone-400 uppercase text-center">
             Or with email
           </span>
+          <div className="flex-1 border-t border-stone-200" />
         </div>
 
         {/* Email & Password Form */}

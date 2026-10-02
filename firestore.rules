@@ -50,9 +50,7 @@ service cloud.firestore {
 
     // Customer inquiries / messages from contact form (visible & manageable by admin)
     match /messages/{messageId} {
-      allow create: if isValidId(messageId);
-      allow get, list: if true;
-      allow update, delete: if isValidId(messageId);
+      allow read, write: if true;
     }
 
     // Central orders collection for admin management (active orders & order history)

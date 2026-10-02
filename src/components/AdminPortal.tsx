@@ -269,11 +269,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   // Open New Product Form
   const openNewProductForm = () => {
     setEditingProduct(null);
-    setProductImages(['https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80', '', '']);
+    setProductImages(['', '', '']);
     const defaultCat = categories[0]?.name || "Elegant Women's Wear";
     setFormData({
       id: `prod-${Date.now()}`,
       name: '',
+      image: '',
+      additionalImages: [],
       category: defaultCat,
       subcategory: categories[0]?.subcategories[0] || '',
       price: 10000,
@@ -1758,40 +1760,47 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </div>
 
                         <div className="flex-1 w-full space-y-3">
-                          {/* Select Product to Auto-fill Banner Slide */}
-                          <div className="p-3 bg-white rounded-xl border border-stone-200 shadow-xs">
+                          {/* Banner Type / Product Select Dropdown */}
+                          <div className="p-3.5 bg-white rounded-xl border border-stone-200 shadow-xs">
                             <label className="block text-[11px] font-bold text-neutral-800 mb-1">
-                              Select Product to Feature (Auto-fills image & details)
+                              Banner Type
                             </label>
                             <select
-                              value={slide.productId || ''}
+                              value={slide.type === 'custom' || !slide.productId ? 'custom' : slide.productId}
                               onChange={(e) => {
-                                const pid = e.target.value;
-                                if (!pid) {
-                                  handleUpdateBannerSlide(idx, { productId: undefined });
-                                  return;
-                                }
-                                const prod = products.find((p) => p.id === pid);
-                                if (prod) {
+                                const val = e.target.value;
+                                if (val === 'custom') {
                                   handleUpdateBannerSlide(idx, {
-                                    productId: prod.id,
-                                    type: 'product',
-                                    image: prod.image,
-                                    title: prod.name,
-                                    subtitle: prod.description,
-                                    buttonText: 'Shop Now',
-                                    linkUrl: `#${prod.category}`
+                                    type: 'custom',
+                                    productId: '',
+                                    buttonText: slide.buttonText || 'Discover Collection',
+                                    linkUrl: slide.linkUrl || '#shop'
                                   });
+                                } else {
+                                  const prod = products.find((p) => p.id === val);
+                                  if (prod) {
+                                    handleUpdateBannerSlide(idx, {
+                                      productId: prod.id,
+                                      type: 'product',
+                                      image: prod.image,
+                                      title: prod.name,
+                                      subtitle: prod.description,
+                                      buttonText: 'Add to Bag',
+                                      linkUrl: `#${prod.category}`
+                                    });
+                                  }
                                 }
                               }}
-                              className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                              className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-neutral-900"
                             >
-                              <option value="">-- Choose a product to auto-fill --</option>
-                              {products.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.name} ({p.category})
-                                </option>
-                              ))}
+                              <option value="custom">Customized Banner (Custom image, headline, subtitle & button)</option>
+                              <optgroup label="Select from Store Products (Auto-retrieves price & details)">
+                                {products.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name} ({p.category})
+                                  </option>
+                                ))}
+                              </optgroup>
                             </select>
                           </div>
 
@@ -1807,17 +1816,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
                               />
                             </div>
-                            <div>
-                              <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                                Button Text
-                              </label>
-                              <input
-                                type="text"
-                                value={slide.buttonText || ''}
-                                onChange={(e) => handleUpdateBannerSlide(idx, { buttonText: e.target.value })}
-                                className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
-                              />
-                            </div>
+
+                            {/* Show Button Text and Link only on customized banner */}
+                            {slide.type === 'custom' || !slide.productId ? (
+                              <div>
+                                <label className="block text-[11px] font-bold text-stone-600 mb-1">
+                                  Button Text
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Shop Now, Discover Collection"
+                                  value={slide.buttonText || ''}
+                                  onChange={(e) => handleUpdateBannerSlide(idx, { buttonText: e.target.value })}
+                                  className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex flex-col justify-center bg-stone-50 p-2 rounded-lg border border-stone-200">
+                                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Product Action</span>
+                                <span className="text-xs text-neutral-800 font-medium">Auto-retrieves price, Add to Bag & Details</span>
+                              </div>
+                            )}
                           </div>
 
                           <div>
@@ -1831,6 +1850,70 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
                             />
                           </div>
+
+                          {/* Link URL input for customized banner */}
+                          {(slide.type === 'custom' || !slide.productId) && (
+                            <div className="p-3 bg-white rounded-xl border border-stone-200 shadow-xs space-y-2">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-bold text-neutral-800">
+                                  Button Destination
+                                </label>
+                                <span className="text-[10px] text-stone-500">
+                                  Choose where customers go when clicking the button
+                                </span>
+                              </div>
+
+                              {/* Quick selector dropdown */}
+                              <select
+                                value={
+                                  categories.some((c) => c.name === slide.linkUrl || `#${c.name}` === slide.linkUrl)
+                                    ? categories.find((c) => c.name === slide.linkUrl || `#${c.name}` === slide.linkUrl)?.name
+                                    : slide.linkUrl === 'about' || slide.linkUrl === '#about'
+                                      ? 'about'
+                                      : slide.linkUrl === 'contact' || slide.linkUrl === '#contact'
+                                        ? 'contact'
+                                        : slide.linkUrl === 'account' || slide.linkUrl === '#account'
+                                          ? 'account'
+                                          : slide.linkUrl === '#shop' || slide.linkUrl === 'shop' || !slide.linkUrl
+                                            ? '#shop'
+                                            : 'custom_url'
+                                }
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val !== 'custom_url') {
+                                    handleUpdateBannerSlide(idx, { linkUrl: val });
+                                  }
+                                }}
+                                className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-1.5 text-xs font-medium text-neutral-900 focus:outline-none focus:border-neutral-900"
+                              >
+                                <option value="#shop">Shop / First Category (Default)</option>
+                                <optgroup label="Store Categories">
+                                  {categories.map((c) => (
+                                    <option key={c.id} value={c.name}>
+                                      Category: {c.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="Store Pages">
+                                  <option value="about">Page: About Us</option>
+                                  <option value="contact">Page: Contact Us</option>
+                                  <option value="account">Page: User Account</option>
+                                </optgroup>
+                                <option value="custom_url">Custom Link / External URL</option>
+                              </select>
+
+                              {/* Direct text input for custom or fine-tuned link */}
+                              <div>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. Elegant Women's Wear, Home Decor, about, contact, or https://..."
+                                  value={slide.linkUrl || ''}
+                                  onChange={(e) => handleUpdateBannerSlide(idx, { linkUrl: e.target.value })}
+                                  className="w-full bg-stone-50 border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 font-mono text-[11px]"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {localBannerSlides.length > 2 && (

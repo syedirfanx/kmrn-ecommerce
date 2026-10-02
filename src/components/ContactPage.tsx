@@ -69,7 +69,7 @@ export const ContactPage: React.FC = () => {
                     <MapPin className="h-5 w-5" />
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider">
+                    <span className="text-[11px] font-semibold text-stone-400 block uppercase">
                       Location
                     </span>
                     <p className="text-xs sm:text-sm text-neutral-800 font-medium leading-relaxed">
@@ -87,7 +87,7 @@ export const ContactPage: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider">
+                    <span className="text-[11px] font-semibold text-stone-400 block uppercase">
                       WhatsApp
                     </span>
                     <a
@@ -104,7 +104,7 @@ export const ContactPage: React.FC = () => {
 
               {/* Social Media Channels */}
               <div className="pt-5 border-t border-stone-100">
-                <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider mb-3">
+                <span className="text-[11px] font-semibold text-stone-400 block uppercase mb-3">
                   Social Media
                 </span>
                 <div className="flex items-center gap-2.5 flex-wrap">
@@ -251,7 +251,7 @@ export const ContactPage: React.FC = () => {
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-semibold text-xs uppercase tracking-wider py-3 px-6 rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+                    className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-semibold text-xs uppercase py-3 px-6 rounded-xl transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 active:scale-98"
                   >
                     <Send className="h-4 w-4" />
                     <span>{isSubmitting ? 'Sending...' : 'Send Message'}</span>
