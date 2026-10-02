@@ -69,62 +69,60 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
   return (
     <section
       aria-label="Featured collection showcase"
-      className="mb-8"
+      className="relative w-full -mt-[61px] sm:-mt-[69px] mb-8 bg-neutral-950 border-0"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="relative rounded-3xl overflow-hidden shadow-xl min-h-[360px] sm:min-h-[420px] lg:min-h-[460px] flex flex-col justify-end sm:justify-center bg-neutral-950">
-        {/* Background Image */}
-        <div className="absolute inset-0 z-0">
+      <div className="relative w-full overflow-hidden min-h-[70vh] sm:min-h-[82vh] lg:min-h-[88vh] flex flex-col justify-end sm:justify-center bg-neutral-950">
+        {/* Still Slide Background Container */}
+        <div className="absolute inset-0 z-0 overflow-hidden">
           <img
-            key={currentSlide.id || currentIndex}
             src={currentSlide.image}
             alt={currentSlide.title || 'Aniq Lifestyle Showcase'}
-            className="w-full h-full object-cover object-center transition-opacity duration-1000 ease-out brightness-[0.72]"
+            className="w-full h-full object-cover object-center brightness-[0.72]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/95 via-neutral-950/50 to-neutral-950/20 sm:bg-gradient-to-r sm:from-neutral-950/90 sm:via-neutral-950/60 sm:to-transparent" />
         </div>
 
-        {/* Floating Controls */}
+        {/* Bottom Center Toggle Controls */}
         {activeSlides.length > 1 && (
-          <div className="absolute top-5 right-5 sm:top-6 sm:right-6 z-20 flex items-center gap-2">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
             <button
               onClick={handlePrev}
               aria-label="Previous slide"
-              className="p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/10 shadow-sm"
+              className="p-2.5 rounded-full bg-black/40 hover:bg-black/80 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/20 shadow-md"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
+
+            {/* Dash Indicators */}
+            <div className="flex items-center gap-1.5 px-1">
+              {activeSlides.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentIndex(idx)}
+                  aria-label={`Go to slide ${idx + 1}`}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                    currentIndex === idx
+                      ? 'w-7 bg-white shadow-xs'
+                      : 'w-2 bg-white/40 hover:bg-white/70'
+                  }`}
+                />
+              ))}
+            </div>
+
             <button
               onClick={handleNext}
               aria-label="Next slide"
-              className="p-2.5 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/10 shadow-sm"
+              className="p-2.5 rounded-full bg-black/40 hover:bg-black/80 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/20 shadow-md"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         )}
 
-        {/* Dash Indicators */}
-        {activeSlides.length > 1 && (
-          <div className="absolute bottom-5 right-5 sm:bottom-6 sm:right-6 z-20 flex items-center gap-1.5">
-            {activeSlides.map((_, idx) => (
-              <button
-                key={idx}
-                onClick={() => setCurrentIndex(idx)}
-                aria-label={`Go to slide ${idx + 1}`}
-                className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                  currentIndex === idx
-                    ? 'w-7 bg-stone-100'
-                    : 'w-2 bg-white/30 hover:bg-white/60'
-                }`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Main Content Card */}
-        <div className="relative z-10 p-6 sm:p-10 lg:p-12 max-w-xl text-white">
+        {/* Animated Content Overlay */}
+        <div key={`content-${currentSlide.id || currentIndex}`} className="relative z-10 p-6 sm:p-12 lg:p-16 pt-24 sm:pt-32 max-w-2xl text-white animate-fade-in-up">
           {linkedProduct && (
             <span className="text-xs uppercase tracking-widest text-stone-300 font-semibold block mb-2">
               {linkedProduct.category}

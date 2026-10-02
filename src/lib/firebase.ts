@@ -1,16 +1,44 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  initializeAuth,
+  getAuth,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence
+} from 'firebase/auth';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  doc,
+  getDocFromServer
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+// Prevent duplicate app initialization during module re-evaluations
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 const databaseId = (firebaseConfig as { firestoreDatabaseId?: string }).firestoreDatabaseId;
-export const db = databaseId && databaseId !== '(default)'
-  ? getFirestore(app, databaseId)
-  : getFirestore(app);
 
-export const auth = getAuth(app);
+export const db = initializeFirestore(
+  app,
+  {
+    experimentalAutoDetectLongPolling: true,
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  },
+  databaseId && databaseId !== '(default)' ? databaseId : undefined
+);
+
+// Safely initialize Auth with persistence fallback chain to prevent "Pending promise was never set" assertions in iframe/preview environments
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence]
+    });
+  } catch (_e) {
+    return getAuth(app);
+  }
+})();
 
 export enum OperationType {
   CREATE = 'create',
@@ -58,3 +86,15 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.warn('Firestore Operation Notice:', JSON.stringify(errInfo));
   return errInfo;
 }
+
+// Validate connection to Firestore on initial boot
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, '_connection_test_', 'check'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.info('Firestore initialized in offline cache mode.');
+    }
+  }
+}
+testConnection();

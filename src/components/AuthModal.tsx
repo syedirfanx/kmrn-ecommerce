@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Lock, Mail, User as UserIcon, AlertCircle, Check, ExternalLink } from 'lucide-react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
@@ -25,10 +27,40 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMessage('');
+      setHelpUrl('');
+      setSuccessMessage('');
+
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result?.user) {
+            saveUserProfileToDb(result.user.uid, {
+              displayName: result.user.displayName || result.user.email?.split('@')[0] || 'User',
+              email: result.user.email || ''
+            });
+            setSuccessMessage('Signed in successfully with Google');
+            setTimeout(() => {
+              onClose();
+            }, 700);
+          }
+        })
+        .catch((err) => {
+          // Silent catch for initial redirect check unless actionable
+          const code = (err as { code?: string }).code;
+          if (code && code !== 'auth/argument-error' && code !== 'auth/null-user') {
+            handleAuthError(err);
+          }
+        });
+    }
+  }, [isOpen, onClose]);
 
   const handleAuthError = (err: unknown) => {
     const error = err as { code?: string; message?: string };
+    if (!error || error.code === 'auth/argument-error') {
+      return;
+    }
     const errStr = `${error.message || ''} ${error.code || ''}`.toLowerCase();
     const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
 
@@ -135,17 +167,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      if (result.user) {
-        await saveUserProfileToDb(result.user.uid, {
-          displayName: result.user.displayName || result.user.email?.split('@')[0] || 'User',
-          email: result.user.email || ''
-        });
+      provider.setCustomParameters({ prompt: 'select_account' });
+      
+      try {
+        const result = await signInWithPopup(auth, provider);
+        if (result.user) {
+          await saveUserProfileToDb(result.user.uid, {
+            displayName: result.user.displayName || result.user.email?.split('@')[0] || 'User',
+            email: result.user.email || ''
+          });
+        }
+        setSuccessMessage('Signed in successfully with Google');
+        setTimeout(() => {
+          onClose();
+        }, 700);
+      } catch (popupErr: unknown) {
+        const pErr = popupErr as { code?: string };
+        if (pErr.code === 'auth/popup-blocked' || pErr.code === 'auth/popup-closed-by-user') {
+          await signInWithRedirect(auth, provider);
+        } else {
+          throw popupErr;
+        }
       }
-      setSuccessMessage('Signed in successfully with Google');
-      setTimeout(() => {
-        onClose();
-      }, 700);
     } catch (err: unknown) {
       handleAuthError(err);
     } finally {
@@ -159,6 +202,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setHelpUrl('');
     setSuccessMessage('');
   };
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -221,9 +266,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isLoading}
-          className="w-full bg-white hover:bg-stone-50 border border-stone-300 text-neutral-800 font-bold text-xs py-3 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer mb-4"
+          className="w-full bg-white hover:bg-stone-50 border border-stone-300 text-neutral-800 font-bold text-xs sm:text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer mb-4"
         >
-          <svg className="h-4 w-4" viewBox="0 0 24 24">
+          <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

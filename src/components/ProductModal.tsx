@@ -221,26 +221,6 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 alt={product.name}
                 className="w-full h-full object-cover object-center"
               />
-
-              {/* Category Brand Watermark */}
-              {(() => {
-                const cat = (product.category || '').toLowerCase();
-                const logoSrc = cat.includes('women') || cat.includes('lawn') || cat.includes('wear') || cat.includes('dress') || cat.includes('chiffon')
-                  ? '/images/aniq-1.png'
-                  : cat.includes('home') || cat.includes('decor') || cat.includes('bed')
-                    ? '/images/aniq-2.png'
-                    : null;
-                if (!logoSrc) return null;
-                return (
-                  <div className="absolute bottom-3 right-3 z-10 pointer-events-none bg-white/95 backdrop-blur-md px-2.5 py-1.5 rounded-lg shadow-md border border-stone-200/90">
-                    <img
-                      src={logoSrc}
-                      alt="Brand mark"
-                      className="h-6 sm:h-7 w-auto object-contain filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)]"
-                    />
-                  </div>
-                );
-              })()}
             </div>
 
             {/* Thumbnail selector */}

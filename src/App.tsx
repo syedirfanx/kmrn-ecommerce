@@ -777,22 +777,24 @@ export default function App() {
         onLogout={handleLogout}
       />
 
+      {/* Full-bleed Home Hero Banner (fit full on left, top, and right) */}
+      {currentPage === 'home' && (
+        <FeaturedBanner
+          slides={bannerSlides}
+          products={products}
+          onAddToCart={(p) => handleAddToCart(p, 1)}
+          onViewDetails={(p) => setActiveProduct(p)}
+          onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+          onNavigateToCategory={navigateToCategory}
+          onNavigateToPage={navigateTo}
+        />
+      )}
+
       {/* Main Content Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         {/* VIEW 1: Home Page */}
         {currentPage === 'home' && (
           <div className="space-y-12">
-            {/* Cover Advertisement Carousel Banner */}
-            <FeaturedBanner
-              slides={bannerSlides}
-              products={products}
-              onAddToCart={(p) => handleAddToCart(p, 1)}
-              onViewDetails={(p) => setActiveProduct(p)}
-              onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
-              onNavigateToCategory={navigateToCategory}
-              onNavigateToPage={navigateTo}
-            />
-
             {/* Featured Collection: (Requirements 7: Hide if 0, show exact count if 1, 2, etc.) */}
             {featuredProducts.length > 0 && (
               <section aria-label="Featured Collection" className="pt-2">
@@ -892,23 +894,23 @@ export default function App() {
                 </p>
               </div>
 
-              {/* Right side category logo badge */}
+              {/* Right side category logo badge preserving original shape */}
               {(selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')) && (
-                <div className="shrink-0 flex items-center justify-center p-4 bg-white rounded-2xl border border-stone-300 shadow-md max-w-[170px] sm:max-w-[220px]">
+                <div className="shrink-0 flex items-center justify-center p-2 max-w-[260px] sm:max-w-[340px]">
                   <img
                     src="/images/aniq-1.png"
                     alt="ANIQ Women's Wear"
-                    className="w-full h-auto object-contain max-h-24 sm:max-h-28 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.18)]"
+                    className="w-full h-auto aspect-auto object-contain max-h-36 sm:max-h-48 mix-blend-multiply transition-transform duration-300 hover:scale-105"
                   />
                 </div>
               )}
 
               {(selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')) && (
-                <div className="shrink-0 flex items-center justify-center p-4 bg-white rounded-2xl border border-stone-300 shadow-md max-w-[170px] sm:max-w-[220px]">
+                <div className="shrink-0 flex items-center justify-center p-2 max-w-[260px] sm:max-w-[340px]">
                   <img
                     src="/images/aniq-2.png"
                     alt="ANIQ Home Decor"
-                    className="w-full h-auto object-contain max-h-24 sm:max-h-28 filter drop-shadow-[0_2px_4px_rgba(0,0,0,0.18)]"
+                    className="w-full h-auto aspect-auto object-contain max-h-36 sm:max-h-48 mix-blend-multiply transition-transform duration-300 hover:scale-105"
                   />
                 </div>
               )}

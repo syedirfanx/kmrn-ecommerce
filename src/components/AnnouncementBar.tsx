@@ -1,5 +1,4 @@
 import React from 'react';
-import { Megaphone, ArrowRight } from 'lucide-react';
 import { AnnouncementItem } from '../types';
 
 interface AnnouncementBarProps {
@@ -21,7 +20,6 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
     }
     if (item.endDate) {
       let endTime = new Date(item.endDate).getTime();
-      // If only YYYY-MM-DD date provided, set until end of the date
       if (item.endDate.length === 10) {
         endTime = new Date(`${item.endDate}T23:59:59`).getTime();
       }
@@ -32,29 +30,30 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
 
   if (activeAnnouncements.length === 0) return null;
 
+  // Build marquee string by combining all active announcement texts
+  const announcementTexts = activeAnnouncements.map((ann) => {
+    return `${ann.text}${ann.linkText ? ` — ${ann.linkText}` : ''}`;
+  });
+
+  const fullMarqueeString = announcementTexts.join('   ✦   ');
+
   return (
     <aside
-      aria-label="Announcements and offers"
-      className="bg-neutral-900 text-neutral-100 overflow-hidden py-2 px-4 shadow-xs"
+      aria-label="Announcements"
+      className="bg-neutral-950 text-stone-200 py-2.5 overflow-hidden border-0 border-none select-none cursor-pointer"
+      onClick={onNavigateToShop}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between text-xs sm:text-sm font-medium">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none w-full justify-center text-center">
-          <Megaphone className="h-4 w-4 shrink-0 text-amber-400" />
-          {activeAnnouncements.map((ann, idx) => (
-            <div key={ann.id || idx} className="inline-flex items-center gap-2">
-              <span>{ann.text}</span>
-              {ann.linkText && (
-                <button
-                  type="button"
-                  onClick={onNavigateToShop}
-                  className="font-bold underline text-amber-300 hover:text-white inline-flex items-center gap-1 cursor-pointer transition-colors"
-                >
-                  <span>{ann.linkText}</span>
-                  <ArrowRight className="h-3 w-3" />
-                </button>
-              )}
-            </div>
-          ))}
+      <div className="w-full overflow-hidden flex">
+        {/* Continuous Marquee Track (Repeated twice for seamless loop) */}
+        <div className="animate-marquee shrink-0 flex items-center gap-12 text-[10.5px] sm:text-[11px] font-heading font-medium tracking-[0.2em] uppercase text-stone-200">
+          <span>{fullMarqueeString}</span>
+          <span>✦</span>
+          <span>{fullMarqueeString}</span>
+          <span>✦</span>
+          <span>{fullMarqueeString}</span>
+          <span>✦</span>
+          <span>{fullMarqueeString}</span>
+          <span>✦</span>
         </div>
       </div>
     </aside>

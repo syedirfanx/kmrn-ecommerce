@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
+  Menu,
+  X,
   ShoppingBag,
-  LogOut,
-  User as UserIcon,
   Heart,
+  User as UserIcon,
+  LogOut,
   Package,
-  ChevronDown
+  Search,
+  ChevronRight
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { CategoryData } from '../types';
@@ -46,9 +49,29 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogin,
   onLogout
 }) => {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
+  // Scroll listener for sticky contrast background transition
+  useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        setIsScrolled(true);
+      } else {
+        setIsScrolled(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Close profile dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
@@ -57,6 +80,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close drawer on escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsDrawerOpen(false);
+        setIsSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const getCleanUserName = () => {
@@ -72,223 +107,410 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const userName = getCleanUserName();
+  const isContrastActive = isScrolled || isHovered || isDrawerOpen;
+
+  const handleCategoryClick = (catName: string) => {
+    onNavigateToCategory(catName);
+    setIsDrawerOpen(false);
+  };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-stone-200/80 transition-all">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <div className="flex items-center justify-between gap-4">
-          {/* Brand Logo & Navigation Links */}
-          <div className="flex items-center gap-6 lg:gap-8">
-            <button
-              onClick={onNavigateToHome}
-              className="text-left group cursor-pointer focus:outline-none"
-              aria-label="Go to ANIQ Homepage"
-            >
-              <Logo variant="light" size="md" customLogoUrl={logoUrl} />
-            </button>
-
-            {/* Desktop Navigation Links (Dynamic up to 5 categories) */}
-            <nav className="hidden md:flex items-center gap-5 lg:gap-7 text-xs font-semibold uppercase tracking-wider text-stone-600">
+    <>
+      <header
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`sticky top-0 z-40 w-full transition-all duration-300 ease-in-out border-0 outline-none ${
+          isContrastActive
+            ? 'bg-white shadow-md text-neutral-900'
+            : 'bg-gradient-to-b from-black/80 via-black/40 to-transparent text-white shadow-none'
+        }`}
+      >
+        <div className="w-full px-4 sm:px-8 lg:px-12 py-3.5 sm:py-4">
+          <div className="relative flex items-center justify-between">
+            {/* Left: 3-line Menu Icon & Search (Far left edge) */}
+            <div className="flex items-center gap-3 sm:gap-4 z-10">
               <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className={`p-1.5 -ml-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isContrastActive
+                    ? 'text-neutral-900 hover:text-stone-600'
+                    : 'text-white hover:text-stone-200'
+                }`}
+                aria-label="Open Navigation Menu"
+              >
+                <Menu className="h-6 w-6 stroke-[1.8]" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isContrastActive
+                    ? 'text-neutral-900 hover:text-stone-600'
+                    : 'text-white hover:text-stone-200'
+                }`}
+                aria-label="Toggle Search"
+              >
+                <Search className="h-5 w-5 stroke-[1.8]" />
+              </button>
+            </div>
+
+            {/* Center: Brand Logo (Switches contrast) */}
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+              <button
+                type="button"
                 onClick={onNavigateToHome}
-                className={`py-1 transition-colors cursor-pointer ${
-                  currentPage === 'home'
-                    ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                    : 'hover:text-neutral-900'
-                }`}
+                className="group cursor-pointer focus:outline-none flex items-center justify-center"
+                aria-label="Go to ANIQ Homepage"
               >
-                Home
+                <Logo
+                  variant={isContrastActive ? 'light' : 'dark'}
+                  size="md"
+                  customLogoUrl={logoUrl}
+                  className="transition-transform duration-300 group-hover:scale-105"
+                />
               </button>
+            </div>
 
-              {categories.slice(0, 5).map((cat) => {
-                const isActive = currentPage === 'category' && selectedCategory === cat.name;
-                return (
+            {/* Right: User Icon & Bag Icon (Far right edge, No Text, No Wishlist) */}
+            <div className="flex items-center gap-2 sm:gap-3 z-10">
+              {/* User Icon */}
+              {currentUser ? (
+                <div className="relative" ref={profileMenuRef}>
                   <button
-                    key={cat.id}
-                    onClick={() => onNavigateToCategory(cat.name)}
-                    className={`py-1 transition-colors cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                        : 'hover:text-neutral-900'
+                    type="button"
+                    onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isContrastActive
+                        ? 'text-neutral-900 hover:text-stone-600'
+                        : 'text-white hover:text-stone-200'
                     }`}
+                    aria-expanded={isProfileMenuOpen}
+                    aria-haspopup="true"
+                    aria-label="User Account Menu"
+                    title={`Signed in as ${userName}`}
                   >
-                    {cat.name}
+                    <UserIcon className="h-5 w-5 stroke-[1.8]" />
                   </button>
-                );
-              })}
 
-              <button
-                onClick={onNavigateToAbout}
-                className={`py-1 transition-colors cursor-pointer ${
-                  currentPage === 'about'
-                    ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                    : 'hover:text-neutral-900'
-                }`}
-              >
-                About
-              </button>
-              <button
-                onClick={onNavigateToContact}
-                className={`py-1 transition-colors cursor-pointer ${
-                  currentPage === 'contact'
-                    ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                    : 'hover:text-neutral-900'
-                }`}
-              >
-                Contact
-              </button>
-            </nav>
-          </div>
+                  {/* Profile Dropdown */}
+                  {isProfileMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-1.5 z-50 border border-stone-200 text-neutral-900">
+                      <div className="px-4 py-2.5 border-b border-stone-100 bg-stone-50/50">
+                        <p className="text-xs font-bold text-neutral-900 truncate">
+                          {userName}
+                        </p>
+                        {currentUser.email && (
+                          <p className="text-[11px] text-stone-500 truncate">
+                            {currentUser.email}
+                          </p>
+                        )}
+                      </div>
 
-          {/* Right Side: User Profile & Cart */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            {currentUser ? (
-              <div className="relative" ref={profileMenuRef}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onOpenAccount('profile');
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <UserIcon className="h-3.5 w-3.5 text-stone-500" />
+                        <span>Profile</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onOpenAccount('wishlist');
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Heart className="h-3.5 w-3.5 text-stone-500" />
+                          <span>Wishlist</span>
+                        </div>
+                        {wishlistCount > 0 && (
+                          <span className="text-[11px] font-bold text-stone-500 tabular-nums">
+                            {wishlistCount}
+                          </span>
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onOpenAccount('orders');
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <Package className="h-3.5 w-3.5 text-stone-500" />
+                        <span>Orders</span>
+                      </button>
+
+                      <div className="h-px bg-stone-100 my-1" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onLogout();
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                  className="flex items-center gap-1.5 text-neutral-900 hover:text-black px-2.5 py-1.5 rounded-lg hover:bg-stone-100 text-xs sm:text-sm font-medium cursor-pointer transition-colors"
-                  aria-expanded={isProfileMenuOpen}
-                  aria-haspopup="true"
-                  title={`Signed in as ${userName}`}
+                  onClick={onLogin}
+                  className={`p-1.5 transition-colors cursor-pointer ${
+                    isContrastActive
+                      ? 'text-neutral-900 hover:text-stone-600'
+                      : 'text-white hover:text-stone-200'
+                  }`}
+                  aria-label="Sign In"
                 >
-                  <span className="max-w-[110px] sm:max-w-[160px] truncate">
-                    {userName}
+                  <UserIcon className="h-5 w-5 stroke-[1.8]" />
+                </button>
+              )}
+
+              {/* Bag Icon (No Text) */}
+              <button
+                type="button"
+                onClick={onOpenCart}
+                className={`relative p-1.5 transition-colors cursor-pointer ${
+                  isContrastActive
+                    ? 'text-neutral-900 hover:text-stone-600'
+                    : 'text-white hover:text-stone-200'
+                }`}
+                aria-label={`Shopping Bag with ${cartCount} items`}
+              >
+                <ShoppingBag className="h-5 w-5 stroke-[1.8]" />
+                {cartCount > 0 && (
+                  <span
+                    className={`absolute -top-1 -right-1 text-[10px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center tabular-nums ${
+                      isContrastActive
+                        ? 'bg-neutral-900 text-white'
+                        : 'bg-white text-neutral-900'
+                    }`}
+                  >
+                    {cartCount}
                   </span>
-                  <ChevronDown className="h-3.5 w-3.5 text-stone-500 shrink-0" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Search Input Bar Overlay */}
+          {isSearchOpen && (
+            <div className="pt-3 pb-1 border-t border-stone-200/60 mt-3 animate-in fade-in duration-200">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (searchQuery.trim()) {
+                    onNavigateToCategory(categories[0]?.name || "Women's Wear");
+                  }
+                }}
+                className="relative max-w-lg mx-auto"
+              >
+                <input
+                  type="text"
+                  placeholder="Search collections, fabrics..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-stone-100/80 text-neutral-900 text-xs sm:text-sm pl-10 pr-9 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-900"
+                  autoFocus
+                />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                <button
+                  type="button"
+                  onClick={() => setIsSearchOpen(false)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-neutral-900"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </form>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Left Slide-Out Navigation Drawer (Roheenaz Pattern) */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-neutral-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => setIsDrawerOpen(false)}
+          />
+
+          {/* Side Drawer Panel */}
+          <aside className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white shadow-2xl z-50 flex flex-col justify-between animate-in slide-in-from-left duration-300">
+            <div>
+              {/* Drawer Header */}
+              <div className="p-5 border-b border-stone-100 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onNavigateToHome();
+                  }}
+                  className="cursor-pointer"
+                >
+                  <Logo variant="light" size="sm" customLogoUrl={logoUrl} />
                 </button>
 
-                {/* Profile Dropdown */}
-                {isProfileMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150 border border-stone-200">
-                    <div className="px-4 py-2 border-b border-stone-100 bg-stone-50/50">
-                      <p className="text-xs font-bold text-neutral-900 truncate">
-                        {userName}
-                      </p>
-                      {currentUser.email && (
-                        <p className="text-[11px] text-stone-500 truncate">
-                          {currentUser.email}
-                        </p>
+                <button
+                  type="button"
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="p-1.5 text-stone-500 hover:text-neutral-900 rounded-lg hover:bg-stone-100 transition-colors cursor-pointer"
+                  aria-label="Close menu"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Drawer Links */}
+              <nav className="p-5 space-y-1 font-heading">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onNavigateToHome();
+                  }}
+                  className={`w-full text-left py-3 px-3 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                    currentPage === 'home'
+                      ? 'bg-neutral-900 text-white'
+                      : 'text-neutral-900 hover:bg-stone-100'
+                  }`}
+                >
+                  <span>Home</span>
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                </button>
+
+                {/* Category List */}
+                <div className="pt-2 pb-1 px-3 text-[11px] font-bold uppercase tracking-widest text-stone-400">
+                  Collections
+                </div>
+
+                {categories.map((cat) => {
+                  const isActive = currentPage === 'category' && selectedCategory === cat.name;
+                  return (
+                    <div key={cat.id} className="space-y-0.5">
+                      <button
+                        type="button"
+                        onClick={() => handleCategoryClick(cat.name)}
+                        className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                          isActive
+                            ? 'bg-stone-100 text-neutral-900 font-extrabold'
+                            : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
+                        }`}
+                      >
+                        <span>{cat.name}</span>
+                        <ChevronRight className="h-3.5 w-3.5 text-stone-400" />
+                      </button>
+
+                      {/* Subcategories list */}
+                      {(cat.subcategories || []).length > 0 && (
+                        <div className="pl-4 pr-2 py-1 space-y-1 border-l border-stone-200/60 ml-3">
+                          {cat.subcategories?.map((sub, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => handleCategoryClick(cat.name)}
+                              className="block w-full text-left text-[11px] text-stone-500 hover:text-neutral-900 py-1 transition-colors"
+                            >
+                              {sub}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
+                  );
+                })}
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        onOpenAccount('profile');
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <UserIcon className="h-3.5 w-3.5 text-stone-500" />
-                      <span>Profile</span>
-                    </button>
+                <div className="pt-4 pb-1 px-3 text-[11px] font-bold uppercase tracking-widest text-stone-400">
+                  Information
+                </div>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        onOpenAccount('wishlist');
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center gap-2.5 transition-colors cursor-pointer justify-between"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Heart className="h-3.5 w-3.5 text-stone-500" />
-                        <span>Wishlist</span>
-                      </div>
-                      {wishlistCount > 0 && (
-                        <span className="text-[11px] font-bold text-stone-500 tabular-nums">
-                          {wishlistCount}
-                        </span>
-                      )}
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onNavigateToAbout();
+                  }}
+                  className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                    currentPage === 'about'
+                      ? 'bg-stone-100 text-neutral-900 font-bold'
+                      : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
+                  }`}
+                >
+                  <span>About Us</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-stone-400" />
+                </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        onOpenAccount('orders');
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <Package className="h-3.5 w-3.5 text-stone-500" />
-                      <span>Orders</span>
-                    </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onNavigateToContact();
+                  }}
+                  className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                    currentPage === 'contact'
+                      ? 'bg-stone-100 text-neutral-900 font-bold'
+                      : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
+                  }`}
+                >
+                  <span>Contact Us</span>
+                  <ChevronRight className="h-3.5 w-3.5 text-stone-400" />
+                </button>
+              </nav>
+            </div>
 
-                    <div className="h-px bg-stone-100 my-1" />
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsProfileMenuOpen(false);
-                        onLogout();
-                      }}
-                      className="w-full px-4 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer"
-                    >
-                      <LogOut className="h-3.5 w-3.5" />
-                      <span>Sign Out</span>
-                    </button>
+            {/* Drawer Footer */}
+            <div className="p-5 border-t border-stone-100 bg-stone-50/60">
+              {currentUser ? (
+                <div className="flex items-center justify-between">
+                  <div className="truncate pr-2">
+                    <p className="text-xs font-bold text-neutral-900 truncate">{userName}</p>
+                    <p className="text-[11px] text-stone-500 truncate">{currentUser.email}</p>
                   </div>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={onLogin}
-                className="text-stone-700 hover:text-neutral-900 px-3 py-1.5 rounded-lg hover:bg-stone-100 text-xs font-semibold uppercase tracking-wider cursor-pointer transition-colors"
-              >
-                Sign In
-              </button>
-            )}
-
-            {/* Shopping Bag / Cart */}
-            <button
-              onClick={onOpenCart}
-              aria-label={`View shopping bag with ${cartCount} items`}
-              className="flex items-center gap-1.5 text-neutral-900 hover:text-black px-2.5 py-1.5 rounded-lg hover:bg-stone-100 text-xs font-semibold uppercase tracking-wider cursor-pointer transition-colors"
-            >
-              <ShoppingBag className="h-4 w-4 text-stone-800 stroke-[1.8]" />
-              <span className="hidden sm:inline">Bag</span>
-              <span className="text-xs font-bold text-neutral-900 tabular-nums">
-                ({cartCount})
-              </span>
-            </button>
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      onLogout();
+                    }}
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    title="Sign Out"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onLogin();
+                  }}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-xs"
+                >
+                  Sign In
+                </button>
+              )}
+            </div>
+          </aside>
         </div>
-
-        {/* Mobile Navigation bar (Dynamic up to 5 categories) */}
-        <div className="md:hidden flex items-center pt-2.5 mt-2 border-t border-stone-100 text-[11px] font-semibold uppercase tracking-wider text-stone-600 overflow-x-auto scrollbar-none gap-3">
-          <button
-            onClick={onNavigateToHome}
-            className={`py-1 px-1 shrink-0 ${currentPage === 'home' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
-          >
-            Home
-          </button>
-          {categories.slice(0, 5).map((cat) => {
-            const isActive = currentPage === 'category' && selectedCategory === cat.name;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => onNavigateToCategory(cat.name)}
-                className={`py-1 px-1 shrink-0 whitespace-nowrap ${isActive ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
-              >
-                {cat.name}
-              </button>
-            );
-          })}
-          <button
-            onClick={onNavigateToAbout}
-            className={`py-1 px-1 shrink-0 ${currentPage === 'about' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
-          >
-            About
-          </button>
-          <button
-            onClick={onNavigateToContact}
-            className={`py-1 px-1 shrink-0 ${currentPage === 'contact' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
-          >
-            Contact
-          </button>
-        </div>
-      </div>
-    </header>
+      )}
+    </>
   );
 };

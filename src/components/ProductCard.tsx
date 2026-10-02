@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Plus, Minus, Heart, Check } from 'lucide-react';
+import { Star, Plus, Minus, Heart, Check, Eye } from 'lucide-react';
 import { Product } from '../types';
 import { formatBDT } from '../utils/format';
 
@@ -50,7 +50,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img
           src={product.image}
           alt={product.name}
-          className="w-full h-full object-cover object-center group-hover:scale-[1.03] transition-transform duration-700 ease-out"
+          className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
           loading="lazy"
         />
 
@@ -87,26 +87,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </button>
         )}
 
-        {/* Category Brand Watermark in Bottom Right Corner */}
-        {(() => {
-          const cat = (product.category || '').toLowerCase();
-          const logoSrc = cat.includes('women') || cat.includes('lawn') || cat.includes('wear') || cat.includes('dress') || cat.includes('chiffon')
-            ? '/images/aniq-1.png'
-            : cat.includes('home') || cat.includes('decor') || cat.includes('bed')
-              ? '/images/aniq-2.png'
-              : null;
-          if (!logoSrc) return null;
-          return (
-            <div className="absolute bottom-2.5 right-2.5 z-10 pointer-events-none bg-white/95 backdrop-blur-md px-2 py-1 rounded-lg shadow-md border border-stone-200/90 transition-all">
-              <img
-                src={logoSrc}
-                alt="Brand mark"
-                className="h-5 sm:h-6 w-auto object-contain filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)]"
-              />
-            </div>
-          );
-        })()}
-
         {/* Quick View Hover Bar */}
         <div className="absolute inset-x-0 bottom-0 py-2.5 bg-white/95 backdrop-blur-xs text-neutral-900 text-center text-[11px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden sm:block border-t border-stone-200/60">
           Quick View
@@ -118,7 +98,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div>
           {/* Category */}
           <div className="flex items-center justify-between gap-1 mb-1 text-xs">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-stone-400 truncate">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-stone-400 truncate">
               {product.category}
             </span>
           </div>
@@ -137,7 +117,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </p>
         </div>
 
-        {/* Price & Unified Action Button (Requirements 11) */}
+        {/* Price & Unified Action Button */}
         <div className="pt-2.5 border-t border-stone-100 flex flex-col gap-2 mt-auto">
           <div className="flex items-baseline justify-between">
             <span className="font-heading font-semibold text-sm sm:text-base text-neutral-900 tabular-nums">
