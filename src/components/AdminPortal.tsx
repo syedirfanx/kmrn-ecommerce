@@ -725,16 +725,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     userId?: string
   ) => {
     setIsUpdatingOrder(orderId);
+    // Optimistically update in UI immediately
+    setOrders((prev) =>
+      prev.map((o) => (o.orderId === orderId ? { ...o, status: newStatus } : o))
+    );
     const res = await updateOrderStatusInDb(orderId, newStatus, userId);
     setIsUpdatingOrder(null);
     if (res.success) {
-      setOrders((prev) =>
-        prev.map((o) => (o.orderId === orderId ? { ...o, status: newStatus } : o))
-      );
       setStatusNotice(`Order ${orderId} marked as ${newStatus}`);
       setTimeout(() => setStatusNotice(''), 3000);
     } else {
       setErrorMessage(res.error || 'Failed to update order status');
+      setTimeout(() => setErrorMessage(''), 3500);
     }
   };
 
@@ -763,6 +765,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const headers = [
       'Order ID',
       'Date Placed',
+      'Customer Type',
       'Customer Name',
       'Phone Number',
       'Email Address',
@@ -780,6 +783,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const rows = listToExport.map((o) => [
       `"${o.orderId}"`,
       `"${new Date(o.placedAt).toLocaleDateString()}"`,
+      `"${o.isGuest || !o.userId ? 'Guest Checkout' : 'Registered Account'}"`,
       `"${(o.customerName || '').replace(/"/g, '""')}"`,
       `"${(o.phone || '').replace(/"/g, '""')}"`,
       `"${(o.email || '').replace(/"/g, '""')}"`,
@@ -2369,6 +2373,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   <span className="font-mono font-bold text-sm text-neutral-900 bg-white px-2.5 py-1 rounded-lg border border-stone-200 shadow-xs">
                                     {order.orderId}
                                   </span>
+
+                                  {/* Professional Customer Type Tag */}
+                                  {order.isGuest || !order.userId ? (
+                                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-stone-100 text-stone-700 border border-stone-300 inline-flex items-center gap-1.5">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-stone-500" />
+                                      Guest Checkout
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 inline-flex items-center gap-1.5">
+                                      <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+                                      Registered Account
+                                    </span>
+                                  )}
+
                                   <span className="text-xs text-neutral-500 flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
                                     {new Date(order.placedAt).toLocaleString()}

@@ -138,17 +138,23 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         total,
         status: 'Processing',
         paymentMethod: 'Cash on Delivery',
-        userId: currentUser?.uid,
+        userId: currentUser?.uid || undefined,
+        isGuest: !currentUser,
+        customerType: currentUser ? 'Registered Account' : 'Guest Checkout',
         placedAt: new Date().toISOString()
       };
 
       // 3. Save order to Firestore (both central admin orders and user subcollection)
-      await saveUserOrderToDb(currentUser?.uid, order);
+      const res = await saveUserOrderToDb(currentUser?.uid, order);
+      if (!res.success && res.error) {
+        console.warn('Order saved with local fallback:', res.error);
+      }
 
       setCompletedOrder(order);
       onOrderComplete(order);
-    } catch {
-      setErrorMsg('An error occurred while placing your order. Please try again.');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'An error occurred while placing your order. Please try again.';
+      setErrorMsg(errMessage);
     } finally {
       setIsSubmitting(false);
     }

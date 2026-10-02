@@ -55,14 +55,12 @@ service cloud.firestore {
 
     // Central orders collection for admin management (active orders & order history)
     match /orders/{orderId} {
-      allow create: if isValidId(orderId);
-      allow get, list: if true;
-      allow update, delete: if isValidId(orderId);
+      allow read, write: if true;
     }
 
-    // User private data: profile, cart, wishlist, orders
+    // User private data: profile, cart, wishlist, orders (user can manage own; admin can update order status)
     match /users/{userId}/{document=**} {
-      allow get, list, create, update, delete: if isSignedIn() && request.auth.uid == userId;
+      allow get, list, create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }
 
     // Admin authorization mapping

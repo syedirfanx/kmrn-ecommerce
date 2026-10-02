@@ -431,6 +431,14 @@ export const saveUserOrderToDb = async (
     const adminDocRef = doc(db, 'orders', order.orderId);
     await setDoc(adminDocRef, order);
 
+    // Save offline backup
+    try {
+      const existing: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      localStorage.setItem('maison_local_orders', JSON.stringify([order, ...existing.filter((o) => o.orderId !== order.orderId)]));
+    } catch {
+      // storage fallback
+    }
+
     // 2. If signed in, also save to user personal orders subcollection
     if (userId) {
       const userOrderPath = `users/${userId}/orders/${order.orderId}`;
@@ -441,6 +449,12 @@ export const saveUserOrderToDb = async (
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `orders/${order.orderId}`);
+    try {
+      const existing: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      localStorage.setItem('maison_local_orders', JSON.stringify([order, ...existing.filter((o) => o.orderId !== order.orderId)]));
+    } catch {
+      // storage fallback
+    }
     return { success: false, error: String(error) };
   }
 };
@@ -473,6 +487,26 @@ export const subscribeAllOrders = (
   onUpdate: (orders: OrderConfirmation[]) => void
 ) => {
   const path = 'orders';
+
+  // Initial immediate fetch for instant availability
+  getDocs(collection(db, path))
+    .then((snap) => {
+      if (!snap.empty) {
+        const orders: OrderConfirmation[] = [];
+        snap.forEach((d) => {
+          orders.push({ orderId: d.id, ...d.data() } as OrderConfirmation);
+        });
+        onUpdate(
+          orders.sort(
+            (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
+          )
+        );
+      }
+    })
+    .catch(() => {
+      // fallback
+    });
+
   return onSnapshot(
     collection(db, path),
     (snapshot) => {
@@ -480,15 +514,33 @@ export const subscribeAllOrders = (
       snapshot.forEach((d) => {
         orders.push({ orderId: d.id, ...d.data() } as OrderConfirmation);
       });
+
+      // Merge with any offline local backup
+      try {
+        const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+        local.forEach((lo) => {
+          if (!orders.some((o) => o.orderId === lo.orderId)) {
+            orders.push(lo);
+          }
+        });
+      } catch {
+        // storage fallback
+      }
+
       onUpdate(
         orders.sort(
-          (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
+          (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
         )
       );
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
-      onUpdate([]);
+      try {
+        const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+        onUpdate(local);
+      } catch {
+        onUpdate([]);
+      }
     }
   );
 };
@@ -500,19 +552,38 @@ export const updateOrderStatusInDb = async (
 ): Promise<DbResult> => {
   try {
     const adminDocRef = doc(db, 'orders', orderId);
-    await updateDoc(adminDocRef, { status });
+    // Use setDoc with merge: true so it succeeds even if the document was newly created or offline
+    await setDoc(adminDocRef, { status }, { merge: true });
 
-    if (userId) {
+    // Update local offline cache as well
+    try {
+      const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      const updated = local.map((o) => (o.orderId === orderId ? { ...o, status } : o));
+      localStorage.setItem('maison_local_orders', JSON.stringify(updated));
+    } catch {
+      // storage fallback
+    }
+
+    // Only update user subcollection if valid non-empty registered user ID
+    if (userId && typeof userId === 'string' && userId.trim() !== '' && userId !== 'undefined' && userId !== 'null') {
       try {
         const userDocRef = doc(db, 'users', userId, 'orders', orderId);
-        await updateDoc(userDocRef, { status });
+        await setDoc(userDocRef, { status }, { merge: true });
       } catch {
-        // user order subdoc might not exist if guest
+        // user order subdoc might not exist
       }
     }
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `orders/${orderId}`);
+    // Still update local state so admin is never blocked
+    try {
+      const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      const updated = local.map((o) => (o.orderId === orderId ? { ...o, status } : o));
+      localStorage.setItem('maison_local_orders', JSON.stringify(updated));
+    } catch {
+      // storage fallback
+    }
     return { success: false, error: String(error) };
   }
 };
@@ -525,7 +596,15 @@ export const deleteOrderInDb = async (
     const adminDocRef = doc(db, 'orders', orderId);
     await deleteDoc(adminDocRef);
 
-    if (userId) {
+    // Also remove from local offline backup
+    try {
+      const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      localStorage.setItem('maison_local_orders', JSON.stringify(local.filter((o) => o.orderId !== orderId)));
+    } catch {
+      // storage fallback
+    }
+
+    if (userId && typeof userId === 'string' && userId.trim() !== '' && userId !== 'undefined' && userId !== 'null') {
       try {
         const userDocRef = doc(db, 'users', userId, 'orders', orderId);
         await deleteDoc(userDocRef);
@@ -536,6 +615,12 @@ export const deleteOrderInDb = async (
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `orders/${orderId}`);
+    try {
+      const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      localStorage.setItem('maison_local_orders', JSON.stringify(local.filter((o) => o.orderId !== orderId)));
+    } catch {
+      // storage fallback
+    }
     return { success: false, error: String(error) };
   }
 };

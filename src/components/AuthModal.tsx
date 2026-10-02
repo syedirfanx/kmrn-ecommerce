@@ -30,8 +30,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleAuthError = (err: unknown) => {
     const error = err as { code?: string; message?: string };
     const errStr = `${error.message || ''} ${error.code || ''}`.toLowerCase();
+    const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
 
-    if (
+    if (error.code === 'auth/unauthorized-domain') {
+      setErrorMessage(
+        `Authorized Domain Required: Please add "${currentHost}" to your Firebase Console under Authentication > Settings > Authorized Domains.`
+      );
+      setHelpUrl('https://console.firebase.google.com/project/kamran-ecommerce/authentication/settings');
+    } else if (
       errStr.includes('identity-toolkit') ||
       errStr.includes('identitytoolkit.googleapis.com') ||
       errStr.includes('api-has-not-been-used')
@@ -42,9 +48,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       setHelpUrl('https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=913533657733');
     } else if (error.code === 'auth/operation-not-allowed') {
       setErrorMessage(
-        'Email/Password sign-in method is not enabled. Please enable it in Firebase Console under Authentication > Sign-in method.'
+        'Sign-in provider is not enabled. Please enable Google and Email/Password in Firebase Console under Authentication > Sign-in method.'
       );
       setHelpUrl('https://console.firebase.google.com/project/kamran-ecommerce/authentication/providers');
+    } else if (error.code === 'auth/popup-blocked') {
+      setErrorMessage(
+        'The sign-in popup was blocked by your browser. Please allow popups for this site and try again.'
+      );
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      setErrorMessage('Sign-in popup was closed before completing');
+    } else if (error.code === 'auth/cancelled-popup-request') {
+      setErrorMessage('Sign-in request was cancelled.');
+    } else if (error.code === 'auth/account-exists-with-different-credential') {
+      setErrorMessage('An account already exists with the same email address but different sign-in credentials.');
     } else if (
       error.code === 'auth/invalid-credential' ||
       error.code === 'auth/wrong-password' ||
@@ -55,8 +71,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       setErrorMessage('An account with this email already exists');
     } else if (error.code === 'auth/weak-password') {
       setErrorMessage('Password must be at least 6 characters');
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      setErrorMessage('Sign-in popup was closed before completing');
     } else {
       setErrorMessage(error.message || 'Authentication failed. Please try again.');
     }

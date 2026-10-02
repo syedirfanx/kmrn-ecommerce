@@ -66,6 +66,8 @@ export interface OrderConfirmation {
   status: 'Processing' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled';
   paymentMethod: 'Cash on Delivery';
   userId?: string;
+  isGuest?: boolean;
+  customerType?: 'Registered Account' | 'Guest Checkout';
   placedAt: string;
 }
 
