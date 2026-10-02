@@ -8,19 +8,21 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { User } from 'firebase/auth';
+import { CategoryData } from '../types';
 import { Logo } from './Logo';
 
 interface NavbarProps {
   cartCount: number;
   wishlistCount: number;
+  categories: CategoryData[];
   onOpenCart: () => void;
   onOpenAccount: (tab?: 'profile' | 'wishlist' | 'orders') => void;
   onNavigateToHome: () => void;
-  onNavigateToWomensWear: () => void;
-  onNavigateToHomeDecor: () => void;
+  onNavigateToCategory: (categoryName: string) => void;
   onNavigateToAbout: () => void;
   onNavigateToContact: () => void;
   currentPage: string;
+  selectedCategory?: string;
   currentUser: User | null;
   logoUrl?: string;
   onLogin: () => void;
@@ -30,14 +32,15 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   cartCount,
   wishlistCount,
+  categories = [],
   onOpenCart,
   onOpenAccount,
   onNavigateToHome,
-  onNavigateToWomensWear,
-  onNavigateToHomeDecor,
+  onNavigateToCategory,
   onNavigateToAbout,
   onNavigateToContact,
   currentPage,
+  selectedCategory,
   currentUser,
   logoUrl,
   onLogin,
@@ -75,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <div className="flex items-center justify-between gap-4">
           {/* Brand Logo & Navigation Links */}
-          <div className="flex items-center gap-6 lg:gap-10">
+          <div className="flex items-center gap-6 lg:gap-8">
             <button
               onClick={onNavigateToHome}
               className="text-left group cursor-pointer focus:outline-none"
@@ -84,8 +87,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Logo variant="light" size="md" customLogoUrl={logoUrl} />
             </button>
 
-            {/* Desktop Navigation Links */}
-            <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-xs font-semibold uppercase tracking-wider text-stone-600">
+            {/* Desktop Navigation Links (Dynamic up to 5 categories) */}
+            <nav className="hidden md:flex items-center gap-5 lg:gap-7 text-xs font-semibold uppercase tracking-wider text-stone-600">
               <button
                 onClick={onNavigateToHome}
                 className={`py-1 transition-colors cursor-pointer ${
@@ -96,26 +99,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Home
               </button>
-              <button
-                onClick={onNavigateToWomensWear}
-                className={`py-1 transition-colors cursor-pointer ${
-                  currentPage === 'womens-wear'
-                    ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                    : 'hover:text-neutral-900'
-                }`}
-              >
-                Elegant Women&apos;s Wear
-              </button>
-              <button
-                onClick={onNavigateToHomeDecor}
-                className={`py-1 transition-colors cursor-pointer ${
-                  currentPage === 'home-decor'
-                    ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
-                    : 'hover:text-neutral-900'
-                }`}
-              >
-                Home Decor
-              </button>
+
+              {categories.slice(0, 5).map((cat) => {
+                const isActive = currentPage === 'category' && selectedCategory === cat.name;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => onNavigateToCategory(cat.name)}
+                    className={`py-1 transition-colors cursor-pointer whitespace-nowrap ${
+                      isActive
+                        ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold'
+                        : 'hover:text-neutral-900'
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                );
+              })}
+
               <button
                 onClick={onNavigateToAbout}
                 className={`py-1 transition-colors cursor-pointer ${
@@ -139,9 +140,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </nav>
           </div>
 
-          {/* Right Side: User Name Only and Cart */}
+          {/* Right Side: User Profile & Cart */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* User Profile: Displays only the user name */}
             {currentUser ? (
               <div className="relative" ref={profileMenuRef}>
                 <button
@@ -255,35 +255,35 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Mobile Navigation bar */}
-        <div className="md:hidden flex items-center justify-around pt-2.5 mt-2 border-t border-stone-100 text-[11px] font-semibold uppercase tracking-wider text-stone-600 overflow-x-auto scrollbar-none gap-2">
+        {/* Mobile Navigation bar (Dynamic up to 5 categories) */}
+        <div className="md:hidden flex items-center pt-2.5 mt-2 border-t border-stone-100 text-[11px] font-semibold uppercase tracking-wider text-stone-600 overflow-x-auto scrollbar-none gap-3">
           <button
             onClick={onNavigateToHome}
-            className={`py-1 px-2 shrink-0 ${currentPage === 'home' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
+            className={`py-1 px-1 shrink-0 ${currentPage === 'home' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
           >
             Home
           </button>
-          <button
-            onClick={onNavigateToWomensWear}
-            className={`py-1 px-2 shrink-0 ${currentPage === 'womens-wear' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
-          >
-            Women&apos;s Wear
-          </button>
-          <button
-            onClick={onNavigateToHomeDecor}
-            className={`py-1 px-2 shrink-0 ${currentPage === 'home-decor' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
-          >
-            Home Decor
-          </button>
+          {categories.slice(0, 5).map((cat) => {
+            const isActive = currentPage === 'category' && selectedCategory === cat.name;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => onNavigateToCategory(cat.name)}
+                className={`py-1 px-1 shrink-0 whitespace-nowrap ${isActive ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
+              >
+                {cat.name}
+              </button>
+            );
+          })}
           <button
             onClick={onNavigateToAbout}
-            className={`py-1 px-2 shrink-0 ${currentPage === 'about' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
+            className={`py-1 px-1 shrink-0 ${currentPage === 'about' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
           >
             About
           </button>
           <button
             onClick={onNavigateToContact}
-            className={`py-1 px-2 shrink-0 ${currentPage === 'contact' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
+            className={`py-1 px-1 shrink-0 ${currentPage === 'contact' ? 'text-neutral-900 border-b-2 border-neutral-900 font-bold' : ''}`}
           >
             Contact
           </button>

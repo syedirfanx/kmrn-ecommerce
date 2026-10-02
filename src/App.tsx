@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { SlidersHorizontal, ArrowUpDown, Search, X, ArrowRight } from 'lucide-react';
+import { ArrowUpDown, Search, X, ArrowRight } from 'lucide-react';
 import { User, signOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 import { PRODUCTS } from './data/products';
@@ -54,42 +54,41 @@ import { ContactPage } from './components/ContactPage';
 import { Footer } from './components/Footer';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'rating-desc';
-type AppPage = 'home' | 'store' | 'womens-wear' | 'home-decor' | 'admin' | 'account' | 'about' | 'contact';
+type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact';
 
 const CART_STORAGE_KEY = 'maison_ecommerce_cart_v1';
 const WISHLIST_STORAGE_KEY = 'maison_ecommerce_wishlist_v1';
 
-const getInitialPage = (): AppPage => {
-  if (typeof window === 'undefined') return 'home';
+const getInitialRoute = (): { page: AppPage; categoryName?: string } => {
+  if (typeof window === 'undefined') return { page: 'home' };
   const path = window.location.pathname.toLowerCase();
   const hash = window.location.hash.toLowerCase();
   const search = window.location.search.toLowerCase();
+
   if (path === '/admin' || hash === '#admin' || search.includes('admin=true')) {
-    return 'admin';
+    return { page: 'admin' };
   }
   if (path === '/account' || hash === '#account') {
-    return 'account';
+    return { page: 'account' };
   }
   if (path === '/about' || hash === '#about') {
-    return 'about';
+    return { page: 'about' };
   }
   if (path === '/contact' || hash === '#contact') {
-    return 'contact';
+    return { page: 'contact' };
   }
-  if (path === '/womens-wear' || hash === '#womens-wear') {
-    return 'womens-wear';
+  if (path === '/womens-wear' || hash === '#womens-wear' || hash.includes('women')) {
+    return { page: 'category', categoryName: "Elegant Women's Wear" };
   }
-  if (path === '/home-decor' || hash === '#home-decor') {
-    return 'home-decor';
+  if (path === '/home-decor' || hash === '#home-decor' || hash.includes('decor')) {
+    return { page: 'category', categoryName: "Home Decor" };
   }
-  if (path === '/store' || hash === '#store' || hash === '#all-products') {
-    return 'store';
-  }
-  return 'home';
+  return { page: 'home' };
 };
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const initialRoute = getInitialRoute();
+  const [currentPage, setCurrentPage] = useState<AppPage>(initialRoute.page);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [accountInitialTab, setAccountInitialTab] = useState<'profile' | 'cart' | 'wishlist' | 'orders'>('profile');
@@ -113,7 +112,9 @@ export default function App() {
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({});
   const [featuredProductIds, setFeaturedProductIds] = useState<string[]>([]);
 
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string>(
+    initialRoute.categoryName || "Elegant Women's Wear"
+  );
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('featured');
@@ -149,14 +150,18 @@ export default function App() {
   // Toast feedback state
   const [toastMessage, setToastMessage] = useState<string>('');
   const [isToastOpen, setIsToastOpen] = useState(false);
+  const [toastShowCart, setToastShowCart] = useState(false);
 
-  // Synchronize route changes for /admin, #admin, /account, #account, etc.
+  // Synchronize route changes
   useEffect(() => {
     const handleUrlChange = () => {
-      setCurrentPage(getInitialPage());
+      const route = getInitialRoute();
+      setCurrentPage(route.page);
+      if (route.categoryName) {
+        setSelectedCategory(route.categoryName);
+      }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Secret admin shortcut: Ctrl+Shift+A or Alt+A
       if ((e.altKey && e.key.toLowerCase() === 'a') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a')) {
         e.preventDefault();
         navigateTo('admin');
@@ -172,7 +177,6 @@ export default function App() {
     };
   }, []);
 
-  // Update hash and reset subcategory/search when currentPage changes
   const navigateTo = (page: AppPage) => {
     setCurrentPage(page);
     setSelectedSubcategory('All');
@@ -184,6 +188,20 @@ export default function App() {
       } else {
         window.history.pushState(null, '', `#${page}`);
       }
+    } catch {
+      // fallback
+    }
+  };
+
+  const navigateToCategory = (categoryName: string) => {
+    setSelectedCategory(categoryName);
+    setSelectedSubcategory('All');
+    setSearchQuery('');
+    setCurrentPage('category');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    try {
+      const slug = categoryName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+      window.history.pushState(null, '', `#${slug}`);
     } catch {
       // fallback
     }
@@ -202,30 +220,31 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 3. Live database subscriptions for products, categories, banner, and announcements
+  // 3. Live database subscriptions
   useEffect(() => {
     const unsubProducts = subscribeProducts((liveProducts) => {
-      if (liveProducts.length > 0) {
-        setProducts(liveProducts);
-      }
+      setProducts(liveProducts);
     });
 
     const unsubCategories = subscribeCategories((liveCategories) => {
+      setCategories(liveCategories);
       if (liveCategories.length > 0) {
-        setCategories(liveCategories);
+        // Ensure selected category is valid
+        setSelectedCategory((prev) => {
+          if (liveCategories.some((c) => c.name === prev)) return prev;
+          return liveCategories[0]?.name || "Elegant Women's Wear";
+        });
       }
     });
 
     const unsubBanner = subscribeBannerSlides((liveSlides) => {
-      if (liveSlides.length > 0) {
+      if (liveSlides && liveSlides.length > 0) {
         setBannerSlides(liveSlides);
       }
     });
 
     const unsubAnnouncements = subscribeAnnouncements((liveAnnouncements) => {
-      if (liveAnnouncements.length > 0) {
-        setAnnouncements(liveAnnouncements);
-      }
+      setAnnouncements(liveAnnouncements);
     });
 
     const unsubSettings = subscribeStoreSettings((liveSettings) => {
@@ -233,9 +252,7 @@ export default function App() {
     });
 
     const unsubFeatured = subscribeFeaturedProductIds((liveIds) => {
-      if (liveIds && liveIds.length > 0) {
-        setFeaturedProductIds(liveIds);
-      }
+      setFeaturedProductIds(liveIds || []);
     });
 
     return () => {
@@ -251,11 +268,8 @@ export default function App() {
   // 4. User data subscriptions
   useEffect(() => {
     if (!currentUser) {
-      try {
-        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
-      } catch {
-        // fallback
-      }
+      setUserProfile(null);
+      setOrders([]);
       return;
     }
 
@@ -272,21 +286,24 @@ export default function App() {
       }
     });
 
-    const unsubOrders = subscribeUserOrders(currentUser.uid, (userOrdersList) => {
-      setOrders(userOrdersList);
+    const unsubCart = subscribeUserCart(currentUser.uid, (cartItems) => {
+      setCart(cartItems);
+      try {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartItems));
+      } catch {
+        // fallback
+      }
     });
 
-    const unsubCart = subscribeUserCart(currentUser.uid, (remoteCartItems) => {
-      if (remoteCartItems.length > 0) {
-        setCart(remoteCartItems);
-      }
+    const unsubOrders = subscribeUserOrders(currentUser.uid, (orderList) => {
+      setOrders(orderList);
     });
 
     return () => {
       unsubProfile();
       unsubWishlist();
-      unsubOrders();
       unsubCart();
+      unsubOrders();
     };
   }, [currentUser]);
 
@@ -299,8 +316,16 @@ export default function App() {
     }
   }, [cart]);
 
-  // Wishlist handler
+  // Wishlist handler - requires user to sign in
   const handleToggleWishlist = async (productId: string) => {
+    if (!currentUser) {
+      setToastShowCart(false);
+      setToastMessage('Please sign in to save items to your wishlist');
+      setIsToastOpen(true);
+      setIsAuthModalOpen(true);
+      return;
+    }
+
     const isCurrentlyWishlisted = wishlistProductIds.includes(productId);
     const updated = isCurrentlyWishlisted
       ? wishlistProductIds.filter((id) => id !== productId)
@@ -313,12 +338,11 @@ export default function App() {
       // fallback
     }
 
+    setToastShowCart(false);
     setToastMessage(isCurrentlyWishlisted ? 'Removed from wishlist' : 'Saved to wishlist');
     setIsToastOpen(true);
 
-    if (currentUser) {
-      await toggleWishlistItemInDb(currentUser.uid, productId, !isCurrentlyWishlisted);
-    }
+    await toggleWishlistItemInDb(currentUser.uid, productId, !isCurrentlyWishlisted);
   };
 
   // Cart handlers
@@ -335,7 +359,8 @@ export default function App() {
       return [...prev, { product, quantity }];
     });
 
-    setToastMessage(`Added ${quantity} ${product.name} to cart`);
+    setToastShowCart(true);
+    setToastMessage(`Added ${product.name} to cart`);
     setIsToastOpen(true);
 
     if (currentUser) {
@@ -386,49 +411,32 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    setToastShowCart(false);
     setToastMessage('Signed out successfully');
     setIsToastOpen(true);
   };
 
-  // Featured 4 Products on Home Page
+  // Homepage Featured Products (Requirements 7: strictly only featured products, do NOT fill what are not featured)
   const featuredProducts = useMemo(() => {
-    if (featuredProductIds.length > 0) {
-      const selected = featuredProductIds
+    if (featuredProductIds && featuredProductIds.length > 0) {
+      return featuredProductIds
         .map((id) => products.find((p) => p.id === id))
         .filter((p): p is Product => p !== undefined);
-
-      if (selected.length === 4) {
-        return selected;
-      }
-      if (selected.length > 0) {
-        const remaining = products.filter((p) => !featuredProductIds.includes(p.id));
-        return [...selected, ...remaining].slice(0, 4);
-      }
     }
-
-    const explicitlyFeatured = products.filter((p) => p.featured);
-    if (explicitlyFeatured.length >= 4) {
-      return explicitlyFeatured.slice(0, 4);
-    }
-    const remaining = products.filter((p) => !p.featured);
-    return [...explicitlyFeatured, ...remaining].slice(0, 4);
+    return products.filter((p) => p.featured);
   }, [products, featuredProductIds]);
 
-  // Category-specific product pool
+  // Category products
   const categoryProducts = useMemo(() => {
-    if (currentPage === 'womens-wear') {
-      return products.filter((p) => p.category === "Elegant Women's Wear");
-    }
-    if (currentPage === 'home-decor') {
-      return products.filter((p) => p.category === 'Home Decor');
-    }
-    if (selectedCategory === 'All') {
-      return products;
-    }
     return products.filter((p) => p.category === selectedCategory);
-  }, [products, currentPage, selectedCategory]);
+  }, [products, selectedCategory]);
 
-  // Filtered and Sorted Products
+  // Current category data
+  const currentCategoryData = useMemo(() => {
+    return categories.find((c) => c.name === selectedCategory);
+  }, [categories, selectedCategory]);
+
+  // Filtered and sorted products for active category
   const filteredProducts = useMemo(() => {
     return categoryProducts
       .filter((product) => {
@@ -438,7 +446,6 @@ export default function App() {
           !searchQuery.trim() ||
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (product.subcategory &&
             product.subcategory.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -451,16 +458,6 @@ export default function App() {
         return 0;
       });
   }, [categoryProducts, selectedSubcategory, searchQuery, sortBy]);
-
-  const currentCategoryData = useMemo(() => {
-    if (currentPage === 'womens-wear') {
-      return categories.find((c) => c.name === "Elegant Women's Wear");
-    }
-    if (currentPage === 'home-decor') {
-      return categories.find((c) => c.name === 'Home Decor');
-    }
-    return categories.find((c) => c.name === selectedCategory);
-  }, [categories, currentPage, selectedCategory]);
 
   const totalCartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -477,8 +474,6 @@ export default function App() {
         onBannerSlidesChange={setBannerSlides}
         announcements={announcements}
         onAnnouncementsChange={setAnnouncements}
-        storeSettings={storeSettings}
-        onStoreSettingsChange={setStoreSettings}
         onProductSavedLocally={(p) => setProducts((prev) => [p, ...prev.filter((i) => i.id !== p.id)])}
         onProductDeletedLocally={(id) => setProducts((prev) => prev.filter((i) => i.id !== id))}
         onCategorySavedLocally={(c) => setCategories((prev) => [c, ...prev.filter((i) => i.id !== c.id)])}
@@ -501,10 +496,10 @@ export default function App() {
             </p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => navigateTo('store')}
+                onClick={() => navigateTo('home')}
                 className="px-4 py-2 bg-neutral-100 rounded-xl font-bold text-xs text-neutral-700 hover:bg-neutral-200 cursor-pointer"
               >
-                Back to Store
+                Go to Home
               </button>
               <button
                 onClick={() => setIsAuthModalOpen(true)}
@@ -526,11 +521,12 @@ export default function App() {
       <div className="min-h-screen bg-[#faf9f6] flex flex-col">
         <AnnouncementBar
           announcements={announcements}
-          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
         />
         <Navbar
           cartCount={totalCartCount}
           wishlistCount={wishlistProductIds.length}
+          categories={categories}
           logoUrl={storeSettings.logoUrl}
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAccount={(tab) => {
@@ -538,11 +534,11 @@ export default function App() {
             navigateTo('account');
           }}
           onNavigateToHome={() => navigateTo('home')}
-          onNavigateToWomensWear={() => navigateTo('womens-wear')}
-          onNavigateToHomeDecor={() => navigateTo('home-decor')}
+          onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
           currentPage={currentPage}
+          selectedCategory={selectedCategory}
           currentUser={currentUser}
           onLogin={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
@@ -567,9 +563,8 @@ export default function App() {
         />
         <Footer
           logoUrl={storeSettings.logoUrl}
-          onNavigateToShop={() => navigateTo('store')}
-          onNavigateToWomensWear={() => navigateTo('womens-wear')}
-          onNavigateToHomeDecor={() => navigateTo('home-decor')}
+          categories={categories}
+          onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
         />
@@ -599,6 +594,7 @@ export default function App() {
         <Toast
           isOpen={isToastOpen}
           message={toastMessage}
+          showCartButton={toastShowCart}
           onClose={() => setIsToastOpen(false)}
           onOpenCart={() => {
             setIsToastOpen(false);
@@ -609,17 +605,18 @@ export default function App() {
     );
   }
 
-  // Dedicated About Page
+  // Dedicated About Page (Back to Store button removed per instruction 1)
   if (currentPage === 'about') {
     return (
       <div className="min-h-screen bg-[#faf9f6] flex flex-col">
         <AnnouncementBar
           announcements={announcements}
-          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
         />
         <Navbar
           cartCount={totalCartCount}
           wishlistCount={wishlistProductIds.length}
+          categories={categories}
           logoUrl={storeSettings.logoUrl}
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAccount={(tab) => {
@@ -631,21 +628,20 @@ export default function App() {
             }
           }}
           onNavigateToHome={() => navigateTo('home')}
-          onNavigateToWomensWear={() => navigateTo('womens-wear')}
-          onNavigateToHomeDecor={() => navigateTo('home-decor')}
+          onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
           currentPage={currentPage}
+          selectedCategory={selectedCategory}
           currentUser={currentUser}
           onLogin={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
         />
-        <AboutPage onNavigateToStore={() => navigateTo('home')} />
+        <AboutPage onNavigateToCategory={navigateToCategory} />
         <Footer
           logoUrl={storeSettings.logoUrl}
-          onNavigateToShop={() => navigateTo('store')}
-          onNavigateToWomensWear={() => navigateTo('womens-wear')}
-          onNavigateToHomeDecor={() => navigateTo('home-decor')}
+          categories={categories}
+          onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
         />
@@ -665,17 +661,18 @@ export default function App() {
     );
   }
 
-  // Dedicated Contact Page
+  // Dedicated Contact Page (Back to Store button removed per instruction 1)
   if (currentPage === 'contact') {
     return (
       <div className="min-h-screen bg-[#faf9f6] flex flex-col">
         <AnnouncementBar
           announcements={announcements}
-          onNavigateToShop={() => navigateTo('store')}
+          onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
         />
         <Navbar
           cartCount={totalCartCount}
           wishlistCount={wishlistProductIds.length}
+          categories={categories}
           logoUrl={storeSettings.logoUrl}
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAccount={(tab) => {
@@ -687,21 +684,20 @@ export default function App() {
             }
           }}
           onNavigateToHome={() => navigateTo('home')}
-          onNavigateToWomensWear={() => navigateTo('womens-wear')}
-          onNavigateToHomeDecor={() => navigateTo('home-decor')}
+          onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
           currentPage={currentPage}
+          selectedCategory={selectedCategory}
           currentUser={currentUser}
           onLogin={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
         />
-        <ContactPage onNavigateToStore={() => navigateTo('home')} />
+        <ContactPage />
         <Footer
           logoUrl={storeSettings.logoUrl}
-          onNavigateToShop={() => navigateTo('store')}
-          onNavigateToWomensWear={() => navigateTo('womens-wear')}
-          onNavigateToHomeDecor={() => navigateTo('home-decor')}
+          categories={categories}
+          onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
         />
@@ -721,19 +717,20 @@ export default function App() {
     );
   }
 
-  // Pure Storefront Customer Website
+  // Customer Storefront: Home Page or Dynamic Category Page
   return (
     <div className="min-h-screen bg-[#faf9f6] text-neutral-900 flex flex-col font-sans">
       {/* Running News / Offers Bar */}
       <AnnouncementBar
         announcements={announcements}
-        onNavigateToShop={() => navigateTo('store')}
+        onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
       />
 
       {/* Top Navbar */}
       <Navbar
         cartCount={totalCartCount}
         wishlistCount={wishlistProductIds.length}
+        categories={categories}
         logoUrl={storeSettings.logoUrl}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenAccount={(tab) => {
@@ -745,11 +742,11 @@ export default function App() {
           }
         }}
         onNavigateToHome={() => navigateTo('home')}
-        onNavigateToWomensWear={() => navigateTo('womens-wear')}
-        onNavigateToHomeDecor={() => navigateTo('home-decor')}
+        onNavigateToCategory={navigateToCategory}
         onNavigateToAbout={() => navigateTo('about')}
         onNavigateToContact={() => navigateTo('contact')}
         currentPage={currentPage}
+        selectedCategory={selectedCategory}
         currentUser={currentUser}
         onLogin={() => setIsAuthModalOpen(true)}
         onLogout={handleLogout}
@@ -766,106 +763,78 @@ export default function App() {
               products={products}
               onAddToCart={(p) => handleAddToCart(p, 1)}
               onViewDetails={(p) => setActiveProduct(p)}
-              onNavigateToShop={() => navigateTo('store')}
+              onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
             />
 
-            {/* Featured Collection: Exactly 4 Items on Home Page */}
-            <section aria-label="Featured Collection" className="pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6 pb-3 border-b border-stone-200/80">
-                <h2 className="font-heading font-medium text-2xl sm:text-3xl text-neutral-900 tracking-tight">
-                  Featured Collection
-                </h2>
-                <button
-                  onClick={() => navigateTo('store')}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-neutral-900 hover:text-stone-600 transition-colors cursor-pointer group"
-                >
-                  <span>View All</span>
-                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                </button>
-              </div>
+            {/* Featured Collection: (Requirements 7: Hide if 0, show exact count if 1, 2, etc.) */}
+            {featuredProducts.length > 0 && (
+              <section aria-label="Featured Collection" className="pt-2">
+                <div className="flex items-center justify-between gap-3 mb-6 pb-3 border-b border-stone-200/80">
+                  <h2 className="font-heading font-medium text-2xl sm:text-3xl text-neutral-900 tracking-tight">
+                    Featured Collection
+                  </h2>
+                </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-                {featuredProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
-                    onViewDetails={(p) => setActiveProduct(p)}
-                    isWishlisted={wishlistProductIds.includes(product.id)}
-                    onToggleWishlist={handleToggleWishlist}
-                  />
-                ))}
-              </div>
-            </section>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                  {featuredProducts.map((product) => (
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
+                      onViewDetails={(p) => setActiveProduct(p)}
+                      isWishlisted={wishlistProductIds.includes(product.id)}
+                      onToggleWishlist={handleToggleWishlist}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
 
-            {/* Curated Collection Showcase Cards */}
+            {/* Dynamic Collection Showcase Cards for Categories in Database */}
             <section aria-label="Explore Categories" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-              {/* Women's Wear Showcase Card */}
-              <div className="relative rounded-2xl overflow-hidden bg-neutral-900 text-white min-h-[320px] flex flex-col justify-end p-6 sm:p-8 group shadow-sm">
-                <img
-                  src="https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80"
-                  alt="Elegant Women's Wear"
-                  className="absolute inset-0 w-full h-full object-cover brightness-[0.72] group-hover:scale-105 transition-transform duration-700 ease-out"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
-                <div className="relative z-10">
-                  <h3 className="font-heading font-medium text-2xl sm:text-3xl text-white mb-2">
-                    Elegant Women&apos;s Wear
-                  </h3>
-                  <p className="text-xs text-stone-300 mb-5 max-w-md leading-relaxed">
-                    Pure combed lawn, luxury embroidered chiffon, and festive formal designer suits.
-                  </p>
-                  <button
-                    onClick={() => navigateTo('womens-wear')}
-                    className="bg-white hover:bg-stone-100 text-neutral-900 text-xs font-semibold uppercase tracking-wider py-2.5 px-5 rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
-                  >
-                    <span>Explore Women&apos;s Wear</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
+              {categories.slice(0, 4).map((cat, idx) => {
+                const sampleProduct = products.find((p) => p.category === cat.name);
+                const bgImage =
+                  sampleProduct?.image ||
+                  (idx === 0
+                    ? 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
+                    : 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80');
 
-              {/* Home Decor Showcase Card */}
-              <div className="relative rounded-2xl overflow-hidden bg-neutral-900 text-white min-h-[320px] flex flex-col justify-end p-6 sm:p-8 group shadow-sm">
-                <img
-                  src="https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80"
-                  alt="Home Decor"
-                  className="absolute inset-0 w-full h-full object-cover brightness-[0.72] group-hover:scale-105 transition-transform duration-700 ease-out"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
-                <div className="relative z-10">
-                  <h3 className="font-heading font-medium text-2xl sm:text-3xl text-white mb-2">
-                    Home Decor
-                  </h3>
-                  <p className="text-xs text-stone-300 mb-5 max-w-md leading-relaxed">
-                    1000 thread count Egyptian cotton sheets, quilted velvet comforters, and refined textiles.
-                  </p>
-                  <button
-                    onClick={() => navigateTo('home-decor')}
-                    className="bg-white hover:bg-stone-100 text-neutral-900 text-xs font-semibold uppercase tracking-wider py-2.5 px-5 rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+                return (
+                  <div
+                    key={cat.id}
+                    className="relative rounded-2xl overflow-hidden bg-neutral-900 text-white min-h-[320px] flex flex-col justify-end p-6 sm:p-8 group shadow-sm"
                   >
-                    <span>Explore Home Decor</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
+                    <img
+                      src={bgImage}
+                      alt={cat.name}
+                      className="absolute inset-0 w-full h-full object-cover brightness-[0.72] group-hover:scale-105 transition-transform duration-700 ease-out"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
+                    <div className="relative z-10">
+                      <h3 className="font-heading font-medium text-2xl sm:text-3xl text-white mb-2">
+                        {cat.name}
+                      </h3>
+                      <p className="text-xs text-stone-300 mb-5 max-w-md leading-relaxed">
+                        {cat.subcategories.slice(0, 4).join(', ')}
+                      </p>
+                      <button
+                        onClick={() => navigateToCategory(cat.name)}
+                        className="bg-white hover:bg-stone-100 text-neutral-900 text-xs font-semibold uppercase tracking-wider py-2.5 px-5 rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+                      >
+                        <span>Explore {cat.name}</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </section>
-
-            {/* Bottom Full Catalog Link */}
-            <div className="pt-4 text-center">
-              <button
-                onClick={() => navigateTo('store')}
-                className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold uppercase tracking-wider px-7 py-3.5 rounded-lg transition-all cursor-pointer shadow-xs active:scale-95 inline-flex items-center gap-2"
-              >
-                <span>View All Products ({products.length})</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
           </div>
         )}
 
-        {/* VIEW 2: Dedicated Elegant Women's Wear Page, Home Decor Page, or All Products Page */}
-        {(currentPage === 'womens-wear' || currentPage === 'home-decor' || currentPage === 'store') && (
+        {/* VIEW 2: Dynamic Category Page (e.g. Women's Wear, Home Decor, or any admin added category) */}
+        {currentPage === 'category' && (
           <div className="space-y-6">
             {/* Editorial Header */}
             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200/80 shadow-xs">
@@ -878,32 +847,24 @@ export default function App() {
                 </button>
                 <span>/</span>
                 <span className="text-neutral-900 font-semibold">
-                  {currentPage === 'womens-wear'
-                    ? "Elegant Women's Wear"
-                    : currentPage === 'home-decor'
-                      ? 'Home Decor'
-                      : 'All Products'}
+                  {selectedCategory}
                 </span>
               </div>
 
               <h1 className="font-heading font-medium text-2xl sm:text-3xl text-neutral-900 mb-2 tracking-tight">
-                {currentPage === 'womens-wear'
-                  ? "Elegant Women's Wear"
-                  : currentPage === 'home-decor'
-                    ? 'Home Decor'
-                    : 'All Collections'}
+                {selectedCategory}
               </h1>
 
               <p className="text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
-                {currentPage === 'womens-wear'
-                  ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive hand embellishments.'
-                  : currentPage === 'home-decor'
+                {selectedCategory.toLowerCase().includes('women')
+                  ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.'
+                  : selectedCategory.toLowerCase().includes('decor')
                     ? 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.'
-                    : 'Browse our complete catalog of authentic Pakistani designer dresses and luxury home decor essentials.'}
+                    : `Explore our collection of authentic ${selectedCategory} products.`}
               </p>
             </div>
 
-            {/* Search Bar & Sorting Controls Row */}
+            {/* Search Bar & Sorting Controls */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               {/* Search input */}
               <div className="relative flex-1 sm:max-w-md">
@@ -912,13 +873,7 @@ export default function App() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={
-                    currentPage === 'womens-wear'
-                      ? "Search in Women's Wear..."
-                      : currentPage === 'home-decor'
-                        ? "Search in Home Decor..."
-                        : "Search all products..."
-                  }
+                  placeholder={`Search in ${selectedCategory}...`}
                   className="w-full bg-white border border-stone-300 rounded-xl pl-11 pr-10 py-2.5 text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs transition-all"
                 />
                 {searchQuery && (
@@ -955,54 +910,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Category Filter Tabs (Shown on All Products page) */}
-            {currentPage === 'store' && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0">
-                <button
-                  onClick={() => {
-                    setSelectedCategory('All');
-                    setSelectedSubcategory('All');
-                  }}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                    selectedCategory === 'All'
-                      ? 'bg-neutral-900 text-white shadow-xs'
-                      : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80 shadow-xs'
-                  }`}
-                >
-                  <span>All</span>
-                  <span className={`ml-1.5 text-[11px] tabular-nums ${selectedCategory === 'All' ? 'text-stone-300' : 'text-stone-400'}`}>
-                    ({products.length})
-                  </span>
-                </button>
-
-                {categories.map((cat) => {
-                  const isActive = selectedCategory === cat.name;
-                  const count = products.filter((p) => p.category === cat.name).length;
-
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        setSelectedCategory(cat.name);
-                        setSelectedSubcategory('All');
-                      }}
-                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap cursor-pointer shrink-0 ${
-                        isActive
-                          ? 'bg-neutral-900 text-white shadow-xs'
-                          : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80 shadow-xs'
-                      }`}
-                    >
-                      <span>{cat.name}</span>
-                      <span className={`ml-1.5 text-[11px] tabular-nums ${isActive ? 'text-stone-300' : 'text-stone-400'}`}>
-                        ({count})
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Subcategories Filter Bar */}
+            {/* Subcategories Filter Bar (Up to 10 subcategories) */}
             {currentCategoryData && currentCategoryData.subcategories.length > 0 && (
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 <button
@@ -1048,10 +956,7 @@ export default function App() {
 
             {/* Product Grid */}
             {filteredProducts.length > 0 ? (
-              <section
-                aria-label="Products catalog"
-                className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5"
-              >
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
                 {filteredProducts.map((product) => (
                   <ProductCard
                     key={product.id}
@@ -1062,39 +967,23 @@ export default function App() {
                     onToggleWishlist={handleToggleWishlist}
                   />
                 ))}
-              </section>
+              </div>
             ) : (
-              <div className="py-16 text-center bg-white rounded-2xl max-w-md mx-auto p-6 sm:p-8 shadow-xs border border-stone-200/80">
-                <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 mx-auto mb-3">
-                  <SlidersHorizontal className="h-5 w-5" />
-                </div>
-                <h2 className="font-heading font-medium text-lg text-neutral-900 mb-1.5">
-                  No matching products found
-                </h2>
-                <p className="text-xs text-stone-500 mb-5">
-                  Try adjusting your search query or choosing another subcategory.
+              <div className="py-20 text-center bg-white rounded-3xl border border-stone-200/80 shadow-xs px-4">
+                <p className="font-heading font-medium text-lg text-neutral-900 mb-1">
+                  No products found
+                </p>
+                <p className="text-xs text-stone-500 mb-4">
+                  Try adjusting your search query or subcategory filter.
                 </p>
                 <button
                   onClick={() => {
                     setSelectedSubcategory('All');
                     setSearchQuery('');
                   }}
-                  className="bg-neutral-900 text-white hover:bg-neutral-800 px-4 py-2 rounded-lg font-semibold text-xs uppercase tracking-wider transition-colors cursor-pointer shadow-xs"
+                  className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer"
                 >
                   Reset Filters
-                </button>
-              </div>
-            )}
-
-            {/* Bottom link to view all collections */}
-            {(currentPage === 'womens-wear' || currentPage === 'home-decor') && filteredProducts.length > 0 && (
-              <div className="pt-6 pb-2 text-center">
-                <button
-                  onClick={() => navigateTo('store')}
-                  className="bg-white hover:bg-stone-50 text-neutral-900 border border-stone-300 text-xs font-semibold uppercase tracking-wider px-6 py-3 rounded-lg transition-all cursor-pointer shadow-xs inline-flex items-center gap-2"
-                >
-                  <span>View All Products</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
             )}
@@ -1102,17 +991,36 @@ export default function App() {
         )}
       </main>
 
-      {/* Global Footer */}
+      {/* Footer */}
       <Footer
         logoUrl={storeSettings.logoUrl}
-        onNavigateToShop={() => navigateTo('store')}
-        onNavigateToWomensWear={() => navigateTo('womens-wear')}
-        onNavigateToHomeDecor={() => navigateTo('home-decor')}
+        categories={categories}
+        onNavigateToCategory={navigateToCategory}
         onNavigateToAbout={() => navigateTo('about')}
         onNavigateToContact={() => navigateTo('contact')}
       />
 
-      {/* Modals & Drawers */}
+      {/* Cart Drawer */}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        items={cart}
+        onUpdateQuantity={handleUpdateQuantity}
+        onRemoveItem={handleRemoveItem}
+        onProceedToCheckout={() => setIsCheckoutOpen(true)}
+      />
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        items={cart}
+        currentUser={currentUser}
+        userProfile={userProfile}
+        onOrderComplete={handleOrderComplete}
+      />
+
+      {/* Detailed Product Modal */}
       <ProductModal
         product={activeProduct}
         currentUser={currentUser}
@@ -1123,35 +1031,22 @@ export default function App() {
         onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        items={cart}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveItem}
-        onProceedToCheckout={() => setIsCheckoutOpen(true)}
-      />
-
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        items={cart}
-        onOrderComplete={handleOrderComplete}
-      />
-
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-      />
-
+      {/* Toast Feedback Notification (No cart link on logout) */}
       <Toast
         isOpen={isToastOpen}
         message={toastMessage}
+        showCartButton={toastShowCart}
         onClose={() => setIsToastOpen(false)}
         onOpenCart={() => {
           setIsToastOpen(false);
           setIsCartOpen(true);
         }}
+      />
+
+      {/* Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
       />
     </div>
   );

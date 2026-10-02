@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Star, Plus, Minus, ShoppingBag, Heart, MessageSquare, Check, AlertCircle, Sparkles } from 'lucide-react';
+import { X, Star, Plus, Minus, ShoppingBag, Heart, MessageSquare, Check, AlertCircle, Sparkles, Trash2 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Product, ProductReview } from '../types';
 import { formatBDT } from '../utils/format';
-import { subscribeProductReviews, saveProductReviewToDb } from '../services/storeService';
+import { subscribeProductReviews, saveProductReviewToDb, deleteProductReviewFromDb } from '../services/storeService';
 
 interface ProductModalProps {
   product: Product | null;
@@ -136,6 +136,16 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       setTimeout(() => setReviewNotice(''), 4000);
     } else {
       setReviewError(res.error || 'Failed to submit review');
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    if (!product) return;
+    const res = await deleteProductReviewFromDb(product.id, reviewId);
+    if (res.success) {
+      setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+      setReviewNotice('Review deleted');
+      setTimeout(() => setReviewNotice(''), 3000);
     }
   };
 
@@ -366,7 +376,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
                 <span className="text-sm font-semibold text-neutral-700">
                   {effectiveCount === 0
-                    ? 'No reviews yet'
+                    ? '0.0 average (0 reviews)'
                     : `Based on ${effectiveCount} ${effectiveCount === 1 ? 'review' : 'reviews'}`}
                 </span>
                 <span className="text-xs text-neutral-400 mt-0.5">
@@ -576,11 +586,23 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      {renderStars(rev.rating, 'h-3.5 w-3.5')}
-                      <span className="text-xs font-bold text-neutral-700 ml-1">
-                        {rev.rating}.0
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        {renderStars(rev.rating, 'h-3.5 w-3.5')}
+                        <span className="text-xs font-bold text-neutral-700 ml-1">
+                          {rev.rating}.0
+                        </span>
+                      </div>
+                      {currentUser && (currentUser.uid === rev.userId || currentUser.email === 'syed111042@gmail.com') && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteReview(rev.id)}
+                          className="p-1 text-stone-400 hover:text-red-600 rounded transition-colors cursor-pointer"
+                          title="Delete review"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 

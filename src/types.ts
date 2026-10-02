@@ -54,11 +54,18 @@ export interface OrderConfirmation {
   orderId: string;
   customerName: string;
   email: string;
+  phone: string;
+  street: string;
+  city: string;
+  country: string;
   shippingAddress: string;
   items: CartItem[];
   subtotal: number;
   shipping: number;
   total: number;
+  status: 'Processing' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled';
+  paymentMethod: 'Cash on Delivery';
+  userId?: string;
   placedAt: string;
 }
 
@@ -67,8 +74,10 @@ export interface UserProfile {
   displayName: string;
   email: string;
   phone?: string;
+  street?: string;
   address?: string;
   city?: string;
+  country?: string;
   postalCode?: string;
   updatedAt?: string;
 }
@@ -92,7 +101,7 @@ export interface StoreSettings {
 export interface ContactMessage {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
   subject?: string;
   message: string;

@@ -7,7 +7,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Global helpers
+    // Global helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -28,7 +28,7 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isValidId(productId);
 
-      // Customer reviews
+      // Customer reviews & ratings (user can post and delete own review)
       match /reviews/{reviewId} {
         allow get, list: if true;
         allow create: if isSignedIn() && isValidId(reviewId) && request.resource.data.userId == request.auth.uid;
@@ -36,30 +36,38 @@ service cloud.firestore {
       }
     }
 
-    // Categories and subcategories
+    // Categories and subcategories (up to 5 categories, up to 10 subcategories)
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(categoryId);
     }
 
-    // Site settings (home page featured products selection, banner slides, announcements, store branding)
+    // Site settings (featured homepage products, carousel banner slides, running news & offers)
     match /settings/{settingId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(settingId);
     }
 
-    // Customer inquiries / messages from contact form
+    // Customer inquiries / messages from contact form (visible & manageable by admin)
     match /messages/{messageId} {
       allow create: if isValidId(messageId);
-      allow get, list, update, delete: if isValidId(messageId);
+      allow get, list: if true;
+      allow update, delete: if isValidId(messageId);
     }
 
-    // User data: profile, cart, wishlist, orders (strictly private to each user)
+    // Central orders collection for admin management (active orders & order history)
+    match /orders/{orderId} {
+      allow create: if isValidId(orderId);
+      allow get, list: if true;
+      allow update, delete: if isValidId(orderId);
+    }
+
+    // User private data: profile, cart, wishlist, orders
     match /users/{userId}/{document=**} {
       allow get, list, create, update, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Admin role mapping
+    // Admin authorization mapping
     match /admins/{userId} {
       allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
       allow write: if isAdmin() && isValidId(userId);

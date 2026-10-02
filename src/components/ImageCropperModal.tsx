@@ -5,14 +5,14 @@ interface ImageCropperModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCropComplete: (dataUrl: string) => void;
-  aspectRatio?: number; // width / height, default 4/3 = 1.333
+  aspectRatio?: number; // width / height, vertical 3/4 = 0.75 for product thumbnail
 }
 
 export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
   isOpen,
   onClose,
   onCropComplete,
-  aspectRatio = 4 / 3
+  aspectRatio = 3 / 4 // Vertical 3:4 portrait matching product cards
 }) => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(1);
@@ -23,7 +23,6 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -97,9 +96,9 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     if (!imageRef.current) return;
     const img = imageRef.current;
 
-    // Target output dimensions in fixed aspect ratio
-    const outputWidth = 800;
-    const outputHeight = Math.round(outputWidth / aspectRatio); // 600 for 4:3
+    // Target output dimensions in vertical portrait shape
+    const outputWidth = 600;
+    const outputHeight = Math.round(outputWidth / aspectRatio); // 800 for 3:4 portrait
 
     const canvas = document.createElement('canvas');
     canvas.width = outputWidth;
@@ -110,10 +109,7 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, outputWidth, outputHeight);
 
-    // Frame preview container size is roughly 360x270 px
-    const previewWidth = 360;
-    const previewHeight = previewWidth / aspectRatio;
-
+    const previewWidth = aspectRatio >= 1 ? 360 : 270;
     const scaleFactor = outputWidth / previewWidth;
 
     ctx.save();
@@ -153,13 +149,13 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     >
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-white rounded-2xl max-w-lg w-full overflow-hidden shadow-2xl border border-neutral-200 z-10 my-4 flex flex-col">
+      <div className="relative bg-white rounded-3xl max-w-md w-full overflow-hidden shadow-2xl border border-neutral-200 z-10 my-4 flex flex-col">
         {/* Header */}
         <div className="px-5 py-4 border-b border-neutral-200 flex items-center justify-between bg-neutral-50">
           <div className="flex items-center gap-2">
             <ImageIcon className="h-5 w-5 text-neutral-800" />
             <h3 className="font-heading font-bold text-lg text-neutral-900">
-              Crop Product Photo
+              {aspectRatio < 1 ? 'Crop Thumbnail Photo (Vertical)' : 'Crop Banner Photo'}
             </h3>
           </div>
           <button
@@ -176,10 +172,10 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
             <div className="border-2 border-dashed border-neutral-300 rounded-2xl p-8 text-center flex flex-col items-center justify-center bg-neutral-50/50 hover:bg-neutral-50 transition-colors">
               <Upload className="h-10 w-10 text-neutral-400 mb-3" />
               <p className="font-heading font-bold text-base text-neutral-900 mb-1">
-                Upload a Photo from Device
+                Upload Product Photo
               </p>
               <p className="text-xs text-neutral-500 mb-4">
-                Supports JPG, PNG, WEBP (Fixed 4:3 Product Frame)
+                Vertical shape matching product thumbnails (3:4 portrait)
               </p>
               <input
                 ref={fileInputRef}
@@ -193,15 +189,18 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
                 onClick={() => fileInputRef.current?.click()}
                 className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl cursor-pointer shadow-xs"
               >
-                Choose File
+                Choose Photo
               </button>
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Cropping Viewport with Fixed 4:3 Aspect Ratio */}
+              {/* Cropping Viewport in vertical portrait ratio */}
               <div
                 className="relative mx-auto rounded-xl overflow-hidden bg-neutral-950 border border-neutral-800 cursor-grab active:cursor-grabbing select-none"
-                style={{ width: '100%', maxWidth: '380px', aspectRatio: '4/3' }}
+                style={{
+                  width: aspectRatio >= 1 ? '100%' : '240px',
+                  aspectRatio: `${aspectRatio}`
+                }}
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -227,7 +226,7 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
                   />
                 </div>
 
-                {/* Fixed Ratio Grid Overlay */}
+                {/* Grid Overlay */}
                 <div className="absolute inset-0 pointer-events-none border-2 border-white/40 shadow-inner grid grid-cols-3 grid-rows-3">
                   <div className="border-r border-b border-white/20" />
                   <div className="border-r border-b border-white/20" />
@@ -235,8 +234,8 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
                   <div className="border-r border-b border-white/20" />
                   <div className="border-r border-b border-white/20" />
                   <div className="border-b border-white/20" />
-                  <div className="border-r border-white/20" />
-                  <div className="border-r border-white/20" />
+                  <div className="border-r border-b border-white/20" />
+                  <div className="border-r border-b border-white/20" />
                   <div />
                 </div>
               </div>

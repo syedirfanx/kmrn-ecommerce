@@ -138,7 +138,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to Store</span>
+              <span>Go to Home</span>
             </button>
           </div>
         </div>

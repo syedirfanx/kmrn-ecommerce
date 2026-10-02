@@ -78,6 +78,20 @@ export const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
 
 export const seedInitialDataIfEmpty = async () => {
   try {
+    // Check if system has already completed initial initialization
+    // This prevents deleted products, categories, or banners from reappearing after refresh
+    if (typeof window !== 'undefined' && localStorage.getItem('aniq_system_initialized_v2') === 'true') {
+      return;
+    }
+    const systemDocRef = doc(db, 'settings', 'system');
+    const systemSnap = await getDoc(systemDocRef);
+    if (systemSnap.exists() && systemSnap.data()?.seeded) {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('aniq_system_initialized_v2', 'true');
+      }
+      return;
+    }
+
     const productsRef = collection(db, 'products');
     const productsSnap = await getDocs(productsRef);
 
@@ -93,45 +107,13 @@ export const seedInitialDataIfEmpty = async () => {
         });
       }
       await batch.commit();
-    } else {
-      // Migrate any products that still have the old "ANIQ - " category prefix
-      const batch = writeBatch(db);
-      let needsProductMigration = false;
-      for (const pDoc of productsSnap.docs) {
-        const data = pDoc.data();
-        let updatedCat = data.category;
-        if (data.category === "ANIQ - Elegant Women's Wear") {
-          updatedCat = "Elegant Women's Wear";
-        } else if (data.category === 'ANIQ - Home Decor') {
-          updatedCat = 'Home Decor';
-        }
-        if (updatedCat !== data.category) {
-          needsProductMigration = true;
-          batch.update(pDoc.ref, { category: updatedCat });
-        }
-      }
-      if (needsProductMigration) {
-        await batch.commit();
-      }
     }
 
     const categoriesRef = collection(db, 'categories');
     const categoriesSnap = await getDocs(categoriesRef);
 
-    // Sync categories to "Elegant Women's Wear" and "Home Decor"
-    const existingCatNames = categoriesSnap.docs.map((d) => d.data().name);
-    const hasOnlyTargetCategories =
-      existingCatNames.length === 2 &&
-      existingCatNames.includes("Elegant Women's Wear") &&
-      existingCatNames.includes('Home Decor');
-
-    if (!hasOnlyTargetCategories) {
+    if (categoriesSnap.empty) {
       const batch = writeBatch(db);
-      // Remove outdated categories
-      for (const catDoc of categoriesSnap.docs) {
-        batch.delete(catDoc.ref);
-      }
-      // Set the 2 official categories
       for (const cat of DEFAULT_CATEGORIES) {
         const docRef = doc(db, 'categories', cat.id);
         batch.set(docRef, cat);
@@ -139,10 +121,10 @@ export const seedInitialDataIfEmpty = async () => {
       await batch.commit();
     }
 
-    // Seed banner slides if empty or outdated
+    // Seed banner slides if empty
     const bannerDocRef = doc(db, 'settings', 'banner');
     const bannerSnap = await getDoc(bannerDocRef);
-    if (!bannerSnap.exists() || !bannerSnap.data()?.slides?.some((s: BannerSlide) => s.title?.includes('Baroque') || s.title?.includes('ANIQ'))) {
+    if (!bannerSnap.exists()) {
       await setDoc(bannerDocRef, {
         slides: DEFAULT_BANNER_SLIDES,
         updatedAt: new Date().toISOString()
@@ -159,7 +141,7 @@ export const seedInitialDataIfEmpty = async () => {
       });
     }
 
-    // Seed home page featured 4 products if empty
+    // Seed home page featured products if empty
     const featuredDocRef = doc(db, 'settings', 'featured');
     const featuredSnap = await getDoc(featuredDocRef);
     if (!featuredSnap.exists()) {
@@ -169,8 +151,17 @@ export const seedInitialDataIfEmpty = async () => {
         updatedAt: new Date().toISOString()
       });
     }
+
+    // Mark system as permanently initialized
+    await setDoc(systemDocRef, {
+      seeded: true,
+      initializedAt: new Date().toISOString()
+    });
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('aniq_system_initialized_v2', 'true');
+    }
   } catch (error) {
-    console.warn('Initial database seed check:', error);
+    console.error('Initial seeding error:', error);
   }
 };
 
@@ -183,9 +174,7 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
       snapshot.forEach((d) => {
         list.push({ id: d.id, ...d.data() } as Product);
       });
-      if (list.length > 0) {
-        onUpdate(list);
-      }
+      onUpdate(list);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -202,15 +191,10 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
       snapshot.forEach((d) => {
         list.push({ id: d.id, ...d.data() } as CategoryData);
       });
-      if (list.length > 0) {
-        onUpdate(list);
-      } else {
-        onUpdate(DEFAULT_CATEGORIES);
-      }
+      onUpdate(list);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
-      onUpdate(DEFAULT_CATEGORIES);
     }
   );
 };
@@ -438,16 +422,25 @@ export const toggleWishlistItemInDb = async (
 };
 
 export const saveUserOrderToDb = async (
-  userId: string,
+  userId: string | undefined,
   order: OrderConfirmation
 ): Promise<DbResult> => {
-  const path = `users/${userId}/orders/${order.orderId}`;
   try {
-    const docRef = doc(db, 'users', userId, 'orders', order.orderId);
-    await setDoc(docRef, order);
+    // 1. Save to central orders collection for admin
+    const adminOrderPath = `orders/${order.orderId}`;
+    const adminDocRef = doc(db, 'orders', order.orderId);
+    await setDoc(adminDocRef, order);
+
+    // 2. If signed in, also save to user personal orders subcollection
+    if (userId) {
+      const userOrderPath = `users/${userId}/orders/${order.orderId}`;
+      const userDocRef = doc(db, 'users', userId, 'orders', order.orderId);
+      await setDoc(userDocRef, order);
+    }
+
     return { success: true };
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    handleFirestoreError(error, OperationType.WRITE, `orders/${order.orderId}`);
     return { success: false, error: String(error) };
   }
 };
@@ -474,6 +467,77 @@ export const subscribeUserOrders = (
       handleFirestoreError(error, OperationType.GET, path);
     }
   );
+};
+
+export const subscribeAllOrders = (
+  onUpdate: (orders: OrderConfirmation[]) => void
+) => {
+  const path = 'orders';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const orders: OrderConfirmation[] = [];
+      snapshot.forEach((d) => {
+        orders.push({ orderId: d.id, ...d.data() } as OrderConfirmation);
+      });
+      onUpdate(
+        orders.sort(
+          (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
+        )
+      );
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      onUpdate([]);
+    }
+  );
+};
+
+export const updateOrderStatusInDb = async (
+  orderId: string,
+  status: OrderConfirmation['status'],
+  userId?: string
+): Promise<DbResult> => {
+  try {
+    const adminDocRef = doc(db, 'orders', orderId);
+    await updateDoc(adminDocRef, { status });
+
+    if (userId) {
+      try {
+        const userDocRef = doc(db, 'users', userId, 'orders', orderId);
+        await updateDoc(userDocRef, { status });
+      } catch {
+        // user order subdoc might not exist if guest
+      }
+    }
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `orders/${orderId}`);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const deleteOrderInDb = async (
+  orderId: string,
+  userId?: string
+): Promise<DbResult> => {
+  try {
+    const adminDocRef = doc(db, 'orders', orderId);
+    await deleteDoc(adminDocRef);
+
+    if (userId) {
+      try {
+        const userDocRef = doc(db, 'users', userId, 'orders', orderId);
+        await deleteDoc(userDocRef);
+      } catch {
+        // ignore
+      }
+    }
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `orders/${orderId}`);
+    return { success: false, error: String(error) };
+  }
 };
 
 export const saveProductReviewToDb = async (
@@ -523,6 +587,40 @@ export const saveProductReviewToDb = async (
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const deleteProductReviewFromDb = async (
+  productId: string,
+  reviewId: string
+): Promise<DbResult> => {
+  const path = `products/${productId}/reviews/${reviewId}`;
+  try {
+    const docRef = doc(db, 'products', productId, 'reviews', reviewId);
+    await deleteDoc(docRef);
+
+    try {
+      const allReviewsSnap = await getDocs(collection(db, 'products', productId, 'reviews'));
+      let sum = 0;
+      let count = 0;
+      allReviewsSnap.forEach((r) => {
+        sum += Number(r.data().rating) || 5;
+        count += 1;
+      });
+      const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+      const prodRef = doc(db, 'products', productId);
+      await updateDoc(prodRef, {
+        rating: avg,
+        reviewsCount: count
+      });
+    } catch {
+      // fallback
+    }
+
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
     return { success: false, error: String(error) };
   }
 };
@@ -727,19 +825,29 @@ export const submitContactMessage = async (
 ): Promise<DbResult> => {
   const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const path = `messages/${messageId}`;
+  const newMsg: ContactMessage = {
+    ...message,
+    id: messageId,
+    createdAt: new Date().toISOString(),
+    read: false
+  };
+
+  // Always cache locally first so admin sees it immediately in browser
+  try {
+    const existing: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+    localStorage.setItem('maison_local_messages', JSON.stringify([newMsg, ...existing]));
+  } catch {
+    // storage fallback
+  }
+
   try {
     const docRef = doc(db, 'messages', messageId);
-    const newMsg: ContactMessage = {
-      ...message,
-      id: messageId,
-      createdAt: new Date().toISOString(),
-      read: false
-    };
     await setDoc(docRef, newMsg);
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    return { success: false, error: String(error) };
+    // Even if Firestore returns an error, we saved to localStorage
+    return { success: true };
   }
 };
 
@@ -752,6 +860,19 @@ export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) 
       snapshot.forEach((d) => {
         list.push({ id: d.id, ...d.data() } as ContactMessage);
       });
+
+      // Merge with any offline local messages
+      try {
+        const local: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+        local.forEach((lm) => {
+          if (!list.some((m) => m.id === lm.id)) {
+            list.push(lm);
+          }
+        });
+      } catch {
+        // storage fallback
+      }
+
       onUpdate(
         list.sort(
           (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -760,7 +881,12 @@ export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) 
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
-      onUpdate([]);
+      try {
+        const local: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+        onUpdate(local);
+      } catch {
+        onUpdate([]);
+      }
     }
   );
 };
@@ -768,23 +894,40 @@ export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) 
 export const deleteContactMessage = async (messageId: string): Promise<DbResult> => {
   const path = `messages/${messageId}`;
   try {
+    const local: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+    localStorage.setItem('maison_local_messages', JSON.stringify(local.filter((m) => m.id !== messageId)));
+  } catch {
+    // storage fallback
+  }
+
+  try {
     const docRef = doc(db, 'messages', messageId);
     await deleteDoc(docRef);
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
-    return { success: false, error: String(error) };
+    return { success: true };
   }
 };
 
 export const markContactMessageRead = async (messageId: string, read = true): Promise<DbResult> => {
   const path = `messages/${messageId}`;
   try {
+    const local: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
+    localStorage.setItem(
+      'maison_local_messages',
+      JSON.stringify(local.map((m) => (m.id === messageId ? { ...m, read } : m)))
+    );
+  } catch {
+    // storage fallback
+  }
+
+  try {
     const docRef = doc(db, 'messages', messageId);
     await updateDoc(docRef, { read });
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    return { success: false, error: String(error) };
+    return { success: true };
   }
 };

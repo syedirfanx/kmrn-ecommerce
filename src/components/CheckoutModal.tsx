@@ -1,12 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, CreditCard, ShieldCheck, Truck } from 'lucide-react';
-import { CartItem, OrderConfirmation } from '../types';
+import { X, CheckCircle, Truck, ShieldCheck } from 'lucide-react';
+import { User } from 'firebase/auth';
+import { CartItem, OrderConfirmation, UserProfile } from '../types';
 import { formatBDT } from '../utils/format';
+import { saveUserProfileToDb, saveUserOrderToDb } from '../services/storeService';
 
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
+  currentUser?: User | null;
+  userProfile?: UserProfile | null;
   onOrderComplete: (order: OrderConfirmation) => void;
 }
 
@@ -14,23 +18,38 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
   onClose,
   items,
+  currentUser,
+  userProfile,
   onOrderComplete
 }) => {
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    address: '',
+    phone: '',
+    street: '',
     city: '',
-    postalCode: '',
-    country: 'Bangladesh',
-    paymentMethod: 'card',
-    cardNumber: '',
-    cardExpiry: '',
-    cardCvc: ''
+    country: 'Bangladesh'
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<OrderConfirmation | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  // Prefill details from user profile or auth if signed in
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        fullName: userProfile?.displayName || currentUser?.displayName || '',
+        email: userProfile?.email || currentUser?.email || '',
+        phone: userProfile?.phone || '',
+        street: userProfile?.street || userProfile?.address || '',
+        city: userProfile?.city || '',
+        country: userProfile?.country || 'Bangladesh'
+      });
+      setErrorMsg('');
+      setCompletedOrder(null);
+    }
+  }, [isOpen, userProfile, currentUser]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -57,31 +76,82 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg('');
+
+    // Strict validation for mandatory fields: name, phone, street, city, country
+    if (!formData.fullName.trim()) {
+      setErrorMsg('Full name is required.');
+      return;
+    }
+    if (!formData.phone.trim()) {
+      setErrorMsg('Phone number is required.');
+      return;
+    }
+    if (!formData.email.trim()) {
+      setErrorMsg('Email address is required.');
+      return;
+    }
+    if (!formData.street.trim()) {
+      setErrorMsg('Street address is required.');
+      return;
+    }
+    if (!formData.city.trim()) {
+      setErrorMsg('City is required.');
+      return;
+    }
+    if (!formData.country.trim()) {
+      setErrorMsg('Country is required.');
+      return;
+    }
+
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
+      // 1. If signed in, update their user profile with address and phone in Firebase
+      if (currentUser) {
+        await saveUserProfileToDb(currentUser.uid, {
+          displayName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          phone: formData.phone.trim(),
+          street: formData.street.trim(),
+          address: formData.street.trim(),
+          city: formData.city.trim(),
+          country: formData.country.trim()
+        });
+      }
+
+      // 2. Build full order
       const order: OrderConfirmation = {
         orderId: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
-        customerName: formData.fullName,
-        email: formData.email,
-        shippingAddress: `${formData.address}, ${formData.city} ${formData.postalCode}, ${formData.country}`,
+        customerName: formData.fullName.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        street: formData.street.trim(),
+        city: formData.city.trim(),
+        country: formData.country.trim(),
+        shippingAddress: `${formData.street.trim()}, ${formData.city.trim()}, ${formData.country.trim()}`,
         items: [...items],
         subtotal,
         shipping,
         total,
-        placedAt: new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        })
+        status: 'Processing',
+        paymentMethod: 'Cash on Delivery',
+        userId: currentUser?.uid,
+        placedAt: new Date().toISOString()
       };
 
+      // 3. Save order to Firestore (both central admin orders and user subcollection)
+      await saveUserOrderToDb(currentUser?.uid, order);
+
       setCompletedOrder(order);
-      setIsSubmitting(false);
       onOrderComplete(order);
-    }, 600);
+    } catch {
+      setErrorMsg('An error occurred while placing your order. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleFinish = () => {
@@ -98,11 +168,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     >
       <div className="fixed inset-0" onClick={completedOrder ? undefined : onClose} />
 
-      <div className="relative bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] overflow-y-auto shadow-2xl z-10 my-4 sm:my-8">
+      <div className="relative bg-white rounded-3xl max-w-xl w-full max-h-[92vh] overflow-y-auto shadow-2xl z-10 my-4 sm:my-8">
         {/* Header */}
-        <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-neutral-50 sticky top-0 z-20">
+        <div className="px-5 sm:px-6 py-4 sm:py-5 flex items-center justify-between bg-neutral-50 sticky top-0 z-20 border-b border-stone-200/80">
           <h2 id="checkout-modal-title" className="font-heading font-extrabold text-xl sm:text-2xl text-neutral-900">
-            {completedOrder ? 'Order Confirmation' : 'Checkout'}
+            {completedOrder ? 'Order Confirmed' : 'Checkout'}
           </h2>
           {!completedOrder && (
             <button
@@ -123,50 +193,54 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <CheckCircle className="h-10 w-10" />
               </div>
               <h3 className="font-heading font-extrabold text-2xl sm:text-3xl text-neutral-900 mb-1">
-                Thank you for your purchase
+                Order Placed Successfully
               </h3>
               <p className="text-sm text-neutral-600">
-                Order confirmation has been sent to <span className="font-semibold text-neutral-900">{completedOrder.email}</span>.
+                Confirmation details have been saved for <span className="font-semibold text-neutral-900">{completedOrder.customerName}</span>.
               </p>
             </div>
 
-            <div className="bg-neutral-50 rounded-2xl p-5 space-y-3 text-sm">
-              <div className="flex justify-between pb-2">
-                <span className="text-neutral-600">Order Number</span>
+            <div className="bg-neutral-50 rounded-2xl p-5 space-y-3 text-sm border border-stone-200/80">
+              <div className="flex justify-between pb-2 border-b border-stone-200/60">
+                <span className="text-neutral-600">Order ID</span>
                 <span className="font-mono font-bold text-neutral-900">{completedOrder.orderId}</span>
               </div>
-              <div className="flex justify-between pb-2">
-                <span className="text-neutral-600">Date</span>
-                <span className="font-medium text-neutral-900">{completedOrder.placedAt}</span>
+              <div className="flex justify-between pb-2 border-b border-stone-200/60">
+                <span className="text-neutral-600">Phone</span>
+                <span className="font-medium text-neutral-900">{completedOrder.phone}</span>
               </div>
-              <div className="flex justify-between pb-2">
+              <div className="flex justify-between pb-2 border-b border-stone-200/60">
                 <span className="text-neutral-600">Shipping Address</span>
                 <span className="font-medium text-neutral-900 text-right max-w-xs">{completedOrder.shippingAddress}</span>
               </div>
+              <div className="flex justify-between pb-2 border-b border-stone-200/60">
+                <span className="text-neutral-600">Payment</span>
+                <span className="font-medium text-neutral-900">{completedOrder.paymentMethod}</span>
+              </div>
               <div className="flex justify-between pt-1">
-                <span className="text-neutral-900 font-bold">Total Paid</span>
+                <span className="text-neutral-900 font-bold">Total Amount</span>
                 <span className="font-heading font-extrabold text-xl text-neutral-900">{formatBDT(completedOrder.total)}</span>
               </div>
             </div>
 
-            <div className="bg-neutral-50 rounded-2xl p-4 space-y-2">
-              <h4 className="font-semibold text-xs uppercase tracking-wider text-neutral-400 mb-2">
-                Purchased Items ({completedOrder.items.length})
-              </h4>
+            <div className="bg-neutral-50 rounded-2xl p-4 space-y-2 border border-stone-200/80">
+              <span className="font-semibold text-xs uppercase tracking-wider text-neutral-400 block mb-2">
+                Order Items ({completedOrder.items.length})
+              </span>
               {completedOrder.items.map((it) => (
-                <div key={it.product.id} className="py-2 flex items-center justify-between text-sm bg-white p-2.5 rounded-xl shadow-xs">
+                <div key={it.product.id} className="py-2 flex items-center justify-between text-sm bg-white p-2.5 rounded-xl shadow-xs border border-stone-100">
                   <div className="flex items-center gap-3">
                     <img
                       src={it.product.image}
                       alt={it.product.name}
-                      className="w-10 h-10 rounded-lg object-cover bg-neutral-100"
+                      className="w-10 h-12 rounded-lg object-cover bg-neutral-100"
                     />
                     <div>
-                      <p className="font-heading font-bold text-neutral-900">{it.product.name}</p>
+                      <p className="font-heading font-bold text-neutral-900 text-xs sm:text-sm">{it.product.name}</p>
                       <p className="text-xs text-neutral-500">Qty: {it.quantity}</p>
                     </div>
                   </div>
-                  <span className="font-heading font-bold text-neutral-900">{formatBDT(it.product.price * it.quantity)}</span>
+                  <span className="font-heading font-bold text-neutral-900 text-xs sm:text-sm">{formatBDT(it.product.price * it.quantity)}</span>
                 </div>
               ))}
             </div>
@@ -175,180 +249,152 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               onClick={handleFinish}
               className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-base py-3.5 px-6 rounded-xl transition-colors cursor-pointer shadow-md"
             >
-              Back to Store
+              Continue Shopping
             </button>
           </div>
         ) : (
           /* Checkout Form View */
-          <form onSubmit={handleSubmit} className="p-5 sm:p-8 space-y-6">
-            {/* Contact & Shipping Section */}
+          <form onSubmit={handleSubmit} className="p-5 sm:p-7 space-y-5">
+            {errorMsg && (
+              <div className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl">
+                {errorMsg}
+              </div>
+            )}
+
+            {/* Mandatory Shipping Details */}
             <div>
-              <h3 className="font-heading font-bold text-base text-neutral-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <Truck className="h-4 w-4 text-neutral-600" />
-                Shipping Details
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-heading font-bold text-sm text-neutral-900 uppercase tracking-wider flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-neutral-600" />
+                  Delivery Information
+                </h3>
+                {currentUser && (
+                  <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md">
+                    Account Synced
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-3.5">
+                <div>
                   <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                    Full Name
+                    Full Name *
                   </label>
                   <input
                     type="text"
                     required
                     name="fullName"
+                    placeholder="Recipient full name"
                     value={formData.fullName}
                     onChange={handleInputChange}
                     className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                   />
                 </div>
 
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                    Street Address
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    name="address"
-                    value={formData.address}
-                    onChange={handleInputChange}
-                    className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                    City / Division
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                    Country
-                  </label>
-                  <select
-                    name="country"
-                    value={formData.country}
-                    onChange={handleInputChange}
-                    className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                  >
-                    <option value="Bangladesh">Bangladesh</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Section */}
-            <div>
-              <h3 className="font-heading font-bold text-base text-neutral-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-neutral-600" />
-                Payment Method
-              </h3>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <label className={`p-4 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${formData.paymentMethod === 'card' ? 'bg-neutral-900 text-white shadow-md' : 'bg-neutral-50 text-neutral-700'}`}>
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="card"
-                    checked={formData.paymentMethod === 'card'}
-                    onChange={handleInputChange}
-                    className="sr-only"
-                  />
-                  <CreditCard className="h-5 w-5 mb-1" />
-                  <span className="text-xs font-bold">Credit / Debit Card</span>
-                </label>
-
-                <label className={`p-4 rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${formData.paymentMethod === 'cod' ? 'bg-neutral-900 text-white shadow-md' : 'bg-neutral-50 text-neutral-700'}`}>
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="cod"
-                    checked={formData.paymentMethod === 'cod'}
-                    onChange={handleInputChange}
-                    className="sr-only"
-                  />
-                  <Truck className="h-5 w-5 mb-1" />
-                  <span className="text-xs font-bold">Cash on Delivery</span>
-                </label>
-              </div>
-
-              {formData.paymentMethod === 'card' && (
-                <div className="p-4 bg-neutral-50 rounded-2xl space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
                     <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                      Card Number
+                      Phone Number *
                     </label>
                     <input
-                      type="text"
-                      required={formData.paymentMethod === 'card'}
-                      name="cardNumber"
-                      placeholder="4000 1234 5678 9010"
-                      value={formData.cardNumber}
+                      type="tel"
+                      required
+                      name="phone"
+                      placeholder="e.g. +880 1554-555071"
+                      value={formData.phone}
                       onChange={handleInputChange}
-                      className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        Expiry Date
-                      </label>
-                      <input
-                        type="text"
-                        required={formData.paymentMethod === 'card'}
-                        name="cardExpiry"
-                        placeholder="MM/YY"
-                        value={formData.cardExpiry}
-                        onChange={handleInputChange}
-                        className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                        CVC
-                      </label>
-                      <input
-                        type="text"
-                        required={formData.paymentMethod === 'card'}
-                        name="cardCvc"
-                        placeholder="123"
-                        value={formData.cardCvc}
-                        onChange={handleInputChange}
-                        className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      Email Address *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      name="email"
+                      placeholder="email@example.com"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                    />
                   </div>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                    Street Address *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    name="street"
+                    placeholder="House, Road, Block / Area"
+                    value={formData.street}
+                    onChange={handleInputChange}
+                    className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      City / District *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      name="city"
+                      placeholder="e.g. Dhaka, Chittagong, Sylhet"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      Country *
+                    </label>
+                    <select
+                      name="country"
+                      value={formData.country}
+                      onChange={handleInputChange}
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                    >
+                      <option value="Bangladesh">Bangladesh</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Order Total & Submit */}
-            <div className="p-4 bg-neutral-50 rounded-2xl space-y-2">
+            {/* Payment Method: Cash on Delivery Only */}
+            <div>
+              <span className="block text-xs font-semibold text-neutral-800 mb-2 uppercase tracking-wider">
+                Payment Method
+              </span>
+
+              <div className="p-4 rounded-2xl bg-neutral-900 text-white flex items-center justify-between shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-xl bg-neutral-800 flex items-center justify-center">
+                    <Truck className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Cash on Delivery</p>
+                    <p className="text-xs text-stone-300">Pay cash upon delivery at your doorstep</p>
+                  </div>
+                </div>
+                <div className="h-5 w-5 rounded-full border-2 border-white flex items-center justify-center">
+                  <div className="h-2.5 w-2.5 rounded-full bg-white" />
+                </div>
+              </div>
+            </div>
+
+            {/* Order Cost Breakdown */}
+            <div className="p-4 bg-neutral-50 rounded-2xl space-y-2 border border-stone-200/80">
               <div className="flex justify-between text-xs text-neutral-600">
                 <span>Subtotal</span>
                 <span>{formatBDT(subtotal)}</span>
@@ -357,8 +403,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span>Shipping</span>
                 <span>{shipping === 0 ? 'Free' : formatBDT(shipping)}</span>
               </div>
-              <div className="flex justify-between text-base font-extrabold text-neutral-900 pt-1">
-                <span>Total</span>
+              <div className="flex justify-between text-base font-extrabold text-neutral-900 pt-1 border-t border-stone-200">
+                <span>Total Payable</span>
                 <span>{formatBDT(total)}</span>
               </div>
             </div>
@@ -366,15 +412,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-[#283618] hover:bg-[#1f2b12] disabled:bg-neutral-400 text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-98 border border-[#445837]"
+              className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-98"
             >
               <ShieldCheck className="h-5 w-5 text-stone-200" />
               <span>
-                {isSubmitting
-                  ? 'Processing Order...'
-                  : formData.paymentMethod === 'cod'
-                    ? `Confirm Order (${formatBDT(total)})`
-                    : `Pay ${formatBDT(total)}`}
+                {isSubmitting ? 'Confirming Order...' : `Place Order with Cash on Delivery`}
               </span>
             </button>
           </form>

@@ -1,12 +1,8 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Mail, Phone, MapPin, Clock, Send, Check, AlertCircle } from 'lucide-react';
+import { MapPin, Send, Check, AlertCircle, Phone } from 'lucide-react';
 import { submitContactMessage } from '../services/storeService';
 
-interface ContactPageProps {
-  onNavigateToStore: () => void;
-}
-
-export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) => {
+export const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -21,8 +17,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) =
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
-      setErrorMessage('Please fill in your name, email, and message.');
+    if (!formData.name.trim() || !formData.message.trim()) {
+      setErrorMessage('Please fill in your name and message.');
       return;
     }
 
@@ -48,54 +44,25 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) =
   return (
     <div className="min-h-screen py-8 sm:py-12 bg-[#faf9f6]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Navigation */}
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={onNavigateToStore}
-            className="inline-flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-800 font-semibold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl border border-stone-200 shadow-xs cursor-pointer transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Store</span>
-          </button>
-        </div>
-
         {/* Header */}
         <div className="bg-white rounded-3xl p-8 sm:p-12 border border-stone-200/80 shadow-xs mb-8">
           <h1 className="font-heading font-medium text-3xl sm:text-5xl text-neutral-900 tracking-tight mb-4">
             Contact ANIQ
           </h1>
           <p className="text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
-            Have an inquiry about Pakistani dress collections, bedsheets, comforters, or custom orders? Reach out to us directly or leave a message below.
+            Inquiries regarding original Pakistani dress collections, luxury bedding, or custom requests can be sent using the form below or through direct contacts.
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Contact Details Card: Email, Location, Social Media */}
+          {/* Contact Details Card: Location, WhatsApp, and Social Media */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-xs space-y-6">
               <h2 className="font-heading font-semibold text-lg text-neutral-900">
                 Contact Information
               </h2>
 
-              <div className="space-y-4">
-                {/* Email */}
-                <div className="flex items-start gap-3.5">
-                  <div className="h-10 w-10 rounded-xl bg-stone-100 text-neutral-900 flex items-center justify-center shrink-0">
-                    <Mail className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider">
-                      Email
-                    </span>
-                    <a
-                      href="mailto:syed111042@gmail.com"
-                      className="text-xs sm:text-sm font-medium text-neutral-900 hover:underline break-all"
-                    >
-                      syed111042@gmail.com
-                    </a>
-                  </div>
-                </div>
-
+              <div className="space-y-5">
                 {/* Location */}
                 <div className="flex items-start gap-3.5">
                   <div className="h-10 w-10 rounded-xl bg-stone-100 text-neutral-900 flex items-center justify-center shrink-0">
@@ -106,82 +73,78 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) =
                       Location
                     </span>
                     <p className="text-xs sm:text-sm text-neutral-800 font-medium leading-relaxed">
-                      Road 11, Banani, Dhaka, Bangladesh
+                      Road: 02, Block: B, Aftabnagar, Dhaka 1212, Bangladesh
                     </p>
                   </div>
                 </div>
 
-                {/* Phone & WhatsApp */}
+                {/* WhatsApp */}
                 <div className="flex items-start gap-3.5">
-                  <div className="h-10 w-10 rounded-xl bg-stone-100 text-neutral-900 flex items-center justify-center shrink-0">
-                    <Phone className="h-5 w-5" />
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                    <svg className="h-5 w-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.666-.699c.974.531 1.769.815 2.802.815 3.181 0 5.768-2.586 5.768-5.767.001-3.181-2.586-5.767-5.768-5.767zm3.377 8.212c-.144.405-.837.775-1.164.825-.327.05-.75.069-1.209-.079-.296-.095-.679-.228-1.171-.441-2.072-.897-3.414-2.999-3.518-3.138-.104-.139-.844-1.121-.844-2.138 0-1.017.534-1.516.724-1.722.189-.207.414-.258.552-.258.138 0 .276.002.396.008.127.006.297-.048.464.354.172.414.586 1.432.638 1.536.052.103.086.225.017.362-.069.138-.103.224-.207.345-.103.121-.218.27-.311.363-.104.103-.212.215-.091.423.121.207.537.886 1.152 1.434.792.706 1.46.924 1.667 1.028.207.103.328.086.448-.052.121-.138.517-.603.655-.81.138-.207.276-.172.466-.103.189.069 1.206.569 1.413.672.207.103.345.155.396.241.052.086.052.5-.092.905z" />
+                      <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.176L2 22l4.981-1.306A9.957 9.957 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18.2c-1.614 0-3.126-.456-4.417-1.246l-.317-.194-2.964.777.791-2.89-.207-.33A8.163 8.163 0 013.8 12c0-4.521 3.679-8.2 8.2-8.2s8.2 3.679 8.2 8.2-3.679 8.2-8.2 8.2z" />
+                    </svg>
                   </div>
                   <div>
                     <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider">
-                      Phone & WhatsApp
+                      WhatsApp
                     </span>
                     <a
-                      href="tel:+8801711000000"
-                      className="text-xs sm:text-sm font-medium text-neutral-900 hover:underline"
+                      href="https://wa.me/8801554555071"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs sm:text-sm font-semibold text-neutral-900 hover:text-emerald-700 transition-colors"
                     >
-                      +880 1711-000000
+                      +880 1554-555071
                     </a>
-                  </div>
-                </div>
-
-                {/* Hours */}
-                <div className="flex items-start gap-3.5">
-                  <div className="h-10 w-10 rounded-xl bg-stone-100 text-neutral-900 flex items-center justify-center shrink-0">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider">
-                      Hours
-                    </span>
-                    <p className="text-xs sm:text-sm text-neutral-800 font-medium">
-                      10:00 AM to 8:00 PM (Saturday to Thursday)
-                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Social Media */}
-              <div className="pt-4 border-t border-stone-100">
+              {/* Social Media Channels */}
+              <div className="pt-5 border-t border-stone-100">
                 <span className="text-[11px] font-semibold text-stone-400 block uppercase tracking-wider mb-3">
                   Social Media
                 </span>
                 <div className="flex items-center gap-2.5 flex-wrap">
+                  {/* Facebook */}
                   <a
-                    href="https://facebook.com"
+                    href="https://www.facebook.com/aniqeww"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 bg-stone-100 hover:bg-stone-200 text-neutral-800 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors"
                   >
-                    <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    <svg className="h-4 w-4 fill-current text-blue-600" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                     </svg>
                     <span>Facebook</span>
                   </a>
 
+                  {/* Instagram */}
                   <a
-                    href="https://instagram.com"
+                    href="https://www.instagram.com/aniq_elegant"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 bg-stone-100 hover:bg-stone-200 text-neutral-800 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors"
                   >
-                    <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24">
-                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                    <svg className="h-4 w-4 fill-current text-pink-600" viewBox="0 0 24 24">
+                      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
                     </svg>
                     <span>Instagram</span>
                   </a>
 
+                  {/* TikTok */}
                   <a
-                    href="https://wa.me/8801711000000"
+                    href="https://www.tiktok.com/@aniq_elegant"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 bg-stone-100 hover:bg-stone-200 text-neutral-800 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors"
                   >
-                    <span>WhatsApp</span>
+                    <svg className="h-4 w-4 fill-current text-neutral-900" viewBox="0 0 24 24">
+                      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64c.29 0 .58.04.86.11V9.4a6.33 6.33 0 0 0-.86-.06 6.34 6.34 0 0 0-6.34 6.34 6.34 6.34 0 0 0 6.34 6.34 6.34 6.34 0 0 0 6.34-6.34V8.71a8.21 8.21 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.14z" />
+                    </svg>
+                    <span>TikTok</span>
                   </a>
                 </div>
               </div>
@@ -204,7 +167,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) =
                     Message Sent
                   </h3>
                   <p className="text-xs sm:text-sm text-stone-600 max-w-md mx-auto">
-                    Thank you for contacting ANIQ. Your inquiry has been submitted and will be reviewed by our team.
+                    Your inquiry has been submitted and will be reviewed by the ANIQ team.
                   </p>
                 </div>
               ) : (
@@ -232,13 +195,13 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) =
 
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                        Email Address *
+                        Phone / WhatsApp
                       </label>
                       <input
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        type="tel"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        placeholder="+880 1..."
                         className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                       />
                     </div>
@@ -247,13 +210,12 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigateToStore }) =
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                        Phone (Optional)
+                        Email Address (Optional)
                       </label>
                       <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        placeholder="+880 1..."
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                         className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                       />
                     </div>

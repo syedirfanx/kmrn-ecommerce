@@ -2,7 +2,7 @@
   "entities": {
     "Product": {
       "title": "Product",
-      "description": "Store item available for purchase",
+      "description": "Store item available for purchase with clean specifications",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -12,6 +12,7 @@
         "price": { "type": "number" },
         "description": { "type": "string", "maxLength": 500 },
         "details": { "type": "string", "maxLength": 2000 },
+        "specs": { "type": "array" },
         "image": { "type": "string", "maxLength": 1000 },
         "additionalImages": { "type": "array" },
         "inStock": { "type": "boolean" },
@@ -25,7 +26,7 @@
     },
     "CategoryItem": {
       "title": "CategoryItem",
-      "description": "Product category and its subcategories",
+      "description": "Product category and its subcategories (up to 10 subcategories)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -34,6 +35,30 @@
         "createdAt": { "type": "string" }
       },
       "required": ["name"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase order placed with Cash on Delivery",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "street": { "type": "string" },
+        "city": { "type": "string" },
+        "country": { "type": "string" },
+        "shippingAddress": { "type": "string" },
+        "items": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "shipping": { "type": "number" },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "userId": { "type": "string" },
+        "placedAt": { "type": "string" }
+      },
+      "required": ["orderId", "customerName", "phone", "email", "total", "status"]
     },
     "CartItem": {
       "title": "CartItem",
@@ -60,7 +85,7 @@
     },
     "FeaturedSettings": {
       "title": "FeaturedSettings",
-      "description": "Featured products selected to appear on the homepage",
+      "description": "Featured products selected to appear on the homepage (up to 4)",
       "type": "object",
       "properties": {
         "productIds": { "type": "array" },
@@ -70,7 +95,7 @@
     },
     "ContactMessage": {
       "title": "ContactMessage",
-      "description": "Customer message submitted via the contact form",
+      "description": "Customer inquiry submitted via contact form, visible and manageable by admin",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -82,25 +107,29 @@
         "createdAt": { "type": "string" },
         "read": { "type": "boolean" }
       },
-      "required": ["name", "email", "message"]
+      "required": ["name", "message"]
     }
   },
   "firestore": {
     "/products/{productId}": {
       "schema": "Product",
-      "description": "Public catalog products, manageable by admin"
+      "description": "Public catalog products with up to 10 specs, manageable by admin"
     },
     "/categories/{categoryId}": {
       "schema": "CategoryItem",
-      "description": "Store categories and subcategories, manageable by admin"
+      "description": "Store categories and up to 10 subcategories, fully manageable by admin"
     },
     "/settings/{settingId}": {
       "schema": "FeaturedSettings",
-      "description": "Site configurations including featured 4 home products, banner slides, and announcements"
+      "description": "Site configurations including featured homepage products, banner slides, and scheduled offers"
     },
     "/messages/{messageId}": {
       "schema": "ContactMessage",
-      "description": "Customer inquiry messages submitted via contact form, visible to admin"
+      "description": "Customer inquiry messages submitted via contact form, readable and deletable by admin"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Central customer orders, manageable by admin with status tracking and Excel export"
     },
     "/users/{userId}/cart/{itemId}": {
       "schema": "CartItem",

@@ -5,10 +5,17 @@ interface ToastProps {
   message: string;
   isOpen: boolean;
   onClose: () => void;
-  onOpenCart: () => void;
+  onOpenCart?: () => void;
+  showCartButton?: boolean;
 }
 
-export const Toast: React.FC<ToastProps> = ({ message, isOpen, onClose, onOpenCart }) => {
+export const Toast: React.FC<ToastProps> = ({
+  message,
+  isOpen,
+  onClose,
+  onOpenCart,
+  showCartButton = false
+}) => {
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {
@@ -29,17 +36,19 @@ export const Toast: React.FC<ToastProps> = ({ message, isOpen, onClose, onOpenCa
         <Check className="h-4 w-4" />
       </div>
       <p className="text-sm sm:text-base font-medium flex-1 text-neutral-100 truncate">{message}</p>
-      <button
-        onClick={onOpenCart}
-        className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-neutral-200 hover:text-white underline underline-offset-4 px-2 py-1 transition-colors shrink-0"
-      >
-        <ShoppingBag className="h-4 w-4" />
-        Cart
-      </button>
+      {showCartButton && onOpenCart && (
+        <button
+          onClick={onOpenCart}
+          className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-neutral-200 hover:text-white underline underline-offset-4 px-2 py-1 transition-colors shrink-0 cursor-pointer"
+        >
+          <ShoppingBag className="h-4 w-4" />
+          <span>Cart</span>
+        </button>
+      )}
       <button
         onClick={onClose}
         aria-label="Close notification"
-        className="text-neutral-400 hover:text-white p-1 rounded-md transition-colors shrink-0"
+        className="text-neutral-400 hover:text-white p-1 rounded-md transition-colors shrink-0 cursor-pointer"
       >
         <X className="h-4 w-4" />
       </button>

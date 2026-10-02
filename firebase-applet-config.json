@@ -6,5 +6,7 @@
   "firestoreDatabaseId": "(default)",
   "storageBucket": "kamran-ecommerce.firebasestorage.app",
   "messagingSenderId": "913533657733",
-  "measurementId": "G-KRSTMVRGYP"
+  "measurementId": "G-KRSTMVRGYP",
+  "oAuthClientId": "",
+  "recaptchaSiteKey": ""
 }
