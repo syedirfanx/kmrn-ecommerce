@@ -138,9 +138,7 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="pt-6 border-t border-neutral-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-neutral-500">
           <p>ANIQ Lifestyle. All rights reserved.</p>
           <div className="flex gap-4">
-            <span>Bangladesh</span>
-            <span>BDT Currency</span>
-            <span>Original Guaranteed</span>
+            <span></span>
           </div>
         </div>
       </div>
