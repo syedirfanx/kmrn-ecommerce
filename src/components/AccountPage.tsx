@@ -19,7 +19,7 @@ import { saveUserProfileToDb } from '../services/storeService';
 import { Logo } from './Logo';
 
 interface AccountPageProps {
-  currentUser: User;
+  currentUser: User | null;
   userProfile: UserProfile | null;
   cart: CartItem[];
   wishlistProductIds: string[];
@@ -65,7 +65,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
   // Profile form state
   const [displayName, setDisplayName] = useState(
-    userProfile?.displayName || currentUser.displayName || ''
+    userProfile?.displayName || currentUser?.displayName || ''
   );
   const [phone, setPhone] = useState(userProfile?.phone || '');
   const [address, setAddress] = useState(userProfile?.address || '');
@@ -83,24 +83,42 @@ export const AccountPage: React.FC<AccountPageProps> = ({
     setSaveError('');
 
     try {
-      if (displayName.trim() && displayName !== currentUser.displayName) {
-        await updateProfile(currentUser, { displayName: displayName.trim() });
-      }
+      if (currentUser) {
+        if (displayName.trim() && displayName !== currentUser.displayName) {
+          await updateProfile(currentUser, { displayName: displayName.trim() });
+        }
 
-      const res = await saveUserProfileToDb(currentUser.uid, {
-        displayName: displayName.trim(),
-        email: currentUser.email || '',
-        phone: phone.trim(),
-        address: address.trim(),
-        city: city.trim(),
-        postalCode: postalCode.trim()
-      });
+        const res = await saveUserProfileToDb(currentUser.uid, {
+          displayName: displayName.trim(),
+          email: currentUser.email || '',
+          phone: phone.trim(),
+          address: address.trim(),
+          city: city.trim(),
+          postalCode: postalCode.trim()
+        });
 
-      if (res.success) {
-        setSaveSuccess('Profile details saved successfully');
-        setTimeout(() => setSaveSuccess(''), 3000);
+        if (res.success) {
+          setSaveSuccess('Profile details saved successfully');
+          setTimeout(() => setSaveSuccess(''), 3000);
+        } else {
+          setSaveError(res.error || 'Failed to save profile');
+        }
       } else {
-        setSaveError(res.error || 'Failed to save profile');
+        // Save guest profile details to localStorage
+        try {
+          const guestInfo = {
+            displayName: displayName.trim(),
+            phone: phone.trim(),
+            address: address.trim(),
+            city: city.trim(),
+            postalCode: postalCode.trim()
+          };
+          localStorage.setItem('maison_guest_profile', JSON.stringify(guestInfo));
+          setSaveSuccess('Guest details saved locally');
+          setTimeout(() => setSaveSuccess(''), 3000);
+        } catch {
+          setSaveError('Failed to save guest details');
+        }
       }
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'An error occurred');
@@ -154,13 +172,15 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 {/* User Bio Header */}
                 <div className="flex items-center gap-3 pb-5 mb-5 bg-neutral-50 p-4 rounded-2xl">
                   <div className="h-12 w-12 rounded-full bg-neutral-900 text-white font-heading font-extrabold text-lg flex items-center justify-center shrink-0">
-                    {(displayName || currentUser.email || 'U')[0].toUpperCase()}
+                    {(displayName || currentUser?.email || 'G')[0].toUpperCase()}
                   </div>
                   <div className="min-w-0">
                     <h2 className="font-heading font-bold text-base text-neutral-900 truncate">
-                      {displayName || currentUser.displayName || 'Client Member'}
+                      {displayName || currentUser?.displayName || 'Guest Customer'}
                     </h2>
-                    <p className="text-xs text-neutral-500 truncate">{currentUser.email}</p>
+                    <p className="text-xs text-neutral-500 truncate">
+                      {currentUser?.email || 'Guest Checkout Account'}
+                    </p>
                   </div>
                 </div>
 
@@ -313,7 +333,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                       <input
                         type="email"
                         disabled
-                        value={currentUser.email || ''}
+                        value={currentUser?.email || userProfile?.email || 'Guest Checkout Account'}
                         className="w-full bg-neutral-100 border border-stone-200 rounded-xl px-4 py-3 text-sm text-neutral-500 cursor-not-allowed"
                       />
                     </div>
@@ -588,8 +608,20 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1 rounded-full">
-                              Confirmed & Processing
+                            <span
+                              className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${
+                                ord.status === 'Delivered'
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                  : ord.status === 'Shipped'
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-200'
+                                  : ord.status === 'Confirmed'
+                                  ? 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                  : ord.status === 'Cancelled'
+                                  ? 'bg-red-100 text-red-800 border border-red-200'
+                                  : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}
+                            >
+                              {ord.status || 'Processing'}
                             </span>
                             <span className="font-heading font-extrabold text-base text-neutral-900">
                               {formatBDT(ord.total)}

@@ -31,6 +31,7 @@ import {
   toggleWishlistItemInDb,
   saveUserOrderToDb,
   subscribeUserOrders,
+  subscribeGuestOrders,
   subscribeBannerSlides,
   subscribeAnnouncements,
   subscribeStoreSettings,
@@ -317,12 +318,17 @@ export default function App() {
     };
   }, []);
 
-  // 4. User data subscriptions
+  // 4. User / Guest data subscriptions
   useEffect(() => {
     if (!currentUser) {
       setUserProfile(null);
-      setOrders([]);
-      return;
+      // Guest mode: Subscribe live to guest orders from Firestore!
+      const unsubGuestOrders = subscribeGuestOrders((guestOrders) => {
+        setOrders(guestOrders);
+      });
+      return () => {
+        unsubGuestOrders();
+      };
     }
 
     const unsubProfile = subscribeUserProfile(currentUser.uid, (profile) => {
@@ -534,41 +540,8 @@ export default function App() {
     );
   }
 
-  // Dedicated Account Page
+  // Dedicated Account Page (Supports both registered accounts and guest checkout tracking)
   if (currentPage === 'account') {
-    if (!currentUser) {
-      return (
-        <div className="min-h-screen bg-[#faf9f6] flex items-center justify-center p-4">
-          <div className="text-center bg-white p-8 rounded-3xl max-w-md w-full shadow-sm">
-            <h2 className="font-heading font-extrabold text-2xl text-neutral-900 mb-2">
-              Sign In Required
-            </h2>
-            <p className="text-sm text-neutral-600 mb-6">
-              Please sign in to access your account profile, cart, and wishlist.
-            </p>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => navigateTo('home')}
-                className="px-4 py-2 bg-neutral-100 rounded-xl font-bold text-xs text-neutral-700 hover:bg-neutral-200 cursor-pointer"
-              >
-                Go to Home
-              </button>
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="px-5 py-2 bg-neutral-900 text-white rounded-xl font-bold text-xs hover:bg-neutral-800 cursor-pointer shadow-xs"
-              >
-                Sign In
-              </button>
-            </div>
-            <AuthModal
-              isOpen={isAuthModalOpen}
-              onClose={() => setIsAuthModalOpen(false)}
-            />
-          </div>
-        </div>
-      );
-    }
-
     return (
       <div className="min-h-screen bg-[#faf9f6] flex flex-col">
         <AnnouncementBar

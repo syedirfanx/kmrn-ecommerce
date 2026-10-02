@@ -460,12 +460,26 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return result as T;
 }
 
+export const saveGuestOrderId = (orderId: string) => {
+  try {
+    const existing: string[] = JSON.parse(localStorage.getItem('maison_guest_order_ids') || '[]');
+    if (!existing.includes(orderId)) {
+      localStorage.setItem('maison_guest_order_ids', JSON.stringify([orderId, ...existing]));
+    }
+  } catch {
+    // storage fallback
+  }
+};
+
 export const saveUserOrderToDb = async (
   userId: string | undefined,
   order: OrderConfirmation
 ): Promise<DbResult> => {
   try {
     const sanitizedOrder = sanitizeForFirestore(order) as OrderConfirmation;
+
+    // Always track guest order ID locally
+    saveGuestOrderId(sanitizedOrder.orderId);
 
     // 1. Save to central orders collection for admin
     const adminDocRef = doc(db, 'orders', sanitizedOrder.orderId);
@@ -558,39 +572,95 @@ export const subscribeUserOrders = (
   );
 };
 
+export const sanitizeOrder = (d: { id: string; data: () => Record<string, unknown> }): OrderConfirmation => {
+  const data = d.data();
+  return {
+    orderId: d.id,
+    customerName: String(data.customerName || ''),
+    email: String(data.email || ''),
+    phone: String(data.phone || ''),
+    street: String(data.street || ''),
+    city: String(data.city || ''),
+    country: String(data.country || 'Bangladesh'),
+    shippingAddress: String(data.shippingAddress || ''),
+    items: Array.isArray(data.items)
+      ? data.items.map((i: CartItem) => ({
+          quantity: Number(i.quantity) || 1,
+          product: i.product || { id: 'unknown', name: 'Product', price: 0, image: '', category: '' }
+        }))
+      : [],
+    subtotal: Number(data.subtotal) || 0,
+    shipping: Number(data.shipping) || 0,
+    total: Number(data.total) || 0,
+    status: (data.status as OrderConfirmation['status']) || 'Processing',
+    paymentMethod: 'Cash on Delivery',
+    userId: data.userId ? String(data.userId) : undefined,
+    isGuest: Boolean(data.isGuest),
+    customerType: (data.customerType as OrderConfirmation['customerType']) || (data.userId ? 'Registered Account' : 'Guest Checkout'),
+    placedAt: String(data.placedAt || new Date().toISOString())
+  };
+};
+
+export const subscribeGuestOrders = (
+  onUpdate: (orders: OrderConfirmation[]) => void
+) => {
+  const path = 'orders';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const allLiveOrders: OrderConfirmation[] = [];
+      snapshot.forEach((d) => {
+        allLiveOrders.push(sanitizeOrder(d));
+      });
+
+      let guestIds: string[] = [];
+      try {
+        guestIds = JSON.parse(localStorage.getItem('maison_guest_order_ids') || '[]');
+      } catch {
+        // fallback
+      }
+
+      let localOrders: OrderConfirmation[] = [];
+      try {
+        localOrders = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      } catch {
+        // fallback
+      }
+
+      // Filter live Firestore orders for guest order IDs or guest local orders
+      const guestOrders = allLiveOrders.filter((o) =>
+        guestIds.includes(o.orderId) || localOrders.some((lo) => lo.orderId === o.orderId)
+      );
+
+      // If any local order is not in Firestore snapshot yet, include it
+      localOrders.forEach((lo) => {
+        if (!guestOrders.some((go) => go.orderId === lo.orderId)) {
+          guestOrders.push(lo);
+        }
+      });
+
+      onUpdate(
+        guestOrders.sort(
+          (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
+        )
+      );
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      try {
+        const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+        onUpdate(local);
+      } catch {
+        onUpdate([]);
+      }
+    }
+  );
+};
+
 export const subscribeAllOrders = (
   onUpdate: (orders: OrderConfirmation[]) => void
 ) => {
   const path = 'orders';
-
-  const sanitizeOrder = (d: { id: string; data: () => Record<string, unknown> }): OrderConfirmation => {
-    const data = d.data();
-    return {
-      orderId: d.id,
-      customerName: String(data.customerName || ''),
-      email: String(data.email || ''),
-      phone: String(data.phone || ''),
-      street: String(data.street || ''),
-      city: String(data.city || ''),
-      country: String(data.country || 'Bangladesh'),
-      shippingAddress: String(data.shippingAddress || ''),
-      items: Array.isArray(data.items)
-        ? data.items.map((i: CartItem) => ({
-            quantity: Number(i.quantity) || 1,
-            product: i.product || { id: 'unknown', name: 'Product', price: 0, image: '', category: '' }
-          }))
-        : [],
-      subtotal: Number(data.subtotal) || 0,
-      shipping: Number(data.shipping) || 0,
-      total: Number(data.total) || 0,
-      status: (data.status as OrderConfirmation['status']) || 'Processing',
-      paymentMethod: 'Cash on Delivery',
-      userId: data.userId ? String(data.userId) : undefined,
-      isGuest: Boolean(data.isGuest),
-      customerType: (data.customerType as OrderConfirmation['customerType']) || (data.userId ? 'Registered Account' : 'Guest Checkout'),
-      placedAt: String(data.placedAt || new Date().toISOString())
-    };
-  };
 
   // Initial immediate fetch for instant availability
   getDocs(collection(db, path))
@@ -619,18 +689,7 @@ export const subscribeAllOrders = (
         orders.push(sanitizeOrder(d));
       });
 
-      // Merge with any offline local backup
-      try {
-        const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
-        local.forEach((lo) => {
-          if (!orders.some((o) => o.orderId === lo.orderId)) {
-            orders.push(lo);
-          }
-        });
-      } catch {
-        // storage fallback
-      }
-
+      // Pure live Firestore list without re-merging stale local storage
       onUpdate(
         orders.sort(
           (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
@@ -1075,18 +1134,7 @@ export const subscribeContactMessages = (onUpdate: (messages: ContactMessage[]) 
         list.push({ id: d.id, ...d.data() } as ContactMessage);
       });
 
-      // Merge with any offline local backup
-      try {
-        const local: ContactMessage[] = JSON.parse(localStorage.getItem('maison_local_messages') || '[]');
-        local.forEach((lm) => {
-          if (!list.some((m) => m.id === lm.id)) {
-            list.push(lm);
-          }
-        });
-      } catch {
-        // storage fallback
-      }
-
+      // Pure live Firestore list without re-merging stale local storage
       onUpdate(
         list.sort(
           (a, b) => (new Date(b.createdAt || 0).getTime() || 0) - (new Date(a.createdAt || 0).getTime() || 0)

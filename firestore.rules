@@ -48,14 +48,14 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(settingId);
     }
 
-    // Customer inquiries / messages from contact form (visible & manageable by admin)
+    // Customer inquiries / messages from contact form (visible, manageable & deletable across all admin devices)
     match /messages/{messageId} {
-      allow read, write: if true;
+      allow get, list, create, update, delete: if true;
     }
 
-    // Central orders collection for admin management (active orders & order history)
+    // Central orders collection for guest checkouts & admin management (active & history)
     match /orders/{orderId} {
-      allow read, write: if true;
+      allow get, list, create, update, delete: if true;
     }
 
     // User private data: profile, cart, wishlist, orders (user can manage own; admin can update order status)
