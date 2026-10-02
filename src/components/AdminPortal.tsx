@@ -530,19 +530,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const cat = categories.find((c) => c.id === selectedCatForSub);
     if (!cat) return;
 
-    if (cat.subcategories.length >= 10) {
+    const catSubs = cat.subcategories || [];
+    if (catSubs.length >= 10) {
       setErrorMessage('Maximum 10 subcategories allowed for this category.');
       return;
     }
 
-    if (cat.subcategories.includes(sub)) {
+    if (catSubs.includes(sub)) {
       setErrorMessage('Subcategory already exists.');
       return;
     }
 
     const updatedCat: CategoryData = {
       ...cat,
-      subcategories: [...cat.subcategories, sub]
+      subcategories: [...catSubs, sub]
     };
 
     onCategorySavedLocally(updatedCat);
@@ -564,7 +565,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     const updatedCat: CategoryData = {
       ...cat,
-      subcategories: cat.subcategories.filter((s) => s !== sub)
+      subcategories: (cat.subcategories || []).filter((s) => s !== sub)
     };
 
     onCategorySavedLocally(updatedCat);
@@ -1613,7 +1614,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 {cat.name}
                               </h4>
                               <span className="text-xs text-neutral-500">
-                                {cat.subcategories.length} / 10 subcategories
+                                {(cat.subcategories || []).length} / 10 subcategories
                               </span>
                             </div>
 
@@ -1629,10 +1630,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                           {/* Subcategories tags */}
                           <div className="flex flex-wrap gap-2 pt-2 border-t border-stone-100">
-                            {cat.subcategories.length === 0 ? (
+                            {(cat.subcategories || []).length === 0 ? (
                               <span className="text-xs text-neutral-400">No subcategories defined.</span>
                             ) : (
-                              cat.subcategories.map((sub, sIdx) => (
+                              (cat.subcategories || []).map((sub, sIdx) => (
                                 <span
                                   key={sIdx}
                                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-stone-100 text-neutral-800 text-xs font-medium"
@@ -2333,7 +2334,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       if (!ordersSearchQuery.trim()) return true;
                       const q = ordersSearchQuery.toLowerCase();
                       return (
-                        o.orderId.toLowerCase().includes(q) ||
+                        (o.orderId || '').toLowerCase().includes(q) ||
                         (o.customerName || '').toLowerCase().includes(q) ||
                         (o.phone || '').toLowerCase().includes(q) ||
                         (o.email || '').toLowerCase().includes(q) ||
@@ -2467,34 +2468,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 {/* Items List */}
                                 <div className="lg:col-span-5 space-y-2">
                                   <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
-                                    Items ({order.items.length})
+                                    Items ({(order.items || []).length})
                                   </span>
                                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                                    {order.items.map((it, itIdx) => (
-                                      <div
-                                        key={itIdx}
-                                        className="flex items-center justify-between p-2 rounded-xl bg-stone-50 border border-stone-100 text-xs"
-                                      >
-                                        <div className="flex items-center gap-2.5">
-                                          <img
-                                            src={it.product.image}
-                                            alt={it.product.name}
-                                            className="w-9 h-11 object-cover rounded-md bg-stone-200 shrink-0"
-                                          />
-                                          <div className="truncate max-w-[160px] sm:max-w-[220px]">
-                                            <p className="font-semibold text-neutral-900 truncate">
-                                              {it.product.name}
-                                            </p>
-                                            <span className="text-[11px] text-stone-500">
-                                              Qty: {it.quantity} x {formatBDT(it.product.price)}
-                                            </span>
+                                    {(order.items || []).length === 0 ? (
+                                      <p className="text-xs text-stone-400 italic p-2 bg-stone-50 rounded-xl">
+                                        No item details available.
+                                      </p>
+                                    ) : (
+                                      (order.items || []).map((it, itIdx) => (
+                                        <div
+                                          key={itIdx}
+                                          className="flex items-center justify-between p-2 rounded-xl bg-stone-50 border border-stone-100 text-xs"
+                                        >
+                                          <div className="flex items-center gap-2.5">
+                                            <img
+                                              src={it?.product?.image || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=300&q=80'}
+                                              alt={it?.product?.name || 'Product'}
+                                              className="w-9 h-11 object-cover rounded-md bg-stone-200 shrink-0"
+                                            />
+                                            <div className="truncate max-w-[160px] sm:max-w-[220px]">
+                                              <p className="font-semibold text-neutral-900 truncate">
+                                                {it?.product?.name || 'Product'}
+                                              </p>
+                                              <span className="text-[11px] text-stone-500">
+                                                Qty: {it?.quantity || 1} x {formatBDT(it?.product?.price || 0)}
+                                              </span>
+                                            </div>
                                           </div>
+                                          <span className="font-bold text-neutral-900 tabular-nums shrink-0">
+                                            {formatBDT((it?.product?.price || 0) * (it?.quantity || 1))}
+                                          </span>
                                         </div>
-                                        <span className="font-bold text-neutral-900 tabular-nums shrink-0">
-                                          {formatBDT(it.product.price * it.quantity)}
-                                        </span>
-                                      </div>
-                                    ))}
+                                      ))
+                                    )}
                                   </div>
                                 </div>
 

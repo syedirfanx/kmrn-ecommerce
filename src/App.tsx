@@ -870,7 +870,7 @@ export default function App() {
                         {cat.name}
                       </h3>
                       <p className="text-xs text-stone-300 mb-5 max-w-md leading-relaxed">
-                        {cat.subcategories.slice(0, 4).join(', ')}
+                        {(cat.subcategories || []).slice(0, 4).join(', ')}
                       </p>
                       <button
                         onClick={() => navigateToCategory(cat.name)}
@@ -988,7 +988,7 @@ export default function App() {
             </div>
 
             {/* Subcategories Filter Bar (Up to 10 subcategories) */}
-            {currentCategoryData && currentCategoryData.subcategories.length > 0 && (
+            {currentCategoryData && (currentCategoryData.subcategories || []).length > 0 && (
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 <button
                   onClick={() => setSelectedSubcategory('All')}
@@ -1000,7 +1000,7 @@ export default function App() {
                 >
                   All
                 </button>
-                {currentCategoryData.subcategories.map((sub, i) => (
+                {(currentCategoryData.subcategories || []).map((sub, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedSubcategory(sub)}

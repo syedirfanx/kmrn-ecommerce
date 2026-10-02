@@ -598,13 +598,13 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                         </div>
 
                         <div className="space-y-2">
-                          {ord.items.map((it, idx) => (
+                          {(ord.items || []).map((it, idx) => (
                             <div key={idx} className="flex items-center justify-between text-xs text-neutral-700 bg-white p-2.5 rounded-xl shadow-xs">
                               <div className="flex items-center gap-2.5">
-                                <img src={it.product.image} alt={it.product.name} className="w-8 h-8 rounded-lg object-cover" />
-                                <span>{it.product.name} x {it.quantity}</span>
+                                <img src={it?.product?.image || 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=300&q=80'} alt={it?.product?.name || 'Product'} className="w-8 h-8 rounded-lg object-cover" />
+                                <span>{it?.product?.name || 'Product'} x {it?.quantity || 1}</span>
                               </div>
-                              <span className="font-semibold">{formatBDT(it.product.price * it.quantity)}</span>
+                              <span className="font-semibold">{formatBDT((it?.product?.price || 0) * (it?.quantity || 1))}</span>
                             </div>
                           ))}
                         </div>

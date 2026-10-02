@@ -132,29 +132,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         city: formData.city.trim(),
         country: formData.country.trim(),
         shippingAddress: `${formData.street.trim()}, ${formData.city.trim()}, ${formData.country.trim()}`,
-        items: [...items],
-        subtotal,
-        shipping,
-        total,
+        items: items.map((item) => ({
+          quantity: Number(item.quantity) || 1,
+          product: {
+            ...item.product,
+            specs: item.product.specs || [],
+            additionalImages: item.product.additionalImages || [],
+            details: item.product.details || '',
+            inStock: item.product.inStock !== false,
+            rating: item.product.rating || 0,
+            reviewsCount: item.product.reviewsCount || 0
+          }
+        })),
+        subtotal: Number(subtotal) || 0,
+        shipping: Number(shipping) || 0,
+        total: Number(total) || 0,
         status: 'Processing',
         paymentMethod: 'Cash on Delivery',
-        userId: currentUser?.uid || undefined,
+        userId: currentUser?.uid || '',
         isGuest: !currentUser,
         customerType: currentUser ? 'Registered Account' : 'Guest Checkout',
         placedAt: new Date().toISOString()
       };
 
       // 3. Save order to Firestore (both central admin orders and user subcollection)
-      const res = await saveUserOrderToDb(currentUser?.uid, order);
-      if (!res.success && res.error) {
-        console.warn('Order saved with local fallback:', res.error);
-      }
+      await saveUserOrderToDb(currentUser?.uid, order);
 
       setCompletedOrder(order);
       onOrderComplete(order);
-    } catch (err: unknown) {
-      const errMessage = err instanceof Error ? err.message : 'An error occurred while placing your order. Please try again.';
-      setErrorMsg(errMessage);
+    } catch {
+      setErrorMsg('An error occurred while placing your order. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

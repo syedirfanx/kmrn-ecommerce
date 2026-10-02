@@ -15,6 +15,7 @@ import {
   CategoryData,
   UserProfile,
   OrderConfirmation,
+  CartItem,
   ProductReview,
   BannerSlide,
   AnnouncementItem,
@@ -172,7 +173,25 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
     (snapshot) => {
       const list: Product[] = [];
       snapshot.forEach((d) => {
-        list.push({ id: d.id, ...d.data() } as Product);
+        const data = d.data();
+        list.push({
+          id: d.id,
+          name: data.name || '',
+          category: data.category || '',
+          subcategory: data.subcategory || '',
+          price: Number(data.price) || 0,
+          description: data.description || '',
+          details: data.details || '',
+          specs: Array.isArray(data.specs) ? data.specs : [],
+          image: data.image || '',
+          additionalImages: Array.isArray(data.additionalImages) ? data.additionalImages : [],
+          inStock: data.inStock !== false,
+          featured: Boolean(data.featured),
+          rating: Number(data.rating) || 0,
+          reviewsCount: Number(data.reviewsCount) || 0,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt
+        });
       });
       onUpdate(list);
     },
@@ -189,7 +208,12 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
     (snapshot) => {
       const list: CategoryData[] = [];
       snapshot.forEach((d) => {
-        list.push({ id: d.id, ...d.data() } as CategoryData);
+        const data = d.data();
+        list.push({
+          id: d.id,
+          name: data.name || '',
+          subcategories: Array.isArray(data.subcategories) ? data.subcategories : []
+        });
       });
       onUpdate(list);
     },
@@ -421,37 +445,63 @@ export const toggleWishlistItemInDb = async (
   }
 };
 
+export function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === undefined) return null as unknown as T;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore) as unknown as T;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (value !== undefined) {
+      result[key] = sanitizeForFirestore(value);
+    }
+  }
+  return result as T;
+}
+
 export const saveUserOrderToDb = async (
   userId: string | undefined,
   order: OrderConfirmation
 ): Promise<DbResult> => {
   try {
+    const sanitizedOrder = sanitizeForFirestore(order) as OrderConfirmation;
+
     // 1. Save to central orders collection for admin
-    const adminOrderPath = `orders/${order.orderId}`;
-    const adminDocRef = doc(db, 'orders', order.orderId);
-    await setDoc(adminDocRef, order);
+    const adminDocRef = doc(db, 'orders', sanitizedOrder.orderId);
+    await setDoc(adminDocRef, sanitizedOrder, { merge: true });
 
     // Save offline backup
     try {
       const existing: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
-      localStorage.setItem('maison_local_orders', JSON.stringify([order, ...existing.filter((o) => o.orderId !== order.orderId)]));
+      localStorage.setItem(
+        'maison_local_orders',
+        JSON.stringify([sanitizedOrder, ...existing.filter((o) => o.orderId !== sanitizedOrder.orderId)])
+      );
     } catch {
       // storage fallback
     }
 
     // 2. If signed in, also save to user personal orders subcollection
-    if (userId) {
-      const userOrderPath = `users/${userId}/orders/${order.orderId}`;
-      const userDocRef = doc(db, 'users', userId, 'orders', order.orderId);
-      await setDoc(userDocRef, order);
+    if (userId && typeof userId === 'string' && userId.trim() !== '' && userId !== 'undefined' && userId !== 'null') {
+      try {
+        const userDocRef = doc(db, 'users', userId, 'orders', sanitizedOrder.orderId);
+        await setDoc(userDocRef, sanitizedOrder, { merge: true });
+      } catch {
+        // user subcollection fallback
+      }
     }
 
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `orders/${order.orderId}`);
     try {
+      const sanitizedOrder = sanitizeForFirestore(order) as OrderConfirmation;
       const existing: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
-      localStorage.setItem('maison_local_orders', JSON.stringify([order, ...existing.filter((o) => o.orderId !== order.orderId)]));
+      localStorage.setItem(
+        'maison_local_orders',
+        JSON.stringify([sanitizedOrder, ...existing.filter((o) => o.orderId !== sanitizedOrder.orderId)])
+      );
     } catch {
       // storage fallback
     }
@@ -469,7 +519,32 @@ export const subscribeUserOrders = (
     (snapshot) => {
       const orders: OrderConfirmation[] = [];
       snapshot.forEach((d) => {
-        orders.push(d.data() as OrderConfirmation);
+        const data = d.data();
+        orders.push({
+          orderId: d.id,
+          customerName: data.customerName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          street: data.street || '',
+          city: data.city || '',
+          country: data.country || 'Bangladesh',
+          shippingAddress: data.shippingAddress || '',
+          items: Array.isArray(data.items)
+            ? data.items.map((i: CartItem) => ({
+                quantity: Number(i.quantity) || 1,
+                product: i.product || { id: 'unknown', name: 'Product', price: 0, image: '', category: '' }
+              }))
+            : [],
+          subtotal: Number(data.subtotal) || 0,
+          shipping: Number(data.shipping) || 0,
+          total: Number(data.total) || 0,
+          status: data.status || 'Processing',
+          paymentMethod: data.paymentMethod || 'Cash on Delivery',
+          userId: data.userId,
+          isGuest: Boolean(data.isGuest),
+          customerType: data.customerType || (data.userId ? 'Registered Account' : 'Guest Checkout'),
+          placedAt: data.placedAt || new Date().toISOString()
+        } as OrderConfirmation);
       });
       onUpdate(
         orders.sort(
@@ -488,13 +563,42 @@ export const subscribeAllOrders = (
 ) => {
   const path = 'orders';
 
+  const sanitizeOrder = (d: { id: string; data: () => Record<string, unknown> }): OrderConfirmation => {
+    const data = d.data();
+    return {
+      orderId: d.id,
+      customerName: String(data.customerName || ''),
+      email: String(data.email || ''),
+      phone: String(data.phone || ''),
+      street: String(data.street || ''),
+      city: String(data.city || ''),
+      country: String(data.country || 'Bangladesh'),
+      shippingAddress: String(data.shippingAddress || ''),
+      items: Array.isArray(data.items)
+        ? data.items.map((i: CartItem) => ({
+            quantity: Number(i.quantity) || 1,
+            product: i.product || { id: 'unknown', name: 'Product', price: 0, image: '', category: '' }
+          }))
+        : [],
+      subtotal: Number(data.subtotal) || 0,
+      shipping: Number(data.shipping) || 0,
+      total: Number(data.total) || 0,
+      status: (data.status as OrderConfirmation['status']) || 'Processing',
+      paymentMethod: 'Cash on Delivery',
+      userId: data.userId ? String(data.userId) : undefined,
+      isGuest: Boolean(data.isGuest),
+      customerType: (data.customerType as OrderConfirmation['customerType']) || (data.userId ? 'Registered Account' : 'Guest Checkout'),
+      placedAt: String(data.placedAt || new Date().toISOString())
+    };
+  };
+
   // Initial immediate fetch for instant availability
   getDocs(collection(db, path))
     .then((snap) => {
       if (!snap.empty) {
         const orders: OrderConfirmation[] = [];
         snap.forEach((d) => {
-          orders.push({ orderId: d.id, ...d.data() } as OrderConfirmation);
+          orders.push(sanitizeOrder(d));
         });
         onUpdate(
           orders.sort(
@@ -512,7 +616,7 @@ export const subscribeAllOrders = (
     (snapshot) => {
       const orders: OrderConfirmation[] = [];
       snapshot.forEach((d) => {
-        orders.push({ orderId: d.id, ...d.data() } as OrderConfirmation);
+        orders.push(sanitizeOrder(d));
       });
 
       // Merge with any offline local backup
