@@ -98,9 +98,9 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     const img = imageRef.current;
 
     // Output dimensions:
-    // Banners (16:9 landscape): Full HD 1920x1080 for sharp high-resolution displays
+    // Banners (16:9 landscape): Crisp 1366x768 HD widescreen
     // Product thumbnails (3:4 portrait): 900x1200 high-density portrait
-    const outputWidth = aspectRatio >= 1 ? 1920 : 900;
+    const outputWidth = aspectRatio >= 1 ? 1366 : 900;
     const outputHeight = Math.round(outputWidth / aspectRatio);
 
     const canvas = document.createElement('canvas');
@@ -143,8 +143,15 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     );
     ctx.restore();
 
-    // High quality JPEG (0.90) so banners remain sharp and vibrant
-    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.90);
+    // Adaptive compression: guarantees sharp quality while keeping file size under 160KB
+    // so Firestore 1,048,576 bytes document limit is never exceeded even with multiple slides.
+    let quality = 0.82;
+    let croppedDataUrl = canvas.toDataURL('image/jpeg', quality);
+    while (croppedDataUrl.length > 175000 && quality > 0.45) {
+      quality -= 0.08;
+      croppedDataUrl = canvas.toDataURL('image/jpeg', quality);
+    }
+
     onCropComplete(croppedDataUrl);
     onClose();
   };

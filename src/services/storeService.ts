@@ -939,20 +939,61 @@ export const subscribeBannerSlides = (onUpdate: (slides: BannerSlide[]) => void)
   );
 };
 
+export const compressImageIfLarge = (dataUrl: string): Promise<string> => {
+  return new Promise((resolve) => {
+    if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/') || dataUrl.length < 175000) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const maxW = 1366;
+        const scale = Math.min(1, maxW / img.width);
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d', { alpha: false });
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        let q = 0.80;
+        let res = canvas.toDataURL('image/jpeg', q);
+        while (res.length > 175000 && q > 0.40) {
+          q -= 0.08;
+          res = canvas.toDataURL('image/jpeg', q);
+        }
+        resolve(res);
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+};
+
 export const saveBannerSlides = async (slides: BannerSlide[]): Promise<DbResult> => {
   const path = 'settings/banner';
   try {
     const docRef = doc(db, 'settings', 'banner');
-    const sanitizedSlides = slides.slice(0, 5).map((s) => ({
-      id: s.id || `slide-${Date.now()}`,
-      type: s.type || 'custom',
-      productId: s.productId || '',
-      title: s.title || '',
-      subtitle: s.subtitle || '',
-      image: s.image || '',
-      buttonText: s.buttonText || '',
-      linkUrl: s.linkUrl || ''
-    }));
+    const sanitizedSlides = await Promise.all(
+      slides.slice(0, 5).map(async (s) => ({
+        id: s.id || `slide-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        type: s.type || 'custom',
+        productId: s.productId || '',
+        title: s.title || '',
+        subtitle: s.subtitle || '',
+        image: await compressImageIfLarge(s.image || ''),
+        buttonText: s.buttonText || '',
+        linkUrl: s.linkUrl || ''
+      }))
+    );
     await setDoc(
       docRef,
       {
