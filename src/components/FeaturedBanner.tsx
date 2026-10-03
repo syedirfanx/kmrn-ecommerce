@@ -30,7 +30,7 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Normalize slides
-  const activeSlides = React.useMemo(() => {
+  const activeSlides: BannerSlide[] = React.useMemo(() => {
     if (slides && slides.length >= 2) {
       return slides.slice(0, 5);
     }
@@ -41,7 +41,10 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
         productId: p.id,
         image: p.image,
         title: p.name,
-        subtitle: p.description
+        subtitle: p.description,
+        buttonText: 'Add to Bag',
+        hideButton: false,
+        linkUrl: ''
       }));
     }
     return [];
@@ -213,10 +216,23 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
                 ? products.find((p) => p.id === slide.productId)
                 : null;
 
+            const shouldHideButton =
+              slide.hideButton === true ||
+              slide.buttonText === 'none' ||
+              slide.buttonText === '';
+
             return (
               <div
                 key={slide.id || idx}
-                className="relative w-full h-full shrink-0 flex flex-col justify-end sm:justify-center overflow-hidden"
+                onClick={(e) => {
+                  if (isDragging || Math.abs(dragOffset) > 5) return;
+                  if (shouldHideButton && (slide.linkUrl || slide.productId)) {
+                    handleSlideAction(slide);
+                  }
+                }}
+                className={`relative w-full h-full shrink-0 flex flex-col justify-end sm:justify-center overflow-hidden ${
+                  shouldHideButton && (slide.linkUrl || slide.productId) ? 'cursor-pointer' : ''
+                }`}
               >
                 {/* Full-Bleed Background Image */}
                 <div className="absolute inset-0 z-0 overflow-hidden">
@@ -248,51 +264,53 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
                       {slide.subtitle || linkedProduct?.description}
                     </p>
 
-                    {/* Action Row */}
-                    <div className="flex flex-wrap items-center gap-3 pt-1">
-                      {linkedProduct ? (
-                        <>
-                          <div className="mr-3">
-                            <span className="font-heading font-extrabold text-xl sm:text-2xl text-stone-100 tabular-nums">
-                              {formatBDT(linkedProduct.price)}
-                            </span>
-                          </div>
+                    {/* Action Row - Hidden when No Button option is selected */}
+                    {!shouldHideButton && (
+                      <div className="flex flex-wrap items-center gap-3 pt-1">
+                        {linkedProduct ? (
+                          <>
+                            <div className="mr-3">
+                              <span className="font-heading font-extrabold text-xl sm:text-2xl text-stone-100 tabular-nums">
+                                {formatBDT(linkedProduct.price)}
+                              </span>
+                            </div>
 
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onAddToCart(linkedProduct);
+                              }}
+                              className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-neutral-900 hover:bg-stone-100 rounded-full font-category font-semibold text-xs sm:text-sm tracking-wider uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                            >
+                              <span>Add to Bag</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onViewDetails(linkedProduct);
+                              }}
+                              className="px-5 py-2.5 sm:py-3 bg-black/40 hover:bg-black/70 text-white rounded-full font-category font-semibold text-xs sm:text-sm tracking-wider uppercase backdrop-blur-md border border-white/30 transition-all active:scale-95 cursor-pointer"
+                            >
+                              <span>Details</span>
+                            </button>
+                          </>
+                        ) : (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onAddToCart(linkedProduct);
+                              handleSlideAction(slide);
                             }}
-                            className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-neutral-900 hover:bg-stone-100 rounded-full font-category font-semibold text-xs sm:text-sm tracking-wider uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                            className="px-7 py-3 bg-white text-neutral-900 hover:bg-stone-100 rounded-full font-category font-semibold text-xs sm:text-sm tracking-widest uppercase shadow-lg transition-all active:scale-95 cursor-pointer"
                           >
-                            <span>Add to Bag</span>
+                            <span>{slide.buttonText || 'Explore Collection'}</span>
                           </button>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onViewDetails(linkedProduct);
-                            }}
-                            className="px-5 py-2.5 sm:py-3 bg-black/40 hover:bg-black/70 text-white rounded-full font-category font-semibold text-xs sm:text-sm tracking-wider uppercase backdrop-blur-md border border-white/30 transition-all active:scale-95 cursor-pointer"
-                          >
-                            <span>Details</span>
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSlideAction(slide);
-                          }}
-                          className="px-7 py-3 bg-white text-neutral-900 hover:bg-stone-100 rounded-full font-category font-semibold text-xs sm:text-sm tracking-widest uppercase shadow-lg transition-all active:scale-95 cursor-pointer"
-                        >
-                          <span>{'buttonText' in slide && slide.buttonText ? slide.buttonText : 'Explore Collection'}</span>
-                        </button>
-                      )}
-                    </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

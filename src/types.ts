@@ -32,6 +32,7 @@ export interface BannerSlide {
   image: string;
   buttonText?: string;
   linkUrl?: string;
+  hideButton?: boolean;
 }
 
 export interface AnnouncementItem {

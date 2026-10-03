@@ -1822,26 +1822,55 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               />
                             </div>
 
-                            {/* Show Button Text and Link only on customized banner */}
-                            {slide.type === 'custom' || !slide.productId ? (
-                              <div>
-                                <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                                  Button Text
+                            {/* Call to Action Button Configuration with No Button option */}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-bold text-stone-600">
+                                  Action Button
                                 </label>
+                                <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-stone-700 select-none bg-stone-100 hover:bg-stone-200 px-2 py-0.5 rounded-md transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={slide.hideButton === true || slide.buttonText === 'none'}
+                                    onChange={(e) => {
+                                      const noBtn = e.target.checked;
+                                      handleUpdateBannerSlide(idx, {
+                                        hideButton: noBtn,
+                                        buttonText: noBtn ? 'none' : (slide.buttonText === 'none' ? 'Explore Collection' : (slide.buttonText || 'Explore Collection'))
+                                      });
+                                    }}
+                                    className="rounded border-stone-300 text-neutral-900 focus:ring-0"
+                                  />
+                                  <span className="font-bold">No Button</span>
+                                </label>
+                              </div>
+
+                              {slide.hideButton === true || slide.buttonText === 'none' ? (
+                                <div className="p-2 bg-stone-50 border border-dashed border-stone-300 rounded-lg text-xs text-stone-500 flex items-center justify-between">
+                                  <span>No button will be shown on this slide</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateBannerSlide(idx, { hideButton: false, buttonText: 'Explore Collection' })}
+                                    className="text-[11px] font-bold text-neutral-900 underline hover:text-neutral-700 cursor-pointer ml-2"
+                                  >
+                                    Enable Button
+                                  </button>
+                                </div>
+                              ) : slide.type === 'custom' || !slide.productId ? (
                                 <input
                                   type="text"
                                   placeholder="e.g. Shop Now, Discover Collection"
-                                  value={slide.buttonText || ''}
+                                  value={slide.buttonText && slide.buttonText !== 'none' ? slide.buttonText : ''}
                                   onChange={(e) => handleUpdateBannerSlide(idx, { buttonText: e.target.value })}
                                   className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
                                 />
-                              </div>
-                            ) : (
-                              <div className="flex flex-col justify-center bg-stone-50 p-2 rounded-lg border border-stone-200">
-                                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Product Action</span>
-                                <span className="text-xs text-neutral-800 font-medium">Auto-retrieves price, Add to Bag & Details</span>
-                              </div>
-                            )}
+                              ) : (
+                                <div className="flex flex-col justify-center bg-stone-50 p-2 rounded-lg border border-stone-200">
+                                  <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider">Product Action</span>
+                                  <span className="text-xs text-neutral-800 font-medium">Auto-retrieves price, Add to Bag & Details</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
 
                           <div>
@@ -1861,10 +1890,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <div className="p-3 bg-white rounded-xl border border-stone-200 shadow-xs space-y-2">
                               <div className="flex items-center justify-between">
                                 <label className="block text-[11px] font-bold text-neutral-800">
-                                  Button Destination
+                                  {slide.hideButton || slide.buttonText === 'none' ? 'Banner Click Destination (Optional)' : 'Button Destination'}
                                 </label>
                                 <span className="text-[10px] text-stone-500">
-                                  Choose where customers go when clicking the button
+                                  {slide.hideButton || slide.buttonText === 'none'
+                                    ? 'Where customers go when tapping the banner image'
+                                    : 'Choose where customers go when clicking the button'}
                                 </span>
                               </div>
 

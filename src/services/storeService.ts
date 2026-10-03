@@ -991,7 +991,8 @@ export const saveBannerSlides = async (slides: BannerSlide[]): Promise<DbResult>
         subtitle: s.subtitle || '',
         image: await compressImageIfLarge(s.image || ''),
         buttonText: s.buttonText || '',
-        linkUrl: s.linkUrl || ''
+        linkUrl: s.linkUrl || '',
+        hideButton: s.hideButton === true || s.buttonText === 'none'
       }))
     );
     await setDoc(
