@@ -23,6 +23,7 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -96,20 +97,26 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     if (!imageRef.current) return;
     const img = imageRef.current;
 
-    // Target output dimensions in vertical portrait shape
-    const outputWidth = 600;
-    const outputHeight = Math.round(outputWidth / aspectRatio); // 800 for 3:4 portrait
+    // Output dimensions:
+    // Banners (16:9 landscape): Full HD 1920x1080 for sharp high-resolution displays
+    // Product thumbnails (3:4 portrait): 900x1200 high-density portrait
+    const outputWidth = aspectRatio >= 1 ? 1920 : 900;
+    const outputHeight = Math.round(outputWidth / aspectRatio);
 
     const canvas = document.createElement('canvas');
     canvas.width = outputWidth;
     canvas.height = outputHeight;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: false });
     if (!ctx) return;
+
+    // High quality bicubic resampling and anti-aliasing
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, outputWidth, outputHeight);
 
-    const previewWidth = aspectRatio >= 1 ? 360 : 270;
+    const previewWidth = viewportRef.current?.clientWidth || (aspectRatio >= 1 ? 380 : 240);
     const scaleFactor = outputWidth / previewWidth;
 
     ctx.save();
@@ -136,7 +143,8 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     );
     ctx.restore();
 
-    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+    // High quality JPEG (0.90) so banners remain sharp and vibrant
+    const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.90);
     onCropComplete(croppedDataUrl);
     onClose();
   };
@@ -194,8 +202,9 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Cropping Viewport in vertical portrait ratio */}
+              {/* Cropping Viewport in vertical portrait or banner ratio */}
               <div
+                ref={viewportRef}
                 className="relative mx-auto rounded-xl overflow-hidden bg-neutral-950 border border-neutral-800 cursor-grab active:cursor-grabbing select-none"
                 style={{
                   width: aspectRatio >= 1 ? '100%' : '240px',

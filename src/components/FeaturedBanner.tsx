@@ -223,7 +223,7 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
                   <img
                     src={slide.image}
                     alt={slide.title || 'Aniq Luxury Showcase'}
-                    className="w-full h-full object-cover object-center brightness-[0.78]"
+                    className="w-full h-full object-cover object-center brightness-[0.90] contrast-[1.02]"
                     loading={idx === 0 ? 'eager' : 'lazy'}
                     draggable={false}
                   />

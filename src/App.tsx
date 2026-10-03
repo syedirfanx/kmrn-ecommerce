@@ -47,6 +47,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { Toast } from './components/Toast';
 import { FeaturedBanner } from './components/FeaturedBanner';
+import { CategoryShowcase } from './components/CategoryShowcase';
 import { ProductPage } from './components/ProductPage';
 import { AdminPortal } from './components/AdminPortal';
 import { AuthModal } from './components/AuthModal';
@@ -833,6 +834,12 @@ export default function App() {
         {/* VIEW 1: Home Page */}
         {currentPage === 'home' && (
           <div className="space-y-12">
+            {/* Category Logos Showcase (Home Decor & Elegant Women's Wear) placed above Features */}
+            <CategoryShowcase
+              categories={categories}
+              onSelectCategory={navigateToCategory}
+            />
+
             {/* Featured Collection: (Requirements 7: Hide if 0, show exact count if 1, 2, etc.) */}
             {featuredProducts.length > 0 && (
               <section aria-label="Featured Collection" className="pt-2">
@@ -860,47 +867,6 @@ export default function App() {
                 </div>
               </section>
             )}
-
-            {/* Dynamic Collection Showcase Cards for Categories in Database */}
-            <section aria-label="Explore Categories" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-              {categories.slice(0, 4).map((cat, idx) => {
-                const sampleProduct = products.find((p) => p.category === cat.name);
-                const bgImage =
-                  sampleProduct?.image ||
-                  (idx === 0
-                    ? 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
-                    : 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80');
-
-                return (
-                  <div
-                    key={cat.id}
-                    className="relative rounded-2xl overflow-hidden bg-neutral-900 text-white min-h-[320px] flex flex-col justify-end p-6 sm:p-8 group shadow-sm"
-                  >
-                    <img
-                      src={bgImage}
-                      alt={cat.name}
-                      className="absolute inset-0 w-full h-full object-cover brightness-[0.72] group-hover:scale-105 transition-transform duration-700 ease-out"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent" />
-                    <div className="relative z-10">
-                      <h3 className="font-heading font-medium text-2xl sm:text-3xl text-white mb-2">
-                        {cat.name}
-                      </h3>
-                      <p className="text-xs text-stone-300 mb-5 max-w-md leading-relaxed">
-                        {(cat.subcategories || []).slice(0, 4).join(', ')}
-                      </p>
-                      <button
-                        onClick={() => navigateToCategory(cat.name)}
-                        className="bg-white hover:bg-stone-100 text-neutral-900 text-xs font-semibold uppercase tracking-wider py-2.5 px-5 rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
-                      >
-                        <span>Explore {cat.name}</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </section>
           </div>
         )}
 
