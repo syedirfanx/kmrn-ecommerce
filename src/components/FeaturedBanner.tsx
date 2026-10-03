@@ -32,10 +32,10 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
   // Normalize slides
   const activeSlides: BannerSlide[] = React.useMemo(() => {
     if (slides && slides.length >= 2) {
-      return slides.slice(0, 5);
+      return slides.slice(0, 15);
     }
     if (products.length >= 2) {
-      return products.slice(0, Math.min(5, products.length)).map((p) => ({
+      return products.slice(0, Math.min(15, products.length)).map((p) => ({
         id: `slide-${p.id}`,
         type: 'product' as const,
         productId: p.id,

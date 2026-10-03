@@ -581,8 +581,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Banner Actions
   const handleAddBannerSlide = () => {
-    if (localBannerSlides.length >= 5) {
-      setErrorMessage('Maximum 5 banner slides allowed.');
+    if (localBannerSlides.length >= 15) {
+      setErrorMessage('Maximum 15 banner slides allowed.');
       return;
     }
     const newSlide: BannerSlide = {
@@ -1710,10 +1710,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <div className="flex items-center justify-between pb-3 border-b border-stone-200">
                     <div>
                       <h3 className="font-heading font-bold text-lg text-neutral-900">
-                        Carousel Banner Slides ({localBannerSlides.length}/5)
+                        Carousel Banner Slides ({localBannerSlides.length}/15)
                       </h3>
                       <p className="text-xs text-stone-500">
-                        Minimum 2 slides, maximum 5 slides for homepage carousel.
+                        Minimum 2 slides, maximum 15 slides for homepage carousel.
                       </p>
                     </div>
 
@@ -1721,7 +1721,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <button
                         type="button"
                         onClick={handleAddBannerSlide}
-                        disabled={localBannerSlides.length >= 5}
+                        disabled={localBannerSlides.length >= 15}
                         className="bg-white border border-stone-300 hover:bg-stone-50 disabled:opacity-40 text-neutral-900 font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
                       >
                         <Plus className="h-4 w-4" />

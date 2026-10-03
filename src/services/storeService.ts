@@ -922,9 +922,32 @@ export const subscribeBannerSlides = (onUpdate: (slides: BannerSlide[]) => void)
   const path = 'settings/banner';
   return onSnapshot(
     doc(db, 'settings', 'banner'),
-    (snapshot) => {
+    async (snapshot) => {
       if (snapshot.exists()) {
         const data = snapshot.data();
+        if (data.useIndividualDocs) {
+          try {
+            const count = data.slideCount || 0;
+            if (count > 0) {
+              const promises: Promise<BannerSlide | null>[] = [];
+              for (let i = 0; i < count; i++) {
+                promises.push(
+                  getDoc(doc(db, 'settings', `banner_slide_${i}`)).then((s) =>
+                    s.exists() ? (s.data() as BannerSlide) : null
+                  )
+                );
+              }
+              const results = await Promise.all(promises);
+              const validSlides = results.filter((s): s is BannerSlide => s !== null);
+              if (validSlides.length > 0) {
+                onUpdate(validSlides);
+                return;
+              }
+            }
+          } catch {
+            // fallback to data.slides
+          }
+        }
         if (Array.isArray(data.slides) && data.slides.length > 0) {
           onUpdate(data.slides);
           return;
@@ -983,8 +1006,8 @@ export const saveBannerSlides = async (slides: BannerSlide[]): Promise<DbResult>
   try {
     const docRef = doc(db, 'settings', 'banner');
     const sanitizedSlides = await Promise.all(
-      slides.slice(0, 5).map(async (s) => ({
-        id: s.id || `slide-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      slides.slice(0, 15).map(async (s, idx) => ({
+        id: s.id || `slide-${idx}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         type: s.type || 'custom',
         productId: s.productId || '',
         title: s.title || '',
@@ -995,14 +1018,47 @@ export const saveBannerSlides = async (slides: BannerSlide[]): Promise<DbResult>
         hideButton: s.hideButton === true || s.buttonText === 'none'
       }))
     );
-    await setDoc(
-      docRef,
-      {
-        slides: sanitizedSlides,
-        updatedAt: new Date().toISOString()
-      },
-      { merge: true }
+
+    // Save each slide to its own individual document in settings/banner_slide_${i}
+    // Each document has its own independent 1MB Firestore limit, allowing up to 15MB total!
+    const writePromises = sanitizedSlides.map((slide, i) =>
+      setDoc(doc(db, 'settings', `banner_slide_${i}`), slide)
     );
+    for (let i = sanitizedSlides.length; i < 15; i++) {
+      writePromises.push(deleteDoc(doc(db, 'settings', `banner_slide_${i}`)).catch(() => {}));
+    }
+    await Promise.all(writePromises);
+
+    // If combined JSON is under 750KB, also save full list to settings/banner for single-read caching
+    const payload = JSON.stringify(sanitizedSlides);
+    if (payload.length < 750000) {
+      await setDoc(
+        docRef,
+        {
+          slides: sanitizedSlides,
+          slideCount: sanitizedSlides.length,
+          useIndividualDocs: false,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    } else {
+      // Exceeds single doc threshold: save lightweight manifest pointing to individual docs
+      await setDoc(
+        docRef,
+        {
+          slides: sanitizedSlides.map((s) => ({
+            ...s,
+            image: s.image.startsWith('data:image/') ? '' : s.image
+          })),
+          slideCount: sanitizedSlides.length,
+          useIndividualDocs: true,
+          updatedAt: new Date().toISOString()
+        },
+        { merge: true }
+      );
+    }
+
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
