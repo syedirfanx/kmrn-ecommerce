@@ -13,6 +13,7 @@ import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
   Product,
   CategoryData,
+  Catalogue,
   UserProfile,
   OrderConfirmation,
   CartItem,
@@ -23,6 +24,37 @@ import {
   ContactMessage
 } from '../types';
 import { PRODUCTS } from '../data/products';
+
+export const DEFAULT_CATALOGUES: Catalogue[] = [
+  {
+    id: 'catg-lawn',
+    name: 'Original Pakistani Lawn',
+    description: '100% Original Pakistani designer lawn collection with intricate digital prints and embroidered chiffon dupattas.',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=85',
+    category: "Elegant Women's Wear"
+  },
+  {
+    id: 'catg-chiffon',
+    name: 'Luxury Chiffon',
+    description: 'Festive pure chiffon 3-piece suites adorned with hand-embellished zari, sequins, and crystal threadwork.',
+    image: 'https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?auto=format&fit=crop&w=1200&q=85',
+    category: "Elegant Women's Wear"
+  },
+  {
+    id: 'catg-festive',
+    name: 'Festive Embroidered',
+    description: 'Opulent festive and wedding edits featuring organza cutwork, zardozi needlework, and jacquard weaves.',
+    image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1200&q=85',
+    category: "Elegant Women's Wear"
+  },
+  {
+    id: 'catg-ready',
+    name: 'Ready to Wear',
+    description: 'Tailored luxury pret kurtas and coordinated festive sets, ready to wear for everyday elegance.',
+    image: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=1200&q=85',
+    category: "Elegant Women's Wear"
+  }
+];
 
 export const DEFAULT_CATEGORIES: CategoryData[] = [
   {
@@ -53,7 +85,7 @@ export const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
     subtitle: '1000 TC Egyptian Cotton Bedsheets & Quilted Velvet Comforters',
     image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=2560&q=95',
     buttonText: 'Shop Home Decor',
-    linkUrl: '#shop'
+    linkUrl: '/category/home-decor'
   },
   {
     id: 'banner-slide-3',
@@ -70,7 +102,7 @@ export const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
     id: 'ann-1',
     text: 'Special Offer: Free Express Delivery Across Bangladesh on Original Pakistani Suits and Home Decor',
     linkText: 'Shop Now',
-    linkUrl: '#shop',
+    linkUrl: '/womens-wear',
     active: true,
     startDate: '',
     endDate: ''
@@ -179,6 +211,10 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
           name: data.name || '',
           category: data.category || '',
           subcategory: data.subcategory || '',
+          catalogueId: data.catalogueId || undefined,
+          catalogueName: data.catalogueName || undefined,
+          availableColours: Array.isArray(data.availableColours) ? data.availableColours : [],
+          availableSizes: Array.isArray(data.availableSizes) ? data.availableSizes : [],
           price: Number(data.price) || 0,
           description: data.description || '',
           details: data.details || '',
@@ -189,8 +225,8 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
           featured: Boolean(data.featured),
           rating: Number(data.rating) || 0,
           reviewsCount: Number(data.reviewsCount) || 0,
-          createdAt: data.createdAt,
-          updatedAt: data.updatedAt
+          createdAt: data.createdAt || new Date().toISOString(),
+          updatedAt: data.updatedAt || new Date().toISOString()
         });
       });
       onUpdate(list);
@@ -199,6 +235,66 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
       handleFirestoreError(error, OperationType.GET, path);
     }
   );
+};
+
+export const subscribeCatalogues = (onUpdate: (catalogues: Catalogue[]) => void) => {
+  const path = 'catalogues';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      if (snapshot.empty) {
+        onUpdate(DEFAULT_CATALOGUES);
+        return;
+      }
+      const list: Catalogue[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        list.push({
+          id: d.id,
+          name: data.name || '',
+          description: data.description || '',
+          image: data.image || '',
+          category: data.category || "Elegant Women's Wear",
+          itemCount: Number(data.itemCount) || 0,
+          createdAt: data.createdAt || new Date().toISOString()
+        });
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+      onUpdate(DEFAULT_CATALOGUES);
+    }
+  );
+};
+
+export const saveCatalogueToDb = async (catalogue: Catalogue): Promise<DbResult> => {
+  const path = `catalogues/${catalogue.id}`;
+  try {
+    const docRef = doc(db, 'catalogues', catalogue.id);
+    const cleanCatalogue = sanitizeForFirestore({
+      ...catalogue,
+      createdAt: catalogue.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(docRef, cleanCatalogue, { merge: true });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const deleteCatalogueFromDb = async (catalogueId: string): Promise<DbResult> => {
+  const path = `catalogues/${catalogueId}`;
+  try {
+    const docRef = doc(db, 'catalogues', catalogueId);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    return { success: false, error: String(error) };
+  }
 };
 
 export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => void) => {
@@ -232,14 +328,30 @@ export const saveProductToDb = async (product: Product): Promise<DbResult> => {
   const path = `products/${product.id}`;
   try {
     const docRef = doc(db, 'products', product.id);
-    await setDoc(
-      docRef,
-      {
-        ...product,
-        updatedAt: new Date().toISOString()
-      },
-      { merge: true }
-    );
+    // Sanitize and ensure no undefined fields to eliminate FirebaseError
+    const cleanedProduct = sanitizeForFirestore({
+      id: product.id,
+      name: product.name || '',
+      category: product.category || "Elegant Women's Wear",
+      subcategory: product.subcategory || '',
+      catalogueId: product.catalogueId || '',
+      catalogueName: product.catalogueName || '',
+      availableColours: Array.isArray(product.availableColours) ? product.availableColours : [],
+      availableSizes: Array.isArray(product.availableSizes) ? product.availableSizes : [],
+      price: Number(product.price) || 0,
+      description: product.description || '',
+      details: product.details || '',
+      specs: Array.isArray(product.specs) ? product.specs : [],
+      image: product.image || '',
+      additionalImages: Array.isArray(product.additionalImages) ? product.additionalImages : [],
+      inStock: product.inStock !== false,
+      featured: Boolean(product.featured),
+      rating: Number(product.rating) || 0,
+      reviewsCount: Number(product.reviewsCount) || 0,
+      createdAt: product.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(docRef, cleanedProduct, { merge: true });
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -328,19 +440,21 @@ export const saveUserProfileToDb = async (
 
 export const subscribeUserCart = (
   userId: string,
-  onUpdate: (items: { product: Product; quantity: number }[]) => void
+  onUpdate: (items: CartItem[]) => void
 ) => {
   const path = `users/${userId}/cart`;
   return onSnapshot(
     collection(db, 'users', userId, 'cart'),
     (snapshot) => {
-      const items: { product: Product; quantity: number }[] = [];
+      const items: CartItem[] = [];
       snapshot.forEach((d) => {
         const data = d.data();
         if (data.product && data.quantity) {
           items.push({
             product: data.product as Product,
-            quantity: data.quantity as number
+            quantity: Number(data.quantity) || 1,
+            selectedColour: data.selectedColour || undefined,
+            selectedSize: data.selectedSize || undefined
           });
         }
       });
@@ -354,17 +468,25 @@ export const subscribeUserCart = (
 
 export const saveCartItemToDb = async (
   userId: string,
-  product: Product,
-  quantity: number
+  productOrItem: Product | CartItem,
+  optionalQuantity?: number
 ): Promise<DbResult> => {
-  const path = `users/${userId}/cart/${product.id}`;
+  const item: CartItem = 'product' in productOrItem
+    ? productOrItem
+    : { product: productOrItem, quantity: optionalQuantity || 1 };
+
+  const cartKey = `${item.product.id}_${(item.selectedColour || 'def').replace(/[^a-zA-Z0-9]/g, '')}_${(item.selectedSize || 'def').replace(/[^a-zA-Z0-9]/g, '')}`;
+  const path = `users/${userId}/cart/${cartKey}`;
   try {
-    const docRef = doc(db, 'users', userId, 'cart', product.id);
-    await setDoc(docRef, {
-      product,
-      quantity,
+    const docRef = doc(db, 'users', userId, 'cart', cartKey);
+    const cleanItem = sanitizeForFirestore({
+      product: item.product,
+      quantity: item.quantity,
+      selectedColour: item.selectedColour || '',
+      selectedSize: item.selectedSize || '',
       updatedAt: new Date().toISOString()
     });
+    await setDoc(docRef, cleanItem, { merge: true });
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -374,12 +496,32 @@ export const saveCartItemToDb = async (
 
 export const removeCartItemFromDb = async (
   userId: string,
-  productId: string
+  productIdOrKey: string
 ): Promise<DbResult> => {
-  const path = `users/${userId}/cart/${productId}`;
+  const path = `users/${userId}/cart/${productIdOrKey}`;
   try {
-    const docRef = doc(db, 'users', userId, 'cart', productId);
+    // Attempt direct key deletion
+    const docRef = doc(db, 'users', userId, 'cart', productIdOrKey);
     await deleteDoc(docRef);
+
+    // Also scan for any matches if productId was passed
+    try {
+      const snap = await getDocs(collection(db, 'users', userId, 'cart'));
+      const batch = writeBatch(db);
+      let count = 0;
+      snap.forEach((d) => {
+        if (d.id.startsWith(productIdOrKey) || d.data().product?.id === productIdOrKey) {
+          batch.delete(d.ref);
+          count++;
+        }
+      });
+      if (count > 0) {
+        await batch.commit();
+      }
+    } catch {
+      // fallback
+    }
+
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, path);
@@ -446,15 +588,21 @@ export const toggleWishlistItemInDb = async (
 };
 
 export function sanitizeForFirestore<T>(obj: T): T {
-  if (obj === undefined) return null as unknown as T;
-  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj === undefined) return '' as unknown as T;
+  if (obj === null) return null as unknown as T;
+  if (typeof obj !== 'object') return obj;
   if (Array.isArray(obj)) {
-    return obj.map(sanitizeForFirestore) as unknown as T;
+    return obj
+      .filter((item) => item !== undefined)
+      .map((item) => sanitizeForFirestore(item)) as unknown as T;
   }
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
     if (value !== undefined) {
-      result[key] = sanitizeForFirestore(value);
+      const sanitized = sanitizeForFirestore(value);
+      if (sanitized !== undefined) {
+        result[key] = sanitized;
+      }
     }
   }
   return result as T;

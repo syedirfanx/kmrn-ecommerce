@@ -4,11 +4,27 @@ export interface CategoryData {
   subcategories: string[];
 }
 
+export interface Catalogue {
+  id: string;
+  name: string;
+  description?: string;
+  image: string;
+  category: string;
+  itemCount?: number;
+  createdAt?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   subcategory?: string;
+  catalogueId?: string;
+  catalogueName?: string;
+  availableColours?: string[];
+  availableSizes?: string[];
+  selectedColour?: string;
+  selectedSize?: string;
   price: number;
   description: string;
   details: string;
@@ -49,6 +65,8 @@ export interface AnnouncementItem {
 export interface CartItem {
   product: Product;
   quantity: number;
+  selectedColour?: string;
+  selectedSize?: string;
 }
 
 export interface OrderConfirmation {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, Truck, ShieldCheck } from 'lucide-react';
+import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { CartItem, OrderConfirmation, UserProfile } from '../types';
 import { formatBDT } from '../utils/format';
@@ -11,6 +11,7 @@ interface CheckoutModalProps {
   items: CartItem[];
   currentUser?: User | null;
   userProfile?: UserProfile | null;
+  onOpenAuth?: () => void;
   onOrderComplete: (order: OrderConfirmation) => void;
 }
 
@@ -20,6 +21,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   currentUser,
   userProfile,
+  onOpenAuth,
   onOrderComplete
 }) => {
   const [formData, setFormData] = useState({
@@ -264,6 +266,40 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             >
               Continue Shopping
             </button>
+          </div>
+        ) : !currentUser ? (
+          /* Sign-in Required Screen (No Guest Checkout) */
+          <div className="p-6 sm:p-8 space-y-6 text-center">
+            <div className="h-16 w-16 bg-stone-100 text-neutral-900 rounded-full flex items-center justify-center mx-auto mb-2 shadow-xs">
+              <UserIcon className="h-8 w-8 stroke-[1.8]" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-heading font-bold text-xl sm:text-2xl text-neutral-900">
+                Sign in to complete checkout
+              </h3>
+              <p className="text-xs sm:text-sm text-stone-600 max-w-md mx-auto leading-relaxed">
+                An account is required to place your order. Your delivery address and order tracking will be automatically saved and synced to your profile.
+              </p>
+            </div>
+            <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenAuth?.();
+                }}
+                className="w-full sm:w-auto px-8 py-3.5 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-md transition-all"
+              >
+                Sign In / Register
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full sm:w-auto px-6 py-3.5 bg-stone-100 hover:bg-stone-200 text-neutral-800 font-semibold text-xs uppercase tracking-wider rounded-xl cursor-pointer transition-all"
+              >
+                Continue Shopping
+              </button>
+            </div>
           </div>
         ) : (
           /* Checkout Form View */

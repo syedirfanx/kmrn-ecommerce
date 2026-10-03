@@ -42,6 +42,10 @@ export const ProductModal: React.FC<ProductModalProps> = ({
 }) => {
   const [selectedImage, setSelectedImage] = useState<string>('');
   const [quantity, setQuantity] = useState<number>(1);
+  const [selectedColour, setSelectedColour] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [isDescOpen, setIsDescOpen] = useState<boolean>(false);
+  const [isSpecsOpen, setIsSpecsOpen] = useState<boolean>(false);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [filterRating, setFilterRating] = useState<number | null>(null);
 
@@ -53,10 +57,35 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   const [reviewNotice, setReviewNotice] = useState<string>('');
   const [reviewError, setReviewError] = useState<string>('');
 
+  // Default colour & size options if none specified on product
+  const availableColours = React.useMemo(() => {
+    if (product?.availableColours && product.availableColours.length > 0) {
+      return product.availableColours;
+    }
+    const specColour = product?.specs?.find((s) => s.label.toLowerCase().includes('colour') || s.label.toLowerCase().includes('color'))?.value;
+    if (specColour) return specColour.split(',').map((c) => c.trim()).filter(Boolean);
+    return ['Classic Original'];
+  }, [product]);
+
+  const availableSizes = React.useMemo(() => {
+    if (product?.availableSizes && product.availableSizes.length > 0) {
+      return product.availableSizes;
+    }
+    const specSize = product?.specs?.find((s) => s.label.toLowerCase().includes('size'))?.value;
+    if (specSize) return specSize.split(',').map((s) => s.trim()).filter(Boolean);
+    return product?.category.toLowerCase().includes('home') || product?.category.toLowerCase().includes('decor')
+      ? ['King Size', 'Queen Size', 'Standard']
+      : ['Unstitched (3-Piece)', 'Stitched Small', 'Stitched Medium', 'Stitched Large'];
+  }, [product]);
+
   useEffect(() => {
     if (product) {
       setSelectedImage(product.image);
       setQuantity(1);
+      setSelectedColour(availableColours[0] || '');
+      setSelectedSize(availableSizes[0] || '');
+      setIsDescOpen(false);
+      setIsSpecsOpen(false);
       setFilterRating(null);
       setReviewNotice('');
       setReviewError('');
@@ -69,7 +98,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       });
       return () => unsub();
     }
-  }, [product]);
+  }, [product, availableColours, availableSizes]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -98,7 +127,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
   };
 
   const handleAdd = () => {
-    onAddToCart(product, quantity);
+    const productWithSelections: Product = {
+      ...product,
+      selectedColour: selectedColour || availableColours[0],
+      selectedSize: selectedSize || availableSizes[0]
+    };
+    onAddToCart(productWithSelections, quantity);
     onClose();
   };
 
@@ -266,40 +300,141 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </div>
               </div>
 
-              <h1 className="font-heading font-medium text-2xl text-neutral-900 mb-2">
+              <h1 className="font-heading font-bold text-2xl sm:text-3xl text-neutral-900 mb-2 tracking-tight">
                 {product.name}
               </h1>
 
-              <div className="mb-4">
-                <span className="font-heading font-semibold text-2xl text-neutral-900 tabular-nums">
+              {/* Price in different text weight than heading */}
+              <div className="mb-5 pb-3 border-b border-stone-200/80">
+                <span className="font-sans font-normal text-2xl sm:text-3xl text-stone-900 tabular-nums">
                   {formatBDT(product.price)}
                 </span>
               </div>
 
-              {/* Description */}
-              <div className="prose prose-neutral mb-6 text-xs sm:text-sm text-stone-600 leading-relaxed">
-                <p>{product.details || product.description}</p>
+              {/* Description Accordion with + / - expansion */}
+              <div className="border-b border-stone-200/70 pb-3 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setIsDescOpen(!isDescOpen)}
+                  className="w-full flex items-center justify-between py-2 text-left text-xs uppercase tracking-wider font-bold text-neutral-900 hover:text-stone-600 transition-colors cursor-pointer select-none"
+                >
+                  <span>Description</span>
+                  <span className="text-stone-500 font-normal text-base">
+                    {isDescOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  </span>
+                </button>
+                {isDescOpen && (
+                  <div className="pt-1.5 pb-2 text-xs sm:text-sm text-stone-600 leading-relaxed space-y-2 animate-in fade-in duration-150">
+                    <p>{product.description}</p>
+                    {product.details && product.details !== product.description && (
+                      <p className="text-stone-500 text-xs">{product.details}</p>
+                    )}
+                  </div>
+                )}
               </div>
 
-              {/* Specifications */}
-              <div className="pt-2 mb-6">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 block mb-2.5">
-                  Specifications
-                </span>
-                <dl className="grid grid-cols-1 gap-1.5 text-xs">
-                  {product.specs.map((spec, i) => (
-                    <div key={i} className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
-                      <dt className="text-stone-500 font-medium">{spec.label}</dt>
-                      <dd className="text-neutral-900 font-semibold">{spec.value}</dd>
+              {/* Specifications Accordion with + / - expansion */}
+              <div className="border-b border-stone-200/70 pb-3 mb-5">
+                <button
+                  type="button"
+                  onClick={() => setIsSpecsOpen(!isSpecsOpen)}
+                  className="w-full flex items-center justify-between py-2 text-left text-xs uppercase tracking-wider font-bold text-neutral-900 hover:text-stone-600 transition-colors cursor-pointer select-none"
+                >
+                  <span>Specifications</span>
+                  <span className="text-stone-500 font-normal text-base">
+                    {isSpecsOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  </span>
+                </button>
+                {isSpecsOpen && (
+                  <div className="pt-2 pb-2 space-y-2 text-xs animate-in fade-in duration-150">
+                    {/* Available Colours in Specifications */}
+                    <div className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
+                      <dt className="text-stone-500 font-medium">Available Colours</dt>
+                      <dd className="text-neutral-900 font-semibold">{availableColours.join(', ')}</dd>
                     </div>
-                  ))}
-                </dl>
+
+                    {/* Available Sizes in Specifications */}
+                    <div className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
+                      <dt className="text-stone-500 font-medium">Available Sizes</dt>
+                      <dd className="text-neutral-900 font-semibold">{availableSizes.join(', ')}</dd>
+                    </div>
+
+                    {/* Custom Specs */}
+                    {product.specs && product.specs.map((spec, i) => (
+                      <div key={i} className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
+                        <dt className="text-stone-500 font-medium">{spec.label}</dt>
+                        <dd className="text-neutral-900 font-semibold">{spec.value}</dd>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div>
+            {/* Selection Options & Add to Bag Actions */}
+            <div className="space-y-4 pt-2">
+              {/* Colour Selection */}
+              {availableColours.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-neutral-900">
+                      Select Colour
+                    </span>
+                    <span className="text-xs text-stone-500 font-medium">
+                      {selectedColour || availableColours[0]}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableColours.map((col, cIdx) => (
+                      <button
+                        key={cIdx}
+                        type="button"
+                        onClick={() => setSelectedColour(col)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                          selectedColour === col
+                            ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                            : 'bg-stone-50 text-neutral-800 border-stone-200 hover:bg-stone-100'
+                        }`}
+                      >
+                        {col}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Size Selection */}
+              {availableSizes.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-neutral-900">
+                      Select Size
+                    </span>
+                    <span className="text-xs text-stone-500 font-medium">
+                      {selectedSize || availableSizes[0]}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {availableSizes.map((sz, sIdx) => (
+                      <button
+                        key={sIdx}
+                        type="button"
+                        onClick={() => setSelectedSize(sz)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                          selectedSize === sz
+                            ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                            : 'bg-stone-50 text-neutral-800 border-stone-200 hover:bg-stone-100'
+                        }`}
+                      >
+                        {sz}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Quantity and Actions: Simple, Elegant, Premium */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 mb-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
                 {/* Stepper */}
                 <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-stone-100 border border-stone-200/80 sm:w-32">
                   <button

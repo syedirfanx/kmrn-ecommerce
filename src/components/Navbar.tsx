@@ -8,16 +8,20 @@ import {
   LogOut,
   Package,
   Search,
-  ChevronRight
+  ChevronRight,
+  ArrowRight
 } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { CategoryData } from '../types';
+import { CategoryData, Product } from '../types';
 import { Logo } from './Logo';
+import { formatBDT } from '../utils/format';
 
 interface NavbarProps {
   cartCount: number;
   wishlistCount: number;
   categories: CategoryData[];
+  products?: Product[];
+  onSelectProduct?: (product: Product) => void;
   onOpenCart: () => void;
   onOpenAccount: (tab?: 'profile' | 'wishlist' | 'orders') => void;
   onNavigateToHome: () => void;
@@ -36,6 +40,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   cartCount,
   wishlistCount,
   categories = [],
+  products = [],
+  onSelectProduct,
   onOpenCart,
   onOpenAccount,
   onNavigateToHome,
@@ -315,35 +321,94 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Quick Search Input Bar Overlay */}
+          {/* In-Place Live Product Search Bar Overlay */}
           {isSearchOpen && (
-            <div className="pt-3 pb-1 border-t border-stone-200/60 mt-3 animate-in fade-in duration-200">
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (searchQuery.trim()) {
-                    onNavigateToCategory(categories[0]?.name || "Women's Wear");
-                  }
-                }}
-                className="relative max-w-lg mx-auto"
-              >
-                <input
-                  type="text"
-                  placeholder="Search collections, fabrics..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-stone-100/80 text-neutral-900 text-xs sm:text-sm pl-10 pr-9 py-2 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-900"
-                  autoFocus
-                />
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
-                <button
-                  type="button"
-                  onClick={() => setIsSearchOpen(false)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-neutral-900"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </form>
+            <div className="pt-3 pb-2 border-t border-stone-200/60 mt-3 animate-in fade-in duration-200">
+              <div className="relative max-w-xl mx-auto">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search lawn, chiffon, comforters, luxury suites..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-stone-100/90 text-neutral-900 text-xs sm:text-sm pl-10 pr-9 py-2.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-neutral-900 shadow-inner"
+                    autoFocus
+                  />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setSearchQuery('');
+                    }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-neutral-900 p-1 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* Real-time Search Results Box */}
+                {searchQuery.trim() && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-stone-200/80 p-3 max-h-[380px] overflow-y-auto z-50 animate-in fade-in zoom-in-95 duration-150">
+                    {(() => {
+                      const q = searchQuery.toLowerCase().trim();
+                      const matched = products.filter(
+                        (p) =>
+                          p.name.toLowerCase().includes(q) ||
+                          p.category.toLowerCase().includes(q) ||
+                          (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
+                          (p.catalogueName && p.catalogueName.toLowerCase().includes(q)) ||
+                          p.description.toLowerCase().includes(q)
+                      ).slice(0, 8);
+
+                      if (matched.length === 0) {
+                        return (
+                          <div className="py-8 text-center text-xs text-stone-400">
+                            No products found matching "{searchQuery}"
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="space-y-1.5">
+                          <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-stone-400 flex items-center justify-between">
+                            <span>Found Products ({matched.length})</span>
+                            <span className="text-[10px] text-stone-400 font-normal">Click item to view</span>
+                          </div>
+                          {matched.map((prod) => (
+                            <div
+                              key={prod.id}
+                              onClick={() => {
+                                onSelectProduct?.(prod);
+                                setIsSearchOpen(false);
+                                setSearchQuery('');
+                              }}
+                              className="flex items-center gap-3 p-2 rounded-xl hover:bg-stone-50 transition-colors cursor-pointer group"
+                            >
+                              <img
+                                src={prod.image}
+                                alt={prod.name}
+                                className="w-11 h-14 object-cover rounded-lg bg-stone-100 shrink-0 border border-stone-200"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-xs font-bold text-neutral-900 truncate group-hover:text-stone-600 transition-colors">
+                                  {prod.name}
+                                </h4>
+                                <p className="text-[11px] text-stone-400 truncate">
+                                  {prod.category} {prod.catalogueName ? `• ${prod.catalogueName}` : ''}
+                                </p>
+                              </div>
+                              <span className="font-sans font-semibold text-xs text-neutral-900 tabular-nums shrink-0">
+                                {formatBDT(prod.price)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

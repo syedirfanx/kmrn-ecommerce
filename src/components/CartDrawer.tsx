@@ -127,9 +127,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           {item.product.name}
                         </h4>
                       </div>
-                      <span className="text-xs text-stone-500 mt-1 block">
-                        {formatBDT(item.product.price)}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2 mt-1">
+                        <span className="text-xs font-semibold text-neutral-900">
+                          {formatBDT(item.product.price)}
+                        </span>
+                        {(item.selectedColour || item.product.selectedColour) && (
+                          <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded font-medium">
+                            {item.selectedColour || item.product.selectedColour}
+                          </span>
+                        )}
+                        {(item.selectedSize || item.product.selectedSize) && (
+                          <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded font-medium">
+                            {item.selectedSize || item.product.selectedSize}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Quantity controls and remove */}

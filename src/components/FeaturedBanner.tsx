@@ -148,28 +148,38 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
         return;
       }
     }
-    const url = slide.linkUrl?.toLowerCase() || '';
-    if (url === 'about' || url === '#about') {
+    const rawUrl = (slide.linkUrl || '').trim();
+    const url = rawUrl.toLowerCase().replace(/^#/, '');
+
+    if (url === 'about' || url === '/about') {
       onNavigateToPage?.('about');
       return;
     }
-    if (url === 'contact' || url === '#contact') {
+    if (url === 'contact' || url === '/contact') {
       onNavigateToPage?.('contact');
       return;
     }
-    if (url === 'account' || url === '#account') {
+    if (url === 'account' || url === '/account') {
       onNavigateToPage?.('account');
       return;
     }
-    if (url.startsWith('#category:') || url.startsWith('category:')) {
-      const cat = slide.linkUrl?.split(':')[1]?.trim();
+    if (url.startsWith('category:')) {
+      const cat = rawUrl.split(':')[1]?.trim();
       if (cat && onNavigateToCategory) {
         onNavigateToCategory(cat);
         return;
       }
     }
-    if (onNavigateToCategory && slide.linkUrl && slide.linkUrl !== '#shop') {
-      const clean = slide.linkUrl.replace('#', '');
+    if (url.startsWith('/product/') || url.startsWith('product/')) {
+      const prodId = url.replace(/^\/?product\//, '');
+      const prod = products.find((p) => p.id === prodId);
+      if (prod) {
+        onViewDetails(prod);
+        return;
+      }
+    }
+    if (onNavigateToCategory && url && url !== 'shop' && url !== '/shop') {
+      const clean = url.replace(/^\//, '').replace(/^category\//, '');
       onNavigateToCategory(clean);
       return;
     }

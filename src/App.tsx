@@ -11,6 +11,7 @@ import { PRODUCTS } from './data/products';
 import {
   Product,
   CategoryData,
+  Catalogue,
   CartItem,
   OrderConfirmation,
   UserProfile,
@@ -22,6 +23,7 @@ import {
   seedInitialDataIfEmpty,
   subscribeProducts,
   subscribeCategories,
+  subscribeCatalogues,
   subscribeUserCart,
   saveCartItemToDb,
   removeCartItemFromDb,
@@ -37,7 +39,8 @@ import {
   subscribeStoreSettings,
   subscribeFeaturedProductIds,
   DEFAULT_BANNER_SLIDES,
-  DEFAULT_ANNOUNCEMENTS
+  DEFAULT_ANNOUNCEMENTS,
+  DEFAULT_CATALOGUES
 } from './services/storeService';
 import { AnnouncementBar } from './components/AnnouncementBar';
 import { Navbar } from './components/Navbar';
@@ -62,30 +65,67 @@ type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact' |
 const CART_STORAGE_KEY = 'maison_ecommerce_cart_v1';
 const WISHLIST_STORAGE_KEY = 'maison_ecommerce_wishlist_v1';
 
-const getInitialRoute = (): { page: AppPage; categoryName?: string } => {
+const getInitialRoute = (): { page: AppPage; categoryName?: string; productId?: string } => {
   if (typeof window === 'undefined') return { page: 'home' };
-  const path = window.location.pathname.toLowerCase();
-  const hash = window.location.hash.toLowerCase();
+  let path = window.location.pathname.toLowerCase();
   const search = window.location.search.toLowerCase();
+  const rawHash = window.location.hash;
+  const hash = rawHash.replace(/^#\/?/, '').toLowerCase();
 
-  if (path === '/admin' || hash === '#admin' || search.includes('admin=true')) {
+  // If a hash was present in the browser URL, sanitize it to a clean path and replace history
+  if (rawHash) {
+    let cleanPath = '/';
+    if (hash === 'admin' || hash === '/admin') cleanPath = '/admin';
+    else if (hash === 'account' || hash === '/account') cleanPath = '/account';
+    else if (hash === 'about' || hash === '/about') cleanPath = '/about';
+    else if (hash === 'contact' || hash === '/contact') cleanPath = '/contact';
+    else if (hash.startsWith('product/')) cleanPath = `/${hash}`;
+    else if (hash.includes('women') || hash === 'womens-wear') cleanPath = '/category/womens-wear';
+    else if (hash.includes('decor') || hash === 'home-decor') cleanPath = '/category/home-decor';
+    else if (hash.startsWith('category/')) cleanPath = `/${hash}`;
+
+    try {
+      window.history.replaceState(null, '', cleanPath);
+      path = cleanPath.toLowerCase();
+    } catch {
+      // fallback
+    }
+  }
+
+  if (path === '/admin' || search.includes('admin=true')) {
     return { page: 'admin' };
   }
-  if (path === '/account' || hash === '#account') {
+  if (path === '/account') {
     return { page: 'account' };
   }
-  if (path === '/about' || hash === '#about') {
+  if (path === '/about') {
     return { page: 'about' };
   }
-  if (path === '/contact' || hash === '#contact') {
+  if (path === '/contact') {
     return { page: 'contact' };
   }
-  if (path === '/womens-wear' || hash === '#womens-wear' || hash.includes('women')) {
+
+  // Handle dedicated product path: /product/:id or /products/:id
+  if (path.startsWith('/product/') || path.startsWith('/products/')) {
+    const rawSegments = window.location.pathname.split('/').filter(Boolean);
+    const prodId = rawSegments[1];
+    if (prodId) {
+      return { page: 'product', productId: prodId };
+    }
+  }
+
+  // Handle category routes
+  if (path === '/womens-wear' || path === '/category/womens-wear') {
     return { page: 'category', categoryName: "Elegant Women's Wear" };
   }
-  if (path === '/home-decor' || hash === '#home-decor' || hash.includes('decor')) {
+  if (path === '/home-decor' || path === '/category/home-decor') {
     return { page: 'category', categoryName: "Home Decor" };
   }
+  if (path.startsWith('/category/')) {
+    const slug = path.replace('/category/', '').split('/')[0];
+    return { page: 'category', categoryName: slug };
+  }
+
   return { page: 'home' };
 };
 
@@ -146,6 +186,7 @@ export default function App() {
   });
   const [storeSettings, setStoreSettings] = useState<StoreSettings>({});
   const [featuredProductIds, setFeaturedProductIds] = useState<string[]>([]);
+  const [catalogues, setCatalogues] = useState<Catalogue[]>(DEFAULT_CATALOGUES);
 
   const [selectedCategory, setSelectedCategory] = useState<string>(
     initialRoute.categoryName || "Elegant Women's Wear"
@@ -188,31 +229,6 @@ export default function App() {
   const [isToastOpen, setIsToastOpen] = useState(false);
   const [toastShowCart, setToastShowCart] = useState(false);
 
-  // Synchronize route changes
-  useEffect(() => {
-    const handleUrlChange = () => {
-      const route = getInitialRoute();
-      setCurrentPage(route.page);
-      if (route.categoryName) {
-        setSelectedCategory(route.categoryName);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.altKey && e.key.toLowerCase() === 'a') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a')) {
-        e.preventDefault();
-        navigateTo('admin');
-      }
-    };
-    window.addEventListener('popstate', handleUrlChange);
-    window.addEventListener('hashchange', handleUrlChange);
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('popstate', handleUrlChange);
-      window.removeEventListener('hashchange', handleUrlChange);
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-
   const navigateTo = (page: AppPage) => {
     setCurrentPage(page);
     setSelectedSubcategory('All');
@@ -222,7 +238,7 @@ export default function App() {
       if (page === 'home') {
         window.history.pushState(null, '', '/');
       } else {
-        window.history.pushState(null, '', `#${page}`);
+        window.history.pushState(null, '', `/${page}`);
       }
     } catch {
       // fallback
@@ -236,12 +252,79 @@ export default function App() {
     setCurrentPage('category');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     try {
-      const slug = categoryName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-      window.history.pushState(null, '', `#${slug}`);
+      const lower = categoryName.toLowerCase();
+      const slug = lower.includes('women')
+        ? 'womens-wear'
+        : lower.includes('decor') || lower.includes('home')
+        ? 'home-decor'
+        : categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      window.history.pushState(null, '', `/category/${slug}`);
     } catch {
       // fallback
     }
   };
+
+  const navigateToProduct = (product: Product) => {
+    setActiveProduct(product);
+    setCurrentPage('product');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    try {
+      window.history.pushState(null, '', `/product/${product.id}`);
+    } catch {
+      // fallback
+    }
+  };
+
+  // Synchronize route changes
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const route = getInitialRoute();
+      setCurrentPage(route.page);
+      if (route.categoryName) {
+        const foundCat = categories.find(
+          (c) =>
+            c.name.toLowerCase() === route.categoryName?.toLowerCase() ||
+            c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === route.categoryName?.toLowerCase()
+        );
+        if (foundCat) {
+          setSelectedCategory(foundCat.name);
+        } else if (route.categoryName) {
+          setSelectedCategory(route.categoryName);
+        }
+      }
+      if (route.productId) {
+        const foundProd = products.find((p) => p.id === route.productId);
+        if (foundProd) {
+          setActiveProduct(foundProd);
+        }
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.altKey && e.key.toLowerCase() === 'a') || ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a')) {
+        e.preventDefault();
+        navigateTo('admin');
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [categories, products]);
+
+  // If initial load targeted a product before products loaded from Firestore
+  useEffect(() => {
+    const route = getInitialRoute();
+    if (route.page === 'product' && route.productId && products.length > 0) {
+      const found = products.find((p) => p.id === route.productId);
+      if (found) {
+        setActiveProduct(found);
+      }
+    }
+  }, [products]);
 
   // 1. Initial database seeding
   useEffect(() => {
@@ -311,6 +394,12 @@ export default function App() {
       setFeaturedProductIds(liveIds || []);
     });
 
+    const unsubCatalogues = subscribeCatalogues((liveCatalogues) => {
+      if (liveCatalogues && liveCatalogues.length > 0) {
+        setCatalogues(liveCatalogues);
+      }
+    });
+
     return () => {
       unsubProducts();
       unsubCategories();
@@ -318,6 +407,7 @@ export default function App() {
       unsubAnnouncements();
       unsubSettings();
       unsubFeatured();
+      unsubCatalogues();
     };
   }, []);
 
@@ -475,9 +565,12 @@ export default function App() {
     setToastShowCart(false);
     setToastMessage('Signed out successfully');
     setIsToastOpen(true);
+    if (currentPage === 'account') {
+      navigateTo('home');
+    }
   };
 
-  // Homepage Featured Products (Requirements 7: strictly only featured products, do NOT fill what are not featured)
+  // Homepage Featured Products
   const featuredProducts = useMemo(() => {
     if (featuredProductIds && featuredProductIds.length > 0) {
       return featuredProductIds
@@ -497,18 +590,28 @@ export default function App() {
     return categories.find((c) => c.name === selectedCategory);
   }, [categories, selectedCategory]);
 
+  // Catalogues matching current category
+  const currentCategoryCatalogues = useMemo(() => {
+    return catalogues.filter((c) => c.category === selectedCategory);
+  }, [catalogues, selectedCategory]);
+
   // Filtered and sorted products for active category
   const filteredProducts = useMemo(() => {
     return categoryProducts
       .filter((product) => {
         const matchesSubcategory =
-          selectedSubcategory === 'All' || product.subcategory === selectedSubcategory;
+          selectedSubcategory === 'All' ||
+          product.subcategory === selectedSubcategory ||
+          product.catalogueName === selectedSubcategory ||
+          product.catalogueId === selectedSubcategory;
         const matchesSearch =
           !searchQuery.trim() ||
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
           (product.subcategory &&
-            product.subcategory.toLowerCase().includes(searchQuery.toLowerCase()));
+            product.subcategory.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (product.catalogueName &&
+            product.catalogueName.toLowerCase().includes(searchQuery.toLowerCase()));
 
         return matchesSubcategory && matchesSearch;
       })
@@ -555,6 +658,8 @@ export default function App() {
           cartCount={totalCartCount}
           wishlistCount={wishlistProductIds.length}
           categories={categories}
+          products={products}
+          onSelectProduct={navigateToProduct}
           logoUrl={storeSettings.logoUrl}
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAccount={(tab) => {
@@ -587,7 +692,7 @@ export default function App() {
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
           onToggleWishlist={handleToggleWishlist}
           onAddToCart={handleAddToCart}
-          onViewProductDetails={(p) => setActiveProduct(p)}
+          onViewProductDetails={(p) => navigateToProduct(p)}
         />
         <Footer
           logoUrl={storeSettings.logoUrl}
@@ -608,6 +713,9 @@ export default function App() {
           isOpen={isCheckoutOpen}
           onClose={() => setIsCheckoutOpen(false)}
           items={cart}
+          currentUser={currentUser}
+          userProfile={userProfile}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
           onOrderComplete={handleOrderComplete}
         />
         <ProductModal
@@ -645,6 +753,8 @@ export default function App() {
           cartCount={totalCartCount}
           wishlistCount={wishlistProductIds.length}
           categories={categories}
+          products={products}
+          onSelectProduct={navigateToProduct}
           logoUrl={storeSettings.logoUrl}
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAccount={(tab) => {
@@ -701,6 +811,8 @@ export default function App() {
           cartCount={totalCartCount}
           wishlistCount={wishlistProductIds.length}
           categories={categories}
+          products={products}
+          onSelectProduct={navigateToProduct}
           logoUrl={storeSettings.logoUrl}
           onOpenCart={() => setIsCartOpen(true)}
           onOpenAccount={(tab) => {
@@ -761,6 +873,8 @@ export default function App() {
               cartCount={totalCartCount}
               wishlistCount={wishlistProductIds.length}
               categories={categories}
+              products={products}
+              onSelectProduct={navigateToProduct}
               logoUrl={storeSettings.logoUrl}
               onOpenCart={() => setIsCartOpen(true)}
               onOpenAccount={(tab) => {
@@ -787,10 +901,7 @@ export default function App() {
             slides={bannerSlides}
             products={products}
             onAddToCart={(p) => handleAddToCart(p, 1)}
-            onViewDetails={(p) => {
-              setActiveProduct(p);
-              navigateTo('product');
-            }}
+            onViewDetails={(p) => navigateToProduct(p)}
             onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
             onNavigateToCategory={navigateToCategory}
             onNavigateToPage={navigateTo}
@@ -806,6 +917,8 @@ export default function App() {
             cartCount={totalCartCount}
             wishlistCount={wishlistProductIds.length}
             categories={categories}
+            products={products}
+            onSelectProduct={navigateToProduct}
             logoUrl={storeSettings.logoUrl}
             onOpenCart={() => setIsCartOpen(true)}
             onOpenAccount={(tab) => {
@@ -855,10 +968,7 @@ export default function App() {
                       key={product.id}
                       product={product}
                       onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
-                      onViewDetails={(p) => {
-                        setActiveProduct(p);
-                        navigateTo('product');
-                      }}
+                      onViewDetails={(p) => navigateToProduct(p)}
                       onQuickView={(p) => setQuickViewProduct(p)}
                       isWishlisted={wishlistProductIds.includes(product.id)}
                       onToggleWishlist={handleToggleWishlist}
@@ -970,85 +1080,201 @@ export default function App() {
               </div>
             </div>
 
-            {/* Subcategories Filter Bar (Up to 10 subcategories) */}
-            {currentCategoryData && (currentCategoryData.subcategories || []).length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                <button
-                  onClick={() => setSelectedSubcategory('All')}
-                  className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
-                    selectedSubcategory === 'All'
-                      ? 'bg-neutral-900 text-white'
-                      : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80'
-                  }`}
-                >
-                  All
-                </button>
-                {(currentCategoryData.subcategories || []).map((sub, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedSubcategory(sub)}
-                    className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
-                      selectedSubcategory === sub
-                        ? 'bg-neutral-900 text-white'
-                        : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80'
-                    }`}
-                  >
-                    {sub}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Catalogue Showcase (Women's Wear and Categories with Catalogues) */}
+            {currentCategoryCatalogues.length > 0 && !searchQuery.trim() ? (
+              selectedSubcategory === 'All' ? (
+                /* 1. All Catalogues View (No products under) */
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-heading font-semibold text-xs uppercase tracking-wider text-stone-500">
+                      Select a Collection or Catalogue
+                    </span>
+                  </div>
 
-            {/* Active Search Result Tag */}
-            {searchQuery && (
-              <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl text-xs sm:text-sm text-neutral-700 shadow-xs border border-stone-200/70">
-                <span>
-                  Search results for: <strong className="text-neutral-900">&quot;{searchQuery}&quot;</strong>
-                </span>
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="font-semibold underline text-neutral-900 cursor-pointer"
-                >
-                  Clear Search
-                </button>
-              </div>
-            )}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                    {currentCategoryCatalogues.map((catg) => {
+                      const catgCount = categoryProducts.filter(
+                        (p) => p.catalogueId === catg.id || p.catalogueName === catg.name || p.subcategory === catg.name
+                      ).length;
 
-            {/* Product Grid */}
-            {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
-                {filteredProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
-                    onViewDetails={(p) => {
-                      setActiveProduct(p);
-                      navigateTo('product');
-                    }}
-                    onQuickView={(p) => setQuickViewProduct(p)}
-                    isWishlisted={wishlistProductIds.includes(product.id)}
-                    onToggleWishlist={handleToggleWishlist}
-                  />
-                ))}
-              </div>
+                      return (
+                        <div
+                          key={catg.id}
+                          onClick={() => setSelectedSubcategory(catg.name)}
+                          className="group relative bg-white rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md"
+                        >
+                          <div className="aspect-[4/3] bg-stone-100 overflow-hidden relative">
+                            <img
+                              src={catg.image}
+                              alt={catg.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-white px-2 py-0.5 rounded-md text-[10px] font-bold tabular-nums">
+                              {catgCount} Items
+                            </div>
+                          </div>
+
+                          <div className="p-3">
+                            <h3 className="font-heading font-bold text-xs sm:text-sm text-neutral-900 truncate group-hover:text-stone-600 transition-colors">
+                              {catg.name}
+                            </h3>
+                            {catg.description && (
+                              <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5">
+                                {catg.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* 2. Single Selected Catalogue View (Other catalogues hidden, only its products shown) */
+                <div className="space-y-6">
+                  {(() => {
+                    const activeCatg = currentCategoryCatalogues.find(
+                      (c) => c.name === selectedSubcategory || c.id === selectedSubcategory
+                    );
+                    return (
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80 shadow-xs">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedSubcategory('All')}
+                            className="px-3 py-1.5 rounded-xl border border-stone-300 hover:border-neutral-900 hover:bg-neutral-900 hover:text-white text-xs font-semibold text-neutral-800 transition-all cursor-pointer shrink-0"
+                          >
+                            All Catalogues
+                          </button>
+                          <div>
+                            <h2 className="font-heading font-bold text-sm sm:text-base text-neutral-900">
+                              {activeCatg?.name || selectedSubcategory}
+                            </h2>
+                            {activeCatg?.description && (
+                              <p className="text-xs text-stone-500">
+                                {activeCatg.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-xs text-stone-500 font-medium shrink-0">
+                          <strong className="text-neutral-900 font-bold">{filteredProducts.length}</strong> Products Available
+                        </span>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Products Grid for this selected catalogue */}
+                  {filteredProducts.length > 0 ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                      {filteredProducts.map((product) => (
+                        <ProductCard
+                          key={product.id}
+                          product={product}
+                          onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
+                          onViewDetails={(p) => navigateToProduct(p)}
+                          onQuickView={(p) => setQuickViewProduct(p)}
+                          isWishlisted={wishlistProductIds.includes(product.id)}
+                          onToggleWishlist={handleToggleWishlist}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-16 text-center bg-white rounded-2xl border border-stone-200/80 shadow-xs px-4">
+                      <p className="font-heading font-medium text-base text-neutral-900 mb-1">
+                        No products found in this catalogue
+                      </p>
+                      <button
+                        onClick={() => setSelectedSubcategory('All')}
+                        className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer mt-3"
+                      >
+                        Return to Catalogues
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
             ) : (
-              <div className="py-20 text-center bg-white rounded-3xl border border-stone-200/80 shadow-xs px-4">
-                <p className="font-heading font-medium text-lg text-neutral-900 mb-1">
-                  No products found
-                </p>
-                <p className="text-xs text-stone-500 mb-4">
-                  Try adjusting your search query or subcategory filter.
-                </p>
-                <button
-                  onClick={() => {
-                    setSelectedSubcategory('All');
-                    setSearchQuery('');
-                  }}
-                  className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer"
-                >
-                  Reset Filters
-                </button>
+              /* Standard subcategories & product grid for categories without catalogues or when searching */
+              <div className="space-y-6">
+                {/* Subcategories Filter Bar */}
+                {currentCategoryData && (currentCategoryData.subcategories || []).length > 0 && (
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                    <button
+                      onClick={() => setSelectedSubcategory('All')}
+                      className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
+                        selectedSubcategory === 'All'
+                          ? 'bg-neutral-900 text-white'
+                          : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {(currentCategoryData.subcategories || []).map((sub, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedSubcategory(sub)}
+                        className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
+                          selectedSubcategory === sub
+                            ? 'bg-neutral-900 text-white'
+                            : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80'
+                        }`}
+                      >
+                        {sub}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Active Search Result Tag */}
+                {searchQuery && (
+                  <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-xl text-xs sm:text-sm text-neutral-700 shadow-xs border border-stone-200/70">
+                    <span>
+                      Search results for: <strong className="text-neutral-900">&quot;{searchQuery}&quot;</strong>
+                    </span>
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="font-semibold underline text-neutral-900 cursor-pointer"
+                    >
+                      Clear Search
+                    </button>
+                  </div>
+                )}
+
+                {/* Product Grid */}
+                {filteredProducts.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                    {filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
+                        onViewDetails={(p) => navigateToProduct(p)}
+                        onQuickView={(p) => setQuickViewProduct(p)}
+                        isWishlisted={wishlistProductIds.includes(product.id)}
+                        onToggleWishlist={handleToggleWishlist}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-20 text-center bg-white rounded-3xl border border-stone-200/80 shadow-xs px-4">
+                    <p className="font-heading font-medium text-lg text-neutral-900 mb-1">
+                      No products found
+                    </p>
+                    <p className="text-xs text-stone-500 mb-4">
+                      Try adjusting your search query or subcategory filter.
+                    </p>
+                    <button
+                      onClick={() => {
+                        setSelectedSubcategory('All');
+                        setSearchQuery('');
+                      }}
+                      className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1066,10 +1292,7 @@ export default function App() {
             onToggleWishlist={handleToggleWishlist}
             onNavigateToHome={() => navigateTo('home')}
             onNavigateToCategory={navigateToCategory}
-            onSelectProduct={(p) => {
-              setActiveProduct(p);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onSelectProduct={(p) => navigateToProduct(p)}
             onOpenQuickView={(p) => setQuickViewProduct(p)}
             onOpenAuth={() => setIsAuthModalOpen(true)}
           />
@@ -1102,6 +1325,7 @@ export default function App() {
         items={cart}
         currentUser={currentUser}
         userProfile={userProfile}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
         onOrderComplete={handleOrderComplete}
       />
 

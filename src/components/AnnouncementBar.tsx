@@ -32,7 +32,7 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
 
   // Build marquee string by combining all active announcement texts
   const announcementTexts = activeAnnouncements.map((ann) => {
-    return `${ann.text}${ann.linkText ? ` — ${ann.linkText}` : ''}`;
+    return `${ann.text}${ann.linkText ? ` - ${ann.linkText}` : ''}`;
   });
 
   const fullMarqueeString = announcementTexts.join('   ✦   ');

@@ -41,6 +41,12 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(categoryId);
     }
 
+    // Catalogues collection (Women's Wear and seasonal designer catalogues)
+    match /catalogues/{catalogueId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(catalogueId);
+    }
+
     // Site settings (announcements, banner ads, featured items)
     match /settings/{settingId} {
       allow get, list: if true;

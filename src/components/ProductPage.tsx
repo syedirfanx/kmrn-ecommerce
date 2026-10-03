@@ -62,8 +62,33 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 }) => {
   const [selectedImage, setSelectedImage] = useState<string>(product.image);
   const [quantity, setQuantity] = useState<number>(1);
+  const [selectedColour, setSelectedColour] = useState<string>('');
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [isDescOpen, setIsDescOpen] = useState<boolean>(false);
+  const [isSpecsOpen, setIsSpecsOpen] = useState<boolean>(false);
   const [justAdded, setJustAdded] = useState<boolean>(false);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
+
+  // Default colour & size options
+  const availableColours = React.useMemo(() => {
+    if (product?.availableColours && product.availableColours.length > 0) {
+      return product.availableColours;
+    }
+    const specColour = product?.specs?.find((s) => s.label.toLowerCase().includes('colour') || s.label.toLowerCase().includes('color'))?.value;
+    if (specColour) return specColour.split(',').map((c) => c.trim()).filter(Boolean);
+    return ['Classic Original'];
+  }, [product]);
+
+  const availableSizes = React.useMemo(() => {
+    if (product?.availableSizes && product.availableSizes.length > 0) {
+      return product.availableSizes;
+    }
+    const specSize = product?.specs?.find((s) => s.label.toLowerCase().includes('size'))?.value;
+    if (specSize) return specSize.split(',').map((s) => s.trim()).filter(Boolean);
+    return product?.category.toLowerCase().includes('home') || product?.category.toLowerCase().includes('decor')
+      ? ['King Size', 'Queen Size', 'Standard']
+      : ['Unstitched (3-Piece)', 'Stitched Small', 'Stitched Medium', 'Stitched Large'];
+  }, [product]);
 
   // Review Form State
   const [newRating, setNewRating] = useState<number>(5);
@@ -86,8 +111,12 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   useEffect(() => {
     setSelectedImage(product.image);
     setQuantity(1);
+    setSelectedColour(availableColours[0] || '');
+    setSelectedSize(availableSizes[0] || '');
+    setIsDescOpen(false);
+    setIsSpecsOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [product]);
+  }, [product, availableColours, availableSizes]);
 
   // Subscribe to real-time reviews
   useEffect(() => {
@@ -99,13 +128,23 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   }, [product?.id]);
 
   const handleAdd = () => {
-    onAddToCart(product, quantity);
+    const productWithSelections: Product = {
+      ...product,
+      selectedColour: selectedColour || availableColours[0],
+      selectedSize: selectedSize || availableSizes[0]
+    };
+    onAddToCart(productWithSelections, quantity);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1500);
   };
 
   const handleBuyNow = () => {
-    onAddToCart(product, quantity);
+    const productWithSelections: Product = {
+      ...product,
+      selectedColour: selectedColour || availableColours[0],
+      selectedSize: selectedSize || availableSizes[0]
+    };
+    onAddToCart(productWithSelections, quantity);
     if (onProceedToCheckout) {
       onProceedToCheckout();
     }
@@ -239,12 +278,6 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                 />
               </button>
             )}
-
-            {/* Quality Badge */}
-            <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[11px] font-category font-semibold uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-              <Sparkles className="h-3 w-3 text-amber-300" />
-              <span>100% Original Designer Edition</span>
-            </div>
           </div>
         </div>
 
@@ -252,7 +285,9 @@ export const ProductPage: React.FC<ProductPageProps> = ({
         <div className="lg:col-span-5 space-y-6">
           <div>
             <span className="font-category text-xs uppercase tracking-[0.25em] text-stone-400 font-semibold block mb-2">
-              {product.category} {product.subcategory ? `• ${product.subcategory}` : ''}
+              {product.category.toLowerCase().includes('decor') || product.category.toLowerCase().includes('home')
+                ? 'Home Decor'
+                : "Women's Wear"}
             </span>
 
             <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 leading-tight mb-3">
@@ -261,11 +296,10 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 
             {/* Price & Rating Row */}
             <div className="flex items-center justify-between pb-4 border-b border-stone-200/80">
-              <div className="space-y-0.5">
-                <span className="font-heading text-2xl sm:text-3xl font-extrabold text-neutral-900 tabular-nums">
+              <div>
+                <span className="font-sans font-normal text-2xl sm:text-3xl text-stone-900 tabular-nums">
                   {formatBDT(product.price)}
                 </span>
-                <p className="text-[11px] text-stone-500 font-category">Taxes and import duties included</p>
               </div>
 
               {/* Star Rating Badge */}
@@ -277,28 +311,129 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             </div>
           </div>
 
-          {/* Description */}
-          <div className="space-y-3 font-paragraph text-sm text-stone-700 leading-relaxed">
-            <p>{product.description}</p>
-            {product.details && <p className="text-xs text-stone-600 bg-stone-50 p-3.5 rounded-xl border border-stone-200/70">{product.details}</p>}
+          {/* Description Accordion with + / - expansion */}
+          <div className="border-b border-stone-200/70 pb-3">
+            <button
+              type="button"
+              onClick={() => setIsDescOpen(!isDescOpen)}
+              className="w-full flex items-center justify-between py-2 text-left text-xs uppercase tracking-wider font-bold text-neutral-900 hover:text-stone-600 transition-colors cursor-pointer select-none"
+            >
+              <span>Description</span>
+              <span className="text-stone-500 font-normal text-base">
+                {isDescOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              </span>
+            </button>
+            {isDescOpen && (
+              <div className="pt-2 pb-2 text-xs sm:text-sm text-stone-600 leading-relaxed space-y-2 animate-in fade-in duration-150">
+                <p>{product.description}</p>
+                {product.details && product.details !== product.description && (
+                  <p className="text-stone-500 text-xs bg-stone-50 p-3 rounded-xl border border-stone-200/70">
+                    {product.details}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Product Specifications / Attributes */}
-          {product.specs && product.specs.length > 0 && (
-            <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs space-y-2 font-category">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">
-                Fabric & Piece Specifications
+          {/* Specifications Accordion with + / - expansion */}
+          <div className="border-b border-stone-200/70 pb-3">
+            <button
+              type="button"
+              onClick={() => setIsSpecsOpen(!isSpecsOpen)}
+              className="w-full flex items-center justify-between py-2 text-left text-xs uppercase tracking-wider font-bold text-neutral-900 hover:text-stone-600 transition-colors cursor-pointer select-none"
+            >
+              <span>Specifications</span>
+              <span className="text-stone-500 font-normal text-base">
+                {isSpecsOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {product.specs.map((sp, idx) => (
-                  <div key={idx} className="flex items-center justify-between bg-stone-50 p-2 rounded-lg border border-stone-100">
-                    <span className="text-stone-500">{sp.label}</span>
-                    <span className="font-semibold text-neutral-900">{sp.value}</span>
+            </button>
+            {isSpecsOpen && (
+              <div className="pt-2 pb-2 space-y-2 text-xs animate-in fade-in duration-150">
+                {/* Available Colours in Specifications */}
+                <div className="flex justify-between py-2 px-3 bg-stone-50 rounded-lg">
+                  <dt className="text-stone-500 font-medium">Available Colours</dt>
+                  <dd className="text-neutral-900 font-semibold">{availableColours.join(', ')}</dd>
+                </div>
+
+                {/* Available Sizes in Specifications */}
+                <div className="flex justify-between py-2 px-3 bg-stone-50 rounded-lg">
+                  <dt className="text-stone-500 font-medium">Available Sizes</dt>
+                  <dd className="text-neutral-900 font-semibold">{availableSizes.join(', ')}</dd>
+                </div>
+
+                {/* Custom Specs */}
+                {product.specs && product.specs.map((spec, i) => (
+                  <div key={i} className="flex justify-between py-2 px-3 bg-stone-50 rounded-lg">
+                    <dt className="text-stone-500 font-medium">{spec.label}</dt>
+                    <dd className="text-neutral-900 font-semibold">{spec.value}</dd>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Colour and Size Selection Options */}
+          <div className="space-y-4 pt-1">
+            {/* Colour Selection */}
+            {availableColours.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-neutral-900">
+                    Select Colour
+                  </span>
+                  <span className="text-xs text-stone-500 font-medium">
+                    {selectedColour || availableColours[0]}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableColours.map((col, cIdx) => (
+                    <button
+                      key={cIdx}
+                      type="button"
+                      onClick={() => setSelectedColour(col)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                        selectedColour === col
+                          ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                          : 'bg-stone-50 text-neutral-800 border-stone-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      {col}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Size Selection */}
+            {availableSizes.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-neutral-900">
+                    Select Size
+                  </span>
+                  <span className="text-xs text-stone-500 font-medium">
+                    {selectedSize || availableSizes[0]}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {availableSizes.map((sz, sIdx) => (
+                    <button
+                      key={sIdx}
+                      type="button"
+                      onClick={() => setSelectedSize(sz)}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                        selectedSize === sz
+                          ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
+                          : 'bg-stone-50 text-neutral-800 border-stone-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      {sz}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Quantity Selector & Action Buttons */}
           <div className="space-y-3 pt-2">
