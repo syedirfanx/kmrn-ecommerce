@@ -7,7 +7,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Global helper functions
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -23,12 +23,11 @@ service cloud.firestore {
       );
     }
 
-    // Products catalog & product reviews
+    // Products catalog & customer reviews
     match /products/{productId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(productId);
 
-      // Customer reviews & ratings (user can post and delete own review)
       match /reviews/{reviewId} {
         allow get, list: if true;
         allow create: if isSignedIn() && isValidId(reviewId) && request.resource.data.userId == request.auth.uid;
@@ -36,29 +35,29 @@ service cloud.firestore {
       }
     }
 
-    // Categories and subcategories (up to 5 categories, up to 10 subcategories)
+    // Categories and subcategories
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(categoryId);
     }
 
-    // Site settings (featured homepage products, carousel banner slides, running news & offers)
+    // Site settings (announcements, banner ads, featured items)
     match /settings/{settingId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(settingId);
     }
 
-    // Customer inquiries / messages from contact form (visible, manageable & deletable across all admin devices)
+    // Customer inquiries / messages from contact form (live sync to Admin Portal)
     match /messages/{messageId} {
       allow get, list, create, update, delete: if true;
     }
 
-    // Central orders collection for guest checkouts & admin management (active & history)
+    // Central orders collection (live sync for checkout and Admin Portal across all devices)
     match /orders/{orderId} {
       allow get, list, create, update, delete: if true;
     }
 
-    // User private data: profile, cart, wishlist, orders (user can manage own; admin can update order status)
+    // User private data: profile, cart, wishlist, orders
     match /users/{userId}/{document=**} {
       allow get, list, create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
     }

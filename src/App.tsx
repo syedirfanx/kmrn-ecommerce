@@ -47,6 +47,7 @@ import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
 import { Toast } from './components/Toast';
 import { FeaturedBanner } from './components/FeaturedBanner';
+import { ProductPage } from './components/ProductPage';
 import { AdminPortal } from './components/AdminPortal';
 import { AuthModal } from './components/AuthModal';
 import { AccountPage } from './components/AccountPage';
@@ -55,7 +56,7 @@ import { ContactPage } from './components/ContactPage';
 import { Footer } from './components/Footer';
 
 type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'rating-desc';
-type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact';
+type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact' | 'product';
 
 const CART_STORAGE_KEY = 'maison_ecommerce_cart_v1';
 const WISHLIST_STORAGE_KEY = 'maison_ecommerce_wishlist_v1';
@@ -152,6 +153,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('featured');
   const [activeProduct, setActiveProduct] = useState<Product | null>(null);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
 
@@ -353,7 +355,7 @@ export default function App() {
       }
     });
 
-    const unsubOrders = subscribeUserOrders(currentUser.uid, (orderList) => {
+    const unsubOrders = subscribeUserOrders(currentUser.uid, currentUser.email, (orderList) => {
       setOrders(orderList);
     });
 
@@ -745,15 +747,60 @@ export default function App() {
   // Customer Storefront: Home Page or Dynamic Category Page
   return (
     <div className="min-h-screen bg-[#faf9f6] text-neutral-900 flex flex-col font-sans">
-      {/* Running News / Offers Bar */}
-      <AnnouncementBar
-        announcements={announcements}
-        onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
-      />
-
-      {/* Top Navbar & Home Hero Banner */}
+      {/* Top Navbar & Home Hero Banner (Fit to top on mobile/tablet and full screen on laptop) */}
       {currentPage === 'home' ? (
         <div className="relative w-full m-0 p-0 border-0 outline-none">
+          {/* Header Overlay: Announcement Bar at top, Navbar directly below it */}
+          <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto">
+            <AnnouncementBar
+              announcements={announcements}
+              onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+            />
+            <Navbar
+              cartCount={totalCartCount}
+              wishlistCount={wishlistProductIds.length}
+              categories={categories}
+              logoUrl={storeSettings.logoUrl}
+              onOpenCart={() => setIsCartOpen(true)}
+              onOpenAccount={(tab) => {
+                if (!currentUser) {
+                  setIsAuthModalOpen(true);
+                } else {
+                  setAccountInitialTab(tab || 'profile');
+                  navigateTo('account');
+                }
+              }}
+              onNavigateToHome={() => navigateTo('home')}
+              onNavigateToCategory={navigateToCategory}
+              onNavigateToAbout={() => navigateTo('about')}
+              onNavigateToContact={() => navigateTo('contact')}
+              currentPage={currentPage}
+              selectedCategory={selectedCategory}
+              currentUser={currentUser}
+              onLogin={() => setIsAuthModalOpen(true)}
+              onLogout={handleLogout}
+            />
+          </div>
+
+          <FeaturedBanner
+            slides={bannerSlides}
+            products={products}
+            onAddToCart={(p) => handleAddToCart(p, 1)}
+            onViewDetails={(p) => {
+              setActiveProduct(p);
+              navigateTo('product');
+            }}
+            onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+            onNavigateToCategory={navigateToCategory}
+            onNavigateToPage={navigateTo}
+          />
+        </div>
+      ) : (
+        <>
+          <AnnouncementBar
+            announcements={announcements}
+            onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+          />
           <Navbar
             cartCount={totalCartCount}
             wishlistCount={wishlistProductIds.length}
@@ -778,42 +825,7 @@ export default function App() {
             onLogin={() => setIsAuthModalOpen(true)}
             onLogout={handleLogout}
           />
-
-          <FeaturedBanner
-            slides={bannerSlides}
-            products={products}
-            onAddToCart={(p) => handleAddToCart(p, 1)}
-            onViewDetails={(p) => setActiveProduct(p)}
-            onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
-            onNavigateToCategory={navigateToCategory}
-            onNavigateToPage={navigateTo}
-          />
-        </div>
-      ) : (
-        <Navbar
-          cartCount={totalCartCount}
-          wishlistCount={wishlistProductIds.length}
-          categories={categories}
-          logoUrl={storeSettings.logoUrl}
-          onOpenCart={() => setIsCartOpen(true)}
-          onOpenAccount={(tab) => {
-            if (!currentUser) {
-              setIsAuthModalOpen(true);
-            } else {
-              setAccountInitialTab(tab || 'profile');
-              navigateTo('account');
-            }
-          }}
-          onNavigateToHome={() => navigateTo('home')}
-          onNavigateToCategory={navigateToCategory}
-          onNavigateToAbout={() => navigateTo('about')}
-          onNavigateToContact={() => navigateTo('contact')}
-          currentPage={currentPage}
-          selectedCategory={selectedCategory}
-          currentUser={currentUser}
-          onLogin={() => setIsAuthModalOpen(true)}
-          onLogout={handleLogout}
-        />
+        </>
       )}
 
       {/* Main Content Container */}
@@ -836,7 +848,11 @@ export default function App() {
                       key={product.id}
                       product={product}
                       onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
-                      onViewDetails={(p) => setActiveProduct(p)}
+                      onViewDetails={(p) => {
+                        setActiveProduct(p);
+                        navigateTo('product');
+                      }}
+                      onQuickView={(p) => setQuickViewProduct(p)}
                       isWishlisted={wishlistProductIds.includes(product.id)}
                       onToggleWishlist={handleToggleWishlist}
                     />
@@ -1040,7 +1056,11 @@ export default function App() {
                     key={product.id}
                     product={product}
                     onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
-                    onViewDetails={(p) => setActiveProduct(p)}
+                    onViewDetails={(p) => {
+                      setActiveProduct(p);
+                      navigateTo('product');
+                    }}
+                    onQuickView={(p) => setQuickViewProduct(p)}
                     isWishlisted={wishlistProductIds.includes(product.id)}
                     onToggleWishlist={handleToggleWishlist}
                   />
@@ -1066,6 +1086,27 @@ export default function App() {
               </div>
             )}
           </div>
+        )}
+
+        {/* VIEW 3: Dedicated Product Detail Page */}
+        {currentPage === 'product' && activeProduct && (
+          <ProductPage
+            product={activeProduct}
+            allProducts={products}
+            currentUser={currentUser}
+            onAddToCart={(p, q) => handleAddToCart(p, q)}
+            onProceedToCheckout={() => setIsCheckoutOpen(true)}
+            isWishlisted={wishlistProductIds.includes(activeProduct.id)}
+            onToggleWishlist={handleToggleWishlist}
+            onNavigateToHome={() => navigateTo('home')}
+            onNavigateToCategory={navigateToCategory}
+            onSelectProduct={(p) => {
+              setActiveProduct(p);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            onOpenQuickView={(p) => setQuickViewProduct(p)}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+          />
         )}
       </main>
 
@@ -1098,13 +1139,13 @@ export default function App() {
         onOrderComplete={handleOrderComplete}
       />
 
-      {/* Detailed Product Modal */}
+      {/* Quick View Product Modal */}
       <ProductModal
-        product={activeProduct}
+        product={quickViewProduct}
         currentUser={currentUser}
-        onClose={() => setActiveProduct(null)}
+        onClose={() => setQuickViewProduct(null)}
         onAddToCart={handleAddToCart}
-        isWishlisted={activeProduct ? wishlistProductIds.includes(activeProduct.id) : false}
+        isWishlisted={quickViewProduct ? wishlistProductIds.includes(quickViewProduct.id) : false}
         onToggleWishlist={handleToggleWishlist}
         onOpenAuth={() => setIsAuthModalOpen(true)}
       />

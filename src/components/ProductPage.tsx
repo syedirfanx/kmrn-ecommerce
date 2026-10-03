@@ -1,0 +1,592 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Star,
+  Plus,
+  Minus,
+  ShoppingBag,
+  Heart,
+  Check,
+  ArrowLeft,
+  ShieldCheck,
+  Truck,
+  RotateCcw,
+  Sparkles,
+  Trash2,
+  AlertCircle
+} from 'lucide-react';
+import { User } from 'firebase/auth';
+import { Product, ProductReview } from '../types';
+import { formatBDT } from '../utils/format';
+import {
+  subscribeProductReviews,
+  saveProductReviewToDb,
+  deleteProductReviewFromDb
+} from '../services/storeService';
+import { ProductCard } from './ProductCard';
+
+interface ProductPageProps {
+  product: Product;
+  allProducts: Product[];
+  currentUser: User | null;
+  onAddToCart: (product: Product, quantity: number) => void;
+  onProceedToCheckout?: () => void;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (productId: string) => void;
+  onNavigateToHome: () => void;
+  onNavigateToCategory: (categoryName: string) => void;
+  onSelectProduct: (product: Product) => void;
+  onOpenQuickView: (product: Product) => void;
+  onOpenAuth: () => void;
+}
+
+const PREBUILT_COMMENTS = [
+  'Outstanding craftsmanship and 100% authentic designer quality.',
+  'Fast delivery, fabric and embroidery exactly as shown.',
+  'Exceeded my expectations, beautiful rich colours and luxury feel.',
+  'Very comfortable, elegant silhouette and premium stitching.'
+];
+
+export const ProductPage: React.FC<ProductPageProps> = ({
+  product,
+  allProducts,
+  currentUser,
+  onAddToCart,
+  onProceedToCheckout,
+  isWishlisted = false,
+  onToggleWishlist,
+  onNavigateToHome,
+  onNavigateToCategory,
+  onSelectProduct,
+  onOpenQuickView,
+  onOpenAuth
+}) => {
+  const [selectedImage, setSelectedImage] = useState<string>(product.image);
+  const [quantity, setQuantity] = useState<number>(1);
+  const [justAdded, setJustAdded] = useState<boolean>(false);
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
+
+  // Review Form State
+  const [newRating, setNewRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [newComment, setNewComment] = useState<string>('');
+  const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
+  const [reviewNotice, setReviewNotice] = useState<string>('');
+  const [reviewError, setReviewError] = useState<string>('');
+
+  const allImages = React.useMemo(() => {
+    const list = [product.image];
+    if (product.additionalImages && product.additionalImages.length > 0) {
+      product.additionalImages.forEach((img) => {
+        if (!list.includes(img)) list.push(img);
+      });
+    }
+    return list;
+  }, [product]);
+
+  useEffect(() => {
+    setSelectedImage(product.image);
+    setQuantity(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [product]);
+
+  // Subscribe to real-time reviews
+  useEffect(() => {
+    if (!product?.id) return;
+    const unsubscribe = subscribeProductReviews(product.id, (revs) => {
+      setReviews(revs);
+    });
+    return () => unsubscribe();
+  }, [product?.id]);
+
+  const handleAdd = () => {
+    onAddToCart(product, quantity);
+    setJustAdded(true);
+    setTimeout(() => setJustAdded(false), 1500);
+  };
+
+  const handleBuyNow = () => {
+    onAddToCart(product, quantity);
+    if (onProceedToCheckout) {
+      onProceedToCheckout();
+    }
+  };
+
+  const handleAddReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setReviewNotice('');
+    setReviewError('');
+
+    if (!currentUser) {
+      onOpenAuth();
+      return;
+    }
+
+    if (!newComment.trim()) {
+      setReviewError('Please write your review comment before submitting.');
+      return;
+    }
+
+    setIsSubmittingReview(true);
+    const newRev: ProductReview = {
+      id: `rev-${Date.now()}`,
+      productId: product.id,
+      userId: currentUser.uid,
+      userName: currentUser.displayName || currentUser.email?.split('@')[0] || 'Verified Customer',
+      rating: newRating,
+      comment: newComment.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    const res = await saveProductReviewToDb(product.id, newRev);
+    setIsSubmittingReview(false);
+
+    if (res.success) {
+      setNewComment('');
+      setReviewNotice('Thank you! Your verified review has been published.');
+      setTimeout(() => setReviewNotice(''), 4000);
+    } else {
+      setReviewError(res.error || 'Failed to submit review.');
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    await deleteProductReviewFromDb(product.id, reviewId);
+  };
+
+  const relatedProducts = allProducts
+    .filter((p) => p.category === product.category && p.id !== product.id)
+    .slice(0, 4);
+
+  const averageRating =
+    reviews.length > 0
+      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+      : (product.rating || 5).toFixed(1);
+
+  return (
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-12 animate-in fade-in duration-300">
+      {/* Breadcrumb Navigation */}
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-category text-stone-500">
+        <button
+          type="button"
+          onClick={onNavigateToHome}
+          className="hover:text-neutral-900 transition-colors cursor-pointer"
+        >
+          Home
+        </button>
+        <span>/</span>
+        <button
+          type="button"
+          onClick={() => onNavigateToCategory(product.category)}
+          className="hover:text-neutral-900 transition-colors cursor-pointer"
+        >
+          {product.category}
+        </button>
+        <span>/</span>
+        <span className="text-neutral-900 font-semibold truncate max-w-[200px] sm:max-w-md">
+          {product.name}
+        </span>
+      </nav>
+
+      {/* Main Product Showcase Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+        {/* Left Column: Gallery */}
+        <div className="lg:col-span-7 flex flex-col-reverse sm:flex-row gap-4">
+          {/* Thumbnails list */}
+          {allImages.length > 1 && (
+            <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto max-h-[580px] pb-2 sm:pb-0 scrollbar-none shrink-0">
+              {allImages.map((img, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setSelectedImage(img)}
+                  className={`relative w-16 sm:w-20 aspect-[3/4] rounded-xl overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
+                    selectedImage === img
+                      ? 'border-neutral-900 shadow-md scale-95'
+                      : 'border-transparent opacity-75 hover:opacity-100'
+                  }`}
+                >
+                  <img
+                    src={img}
+                    alt={`${product.name} thumbnail ${i + 1}`}
+                    className="w-full h-full object-cover object-center"
+                    loading="lazy"
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Main Hero Photo */}
+          <div className="relative flex-1 aspect-[3/4] bg-stone-100 rounded-3xl overflow-hidden shadow-lg border border-stone-200/80 group">
+            <img
+              src={selectedImage}
+              alt={product.name}
+              className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"
+            />
+
+            {/* Wishlist Floating Button */}
+            {onToggleWishlist && (
+              <button
+                type="button"
+                onClick={() => onToggleWishlist(product.id)}
+                className="absolute top-4 right-4 p-3 rounded-full bg-white/90 hover:bg-white text-stone-700 shadow-md backdrop-blur-xs transition-transform active:scale-90 cursor-pointer z-10"
+                aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+              >
+                <Heart
+                  className={`h-5 w-5 ${
+                    isWishlisted ? 'fill-red-500 text-red-500' : 'text-stone-700 hover:text-neutral-900'
+                  }`}
+                />
+              </button>
+            )}
+
+            {/* Quality Badge */}
+            <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-full text-[11px] font-category font-semibold uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+              <Sparkles className="h-3 w-3 text-amber-300" />
+              <span>100% Original Designer Edition</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Column: Product Information & Purchase Actions */}
+        <div className="lg:col-span-5 space-y-6">
+          <div>
+            <span className="font-category text-xs uppercase tracking-[0.25em] text-stone-400 font-semibold block mb-2">
+              {product.category} {product.subcategory ? `• ${product.subcategory}` : ''}
+            </span>
+
+            <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 leading-tight mb-3">
+              {product.name}
+            </h1>
+
+            {/* Price & Rating Row */}
+            <div className="flex items-center justify-between pb-4 border-b border-stone-200/80">
+              <div className="space-y-0.5">
+                <span className="font-heading text-2xl sm:text-3xl font-extrabold text-neutral-900 tabular-nums">
+                  {formatBDT(product.price)}
+                </span>
+                <p className="text-[11px] text-stone-500 font-category">Taxes and import duties included</p>
+              </div>
+
+              {/* Star Rating Badge */}
+              <div className="flex items-center gap-1.5 bg-stone-100 px-3 py-1.5 rounded-xl border border-stone-200">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="font-bold text-xs text-neutral-900 tabular-nums">{averageRating}</span>
+                <span className="text-[11px] text-stone-500 font-medium">({reviews.length} reviews)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-3 font-paragraph text-sm text-stone-700 leading-relaxed">
+            <p>{product.description}</p>
+            {product.details && <p className="text-xs text-stone-600 bg-stone-50 p-3.5 rounded-xl border border-stone-200/70">{product.details}</p>}
+          </div>
+
+          {/* Product Specifications / Attributes */}
+          {product.specs && product.specs.length > 0 && (
+            <div className="bg-white rounded-2xl p-4 border border-stone-200 shadow-2xs space-y-2 font-category">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400 block mb-1">
+                Fabric & Piece Specifications
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {product.specs.map((sp, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-stone-50 p-2 rounded-lg border border-stone-100">
+                    <span className="text-stone-500">{sp.label}</span>
+                    <span className="font-semibold text-neutral-900">{sp.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Quantity Selector & Action Buttons */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-4">
+              <span className="text-xs font-category font-bold text-stone-700">Quantity</span>
+              <div className="flex items-center bg-stone-100 rounded-xl p-1 border border-stone-200">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                  className="w-8 h-8 flex items-center justify-center text-stone-600 hover:text-neutral-900 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                  aria-label="Decrease quantity"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="w-8 text-center text-xs font-bold text-neutral-900 tabular-nums select-none">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((q) => q + 1)}
+                  className="w-8 h-8 flex items-center justify-center text-stone-600 hover:text-neutral-900 rounded-lg hover:bg-white transition-colors cursor-pointer"
+                  aria-label="Increase quantity"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="w-full py-3.5 px-6 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer"
+              >
+                {justAdded ? (
+                  <>
+                    <Check className="h-4 w-4 text-emerald-400" />
+                    <span>Added to Bag</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingBag className="h-4 w-4" />
+                    <span>Add to Bag</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                className="w-full py-3.5 px-6 rounded-2xl bg-stone-200 hover:bg-stone-300 text-neutral-900 font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+              >
+                <span>Buy Now</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Trust Guarantees */}
+          <div className="grid grid-cols-3 gap-3 pt-4 border-t border-stone-200/80 text-center font-category">
+            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 flex flex-col items-center">
+              <ShieldCheck className="h-5 w-5 text-amber-600 mb-1" />
+              <span className="text-[11px] font-bold text-neutral-900">100% Original</span>
+              <span className="text-[10px] text-stone-500">Designer Brand</span>
+            </div>
+            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 flex flex-col items-center">
+              <Truck className="h-5 w-5 text-neutral-900 mb-1" />
+              <span className="text-[11px] font-bold text-neutral-900">Express Shipping</span>
+              <span className="text-[10px] text-stone-500">Fast Doorstep</span>
+            </div>
+            <div className="p-3 bg-stone-50 rounded-2xl border border-stone-100 flex flex-col items-center">
+              <RotateCcw className="h-5 w-5 text-neutral-900 mb-1" />
+              <span className="text-[11px] font-bold text-neutral-900">Support</span>
+              <span className="text-[10px] text-stone-500">Direct Helpline</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Customer Reviews & Feedback Section */}
+      <section aria-label="Customer Reviews" className="pt-8 border-t border-stone-200/80 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="font-heading text-2xl font-bold text-neutral-900">Customer Reviews</h2>
+            <p className="font-paragraph text-xs text-stone-500">
+              Verified feedback from discerning customers who purchased this piece.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 bg-stone-100 px-4 py-2 rounded-2xl border border-stone-200">
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star
+                  key={s}
+                  className={`h-4 w-4 ${
+                    s <= Math.round(Number(averageRating))
+                      ? 'fill-amber-400 text-amber-400'
+                      : 'fill-stone-300 text-stone-300'
+                  }`}
+                />
+              ))}
+            </div>
+            <span className="font-heading font-extrabold text-sm text-neutral-900 tabular-nums">
+              {averageRating} / 5.0
+            </span>
+          </div>
+        </div>
+
+        {/* Submit Review Box */}
+        <div className="bg-white rounded-3xl p-6 border border-stone-200 shadow-sm space-y-4">
+          <h3 className="font-heading text-lg font-bold text-neutral-900">Write a Review</h3>
+
+          {currentUser ? (
+            <form onSubmit={handleAddReview} className="space-y-4">
+              <div>
+                <label className="block text-xs font-category font-bold text-stone-700 mb-1">
+                  Your Rating
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      onClick={() => setNewRating(star)}
+                      className="p-1 cursor-pointer transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`h-6 w-6 ${
+                          star <= (hoverRating || newRating)
+                            ? 'fill-amber-400 text-amber-400'
+                            : 'fill-stone-200 text-stone-300'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  <span className="text-xs font-category font-semibold text-stone-600 ml-2">
+                    {newRating} Star{newRating > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Prompt Ideas */}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {PREBUILT_COMMENTS.map((comm, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setNewComment(comm)}
+                    className="text-[11px] font-category bg-stone-100 hover:bg-stone-200 text-stone-700 px-3 py-1 rounded-full transition-colors cursor-pointer"
+                  >
+                    "{comm}"
+                  </button>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-category font-bold text-stone-700 mb-1">
+                  Your Comments
+                </label>
+                <textarea
+                  rows={3}
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Share details regarding fabric quality, fit, embroidery, or delivery experience..."
+                  className="w-full bg-stone-50 border border-stone-300 rounded-2xl p-3 text-xs font-paragraph text-neutral-900 focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              {reviewError && (
+                <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{reviewError}</span>
+                </div>
+              )}
+
+              {reviewNotice && (
+                <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
+                  <Check className="h-4 w-4 shrink-0" />
+                  <span>{reviewNotice}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmittingReview}
+                className="px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white rounded-xl font-category font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
+              >
+                {isSubmittingReview ? 'Submitting...' : 'Post Review'}
+              </button>
+            </form>
+          ) : (
+            <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 flex items-center justify-between">
+              <span className="text-xs font-paragraph text-stone-600">
+                Please sign in to share your verified customer review.
+              </span>
+              <button
+                type="button"
+                onClick={onOpenAuth}
+                className="px-4 py-2 bg-neutral-900 text-white rounded-xl text-xs font-category font-bold tracking-wider uppercase cursor-pointer"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Existing Reviews List */}
+        {reviews.length === 0 ? (
+          <p className="text-xs text-stone-400 italic p-6 bg-stone-50 rounded-2xl text-center">
+            No reviews submitted yet. Be the first to review this product!
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {reviews.map((rev) => (
+              <div
+                key={rev.id}
+                className="p-4 bg-white rounded-2xl border border-stone-200/80 shadow-2xs space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-heading font-bold text-sm text-neutral-900">{rev.userName}</span>
+                    <span className="text-[11px] text-stone-400 font-category">
+                      {new Date(rev.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-3 w-3 ${
+                            s <= rev.rating ? 'fill-amber-400 text-amber-400' : 'fill-stone-200 text-stone-200'
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    {currentUser && currentUser.uid === rev.userId && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteReview(rev.id)}
+                        className="p-1 text-stone-400 hover:text-red-600 rounded cursor-pointer"
+                        title="Delete your review"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <p className="font-paragraph text-xs text-stone-700 leading-relaxed">{rev.comment}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Related Products Carousel / Grid */}
+      {relatedProducts.length > 0 && (
+        <section aria-label="Related Products" className="pt-8 border-t border-stone-200/80 space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-2xl font-bold text-neutral-900">You May Also Admire</h2>
+            <button
+              type="button"
+              onClick={() => onNavigateToCategory(product.category)}
+              className="font-category text-xs font-bold uppercase tracking-wider text-stone-600 hover:text-neutral-900 underline cursor-pointer"
+            >
+              View More
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+            {relatedProducts.map((rel) => (
+              <ProductCard
+                key={rel.id}
+                product={rel}
+                onAddToCart={(p, q) => onAddToCart(p, q)}
+                onViewDetails={(p) => onSelectProduct(p)}
+                onQuickView={(p) => onOpenQuickView(p)}
+                isWishlisted={isWishlisted}
+                onToggleWishlist={onToggleWishlist}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};

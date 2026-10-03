@@ -42,7 +42,7 @@ export const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
     id: 'banner-slide-1',
     type: 'product',
     productId: 'prod-pw-1',
-    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1600&q=80',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=2560&q=95',
     title: 'Baroque Luxury Embroidered Chiffon 3-Piece',
     subtitle: '100% Original Pakistani Designer Collection with Hand-Embellished Zari'
   },
@@ -51,7 +51,7 @@ export const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
     type: 'custom',
     title: 'Home Decor & Luxury Bedding',
     subtitle: '1000 TC Egyptian Cotton Bedsheets & Quilted Velvet Comforters',
-    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1600&q=80',
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=2560&q=95',
     buttonText: 'Shop Home Decor',
     linkUrl: '#shop'
   },
@@ -59,7 +59,7 @@ export const DEFAULT_BANNER_SLIDES: BannerSlide[] = [
     id: 'banner-slide-3',
     type: 'product',
     productId: 'prod-hd-2',
-    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1600&q=80',
+    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=2560&q=95',
     title: 'Royal Velvet Quilted Winter Comforter Set',
     subtitle: 'Plush Velvet Quilting with 400 GSM Down-Alternative Loft'
   }
@@ -525,44 +525,50 @@ export const saveUserOrderToDb = async (
 
 export const subscribeUserOrders = (
   userId: string,
-  onUpdate: (orders: OrderConfirmation[]) => void
+  userEmailOrOnUpdate: string | null | undefined | ((orders: OrderConfirmation[]) => void),
+  optionalOnUpdate?: (orders: OrderConfirmation[]) => void
 ) => {
-  const path = `users/${userId}/orders`;
+  const userEmail = typeof userEmailOrOnUpdate === 'string' ? userEmailOrOnUpdate : undefined;
+  const onUpdate = typeof userEmailOrOnUpdate === 'function' ? userEmailOrOnUpdate : (optionalOnUpdate || (() => {}));
+
+  // Listen to the central orders collection filtered by userId and user email for real-time sync
+  const path = 'orders';
   return onSnapshot(
-    collection(db, 'users', userId, 'orders'),
+    collection(db, path),
     (snapshot) => {
-      const orders: OrderConfirmation[] = [];
+      const userOrders: OrderConfirmation[] = [];
+      const normalizedEmail = userEmail?.trim().toLowerCase();
+
       snapshot.forEach((d) => {
         const data = d.data();
-        orders.push({
-          orderId: d.id,
-          customerName: data.customerName || '',
-          email: data.email || '',
-          phone: data.phone || '',
-          street: data.street || '',
-          city: data.city || '',
-          country: data.country || 'Bangladesh',
-          shippingAddress: data.shippingAddress || '',
-          items: Array.isArray(data.items)
-            ? data.items.map((i: CartItem) => ({
-                quantity: Number(i.quantity) || 1,
-                product: i.product || { id: 'unknown', name: 'Product', price: 0, image: '', category: '' }
-              }))
-            : [],
-          subtotal: Number(data.subtotal) || 0,
-          shipping: Number(data.shipping) || 0,
-          total: Number(data.total) || 0,
-          status: data.status || 'Processing',
-          paymentMethod: data.paymentMethod || 'Cash on Delivery',
-          userId: data.userId,
-          isGuest: Boolean(data.isGuest),
-          customerType: data.customerType || (data.userId ? 'Registered Account' : 'Guest Checkout'),
-          placedAt: data.placedAt || new Date().toISOString()
-        } as OrderConfirmation);
+        const matchesUser = data.userId === userId || d.id === userId;
+        const matchesEmail = normalizedEmail && data.email && String(data.email).trim().toLowerCase() === normalizedEmail;
+
+        if (matchesUser || matchesEmail) {
+          userOrders.push(sanitizeOrder(d));
+        }
       });
+
+      // Also check local storage for newly placed orders
+      let localOrders: OrderConfirmation[] = [];
+      try {
+        localOrders = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      } catch {
+        // fallback
+      }
+
+      // Merge local orders belonging to this user
+      localOrders
+        .filter(
+          (lo) =>
+            (lo.userId === userId || (normalizedEmail && lo.email?.trim().toLowerCase() === normalizedEmail)) &&
+            !userOrders.some((uo) => uo.orderId === lo.orderId)
+        )
+        .forEach((lo) => userOrders.push(lo));
+
       onUpdate(
-        orders.sort(
-          (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime()
+        userOrders.sort(
+          (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
         )
       );
     },
@@ -715,7 +721,21 @@ export const updateOrderStatusInDb = async (
 ): Promise<DbResult> => {
   try {
     const adminDocRef = doc(db, 'orders', orderId);
-    // Use setDoc with merge: true so it succeeds even if the document was newly created or offline
+
+    // If userId not provided, inspect existing order doc
+    let effectiveUserId = userId;
+    if (!effectiveUserId) {
+      try {
+        const snap = await getDoc(adminDocRef);
+        if (snap.exists()) {
+          effectiveUserId = snap.data()?.userId;
+        }
+      } catch {
+        // fallback
+      }
+    }
+
+    // Update central orders document
     await setDoc(adminDocRef, { status }, { merge: true });
 
     // Update local offline cache as well
@@ -727,10 +747,10 @@ export const updateOrderStatusInDb = async (
       // storage fallback
     }
 
-    // Only update user subcollection if valid non-empty registered user ID
-    if (userId && typeof userId === 'string' && userId.trim() !== '' && userId !== 'undefined' && userId !== 'null') {
+    // Update user subcollection if registered user ID is present
+    if (effectiveUserId && typeof effectiveUserId === 'string' && effectiveUserId.trim() !== '' && effectiveUserId !== 'undefined' && effectiveUserId !== 'null') {
       try {
-        const userDocRef = doc(db, 'users', userId, 'orders', orderId);
+        const userDocRef = doc(db, 'users', effectiveUserId, 'orders', orderId);
         await setDoc(userDocRef, { status }, { merge: true });
       } catch {
         // user order subdoc might not exist

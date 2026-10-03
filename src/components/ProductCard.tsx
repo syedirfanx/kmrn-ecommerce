@@ -7,6 +7,7 @@ interface ProductCardProps {
   product: Product;
   onAddToCart: (product: Product, quantity: number) => void;
   onViewDetails: (product: Product) => void;
+  onQuickView?: (product: Product) => void;
   isWishlisted?: boolean;
   onToggleWishlist?: (productId: string) => void;
 }
@@ -15,6 +16,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   onAddToCart,
   onViewDetails,
+  onQuickView,
   isWishlisted = false,
   onToggleWishlist
 }) => {
@@ -88,9 +90,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Quick View Hover Bar */}
-        <div className="absolute inset-x-0 bottom-0 py-2.5 bg-white/95 backdrop-blur-xs text-neutral-900 text-center text-[11px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity duration-200 hidden sm:block border-t border-stone-200/60">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onQuickView) {
+              onQuickView(product);
+            } else {
+              onViewDetails(product);
+            }
+          }}
+          className="absolute inset-x-0 bottom-0 py-2.5 bg-white/95 hover:bg-neutral-900 hover:text-white backdrop-blur-xs text-neutral-900 text-center text-[11px] font-category font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-all duration-200 hidden sm:block border-t border-stone-200/60 cursor-pointer"
+        >
           Quick View
-        </div>
+        </button>
       </div>
 
       {/* Content */}

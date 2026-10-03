@@ -53,6 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -125,8 +126,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             ? isScrolled
               ? 'fixed top-0 left-0 right-0 z-40 bg-white shadow-md text-neutral-900'
               : isHovered || isDrawerOpen
-                ? 'absolute top-0 left-0 right-0 z-30 bg-white shadow-md text-neutral-900'
-                : 'absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 via-black/30 to-transparent text-white shadow-none'
+                ? 'w-full bg-white shadow-md text-neutral-900'
+                : 'w-full bg-gradient-to-b from-black/80 via-black/30 to-transparent text-white shadow-none'
             : 'sticky top-0 z-40 bg-white shadow-xs text-neutral-900'
         }`}
       >
@@ -262,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         type="button"
                         onClick={() => {
                           setIsProfileMenuOpen(false);
-                          onLogout();
+                          setIsLogoutConfirmOpen(true);
                         }}
                         className="w-full px-4 py-2 text-left text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer"
                       >
@@ -391,7 +392,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsDrawerOpen(false);
                     onNavigateToHome();
                   }}
-                  className={`w-full text-left py-3 px-3 rounded-xl text-sm font-bold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                  className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
                     currentPage === 'home'
                       ? 'bg-neutral-900 text-white'
                       : 'text-neutral-900 hover:bg-stone-100'
@@ -401,50 +402,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ChevronRight className="h-4 w-4 opacity-60" />
                 </button>
 
-                {/* Category List */}
-                <div className="pt-2 pb-1 px-3 text-[11px] font-bold uppercase tracking-widest text-stone-400">
-                  Collections
-                </div>
-
+                {/* Clean Category Links without subcategories or Collections header */}
                 {categories.map((cat) => {
                   const isActive = currentPage === 'category' && selectedCategory === cat.name;
                   return (
-                    <div key={cat.id} className="space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={() => handleCategoryClick(cat.name)}
-                        className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
-                          isActive
-                            ? 'bg-stone-100 text-neutral-900 font-extrabold'
-                            : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
-                        }`}
-                      >
-                        <span>{cat.name}</span>
-                        <ChevronRight className="h-3.5 w-3.5 text-stone-400" />
-                      </button>
-
-                      {/* Subcategories list */}
-                      {(cat.subcategories || []).length > 0 && (
-                        <div className="pl-4 pr-2 py-1 space-y-1 border-l border-stone-200/60 ml-3">
-                          {cat.subcategories?.map((sub, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => handleCategoryClick(cat.name)}
-                              className="block w-full text-left text-[11px] text-stone-500 hover:text-neutral-900 py-1 transition-colors"
-                            >
-                              {sub}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => handleCategoryClick(cat.name)}
+                      className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                        isActive
+                          ? 'bg-stone-100 text-neutral-900 font-extrabold'
+                          : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
+                      }`}
+                    >
+                      <span>{cat.name}</span>
+                      <ChevronRight className="h-3.5 w-3.5 text-stone-400" />
+                    </button>
                   );
                 })}
-
-                <div className="pt-4 pb-1 px-3 text-[11px] font-bold uppercase tracking-widest text-stone-400">
-                  Information
-                </div>
 
                 <button
                   type="button"
@@ -452,7 +428,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsDrawerOpen(false);
                     onNavigateToAbout();
                   }}
-                  className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                  className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
                     currentPage === 'about'
                       ? 'bg-stone-100 text-neutral-900 font-bold'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
@@ -468,7 +444,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsDrawerOpen(false);
                     onNavigateToContact();
                   }}
-                  className={`w-full text-left py-2.5 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                  className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
                     currentPage === 'contact'
                       ? 'bg-stone-100 text-neutral-900 font-bold'
                       : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
@@ -492,9 +468,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                     type="button"
                     onClick={() => {
                       setIsDrawerOpen(false);
-                      onLogout();
+                      setIsLogoutConfirmOpen(true);
                     }}
-                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0"
+                    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors shrink-0 cursor-pointer"
                     title="Sign Out"
                   >
                     <LogOut className="h-4 w-4" />
@@ -507,13 +483,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsDrawerOpen(false);
                     onLogin();
                   }}
-                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-xs"
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs uppercase tracking-wider py-2.5 px-4 rounded-xl transition-all shadow-xs cursor-pointer"
                 >
                   Sign In
                 </button>
               )}
             </div>
           </aside>
+        </div>
+      )}
+
+      {/* Logout Confirmation Pop-up Modal */}
+      {isLogoutConfirmOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-stone-200 animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="font-heading text-lg font-bold text-neutral-900 mb-2">
+              Sign Out
+            </h3>
+            <p className="font-paragraph text-sm text-stone-600 mb-6 leading-relaxed">
+              Are you sure you want to sign out of your account?
+            </p>
+            <div className="flex items-center justify-end gap-3 font-category">
+              <button
+                type="button"
+                onClick={() => setIsLogoutConfirmOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogoutConfirmOpen(false);
+                  onLogout();
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition-colors cursor-pointer shadow-xs"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

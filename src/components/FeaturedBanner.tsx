@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Product, BannerSlide } from '../types';
 import { formatBDT } from '../utils/format';
 
@@ -24,6 +23,11 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
+  const startXRef = useRef<number>(0);
+  const currentXRef = useRef<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Normalize slides
   const activeSlides = React.useMemo(() => {
@@ -43,20 +47,16 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
     return [];
   }, [slides, products]);
 
+  // Auto-play timer (slides smoothly every 6s when not dragging or paused)
   useEffect(() => {
-    if (isPaused || activeSlides.length < 2) return;
+    if (isPaused || isDragging || activeSlides.length < 2) return;
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
     }, 6000);
     return () => clearInterval(interval);
-  }, [isPaused, activeSlides.length]);
+  }, [isPaused, isDragging, activeSlides.length]);
 
   if (activeSlides.length === 0) return null;
-
-  const currentSlide = activeSlides[currentIndex] || activeSlides[0];
-  const linkedProduct = currentSlide.type === 'product' && currentSlide.productId
-    ? products.find((p) => p.id === currentSlide.productId)
-    : null;
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev === 0 ? activeSlides.length - 1 : prev - 1));
@@ -66,167 +66,261 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
     setCurrentIndex((prev) => (prev + 1) % activeSlides.length);
   };
 
+  // Touch Swipe Handlers (Mobile & Tablet)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsDragging(true);
+    setIsPaused(true);
+    startXRef.current = e.touches[0].clientX;
+    currentXRef.current = e.touches[0].clientX;
+    setDragOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDragging) return;
+    currentXRef.current = e.touches[0].clientX;
+    const delta = currentXRef.current - startXRef.current;
+    setDragOffset(delta);
+  };
+
+  const handleTouchEnd = () => {
+    if (!isDragging) return;
+    const delta = currentXRef.current - startXRef.current;
+    if (delta < -45) {
+      handleNext();
+    } else if (delta > 45) {
+      handlePrev();
+    }
+    setDragOffset(0);
+    setIsDragging(false);
+    setTimeout(() => setIsPaused(false), 2000);
+  };
+
+  // Mouse Drag / Cursor Hold Handlers (Desktop & Laptop)
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Only drag on left click and avoid dragging if clicking buttons/links
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a')) return;
+
+    setIsDragging(true);
+    setIsPaused(true);
+    startXRef.current = e.clientX;
+    currentXRef.current = e.clientX;
+    setDragOffset(0);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    currentXRef.current = e.clientX;
+    const delta = currentXRef.current - startXRef.current;
+    // Bound drag offset
+    setDragOffset(Math.max(-250, Math.min(250, delta)));
+  };
+
+  const handleMouseUp = () => {
+    if (!isDragging) return;
+    const delta = currentXRef.current - startXRef.current;
+    if (delta < -50) {
+      handleNext();
+    } else if (delta > 50) {
+      handlePrev();
+    }
+    setDragOffset(0);
+    setIsDragging(false);
+    setTimeout(() => setIsPaused(false), 2000);
+  };
+
+  const handleMouseLeave = () => {
+    if (isDragging) {
+      handleMouseUp();
+    }
+    setIsPaused(false);
+  };
+
+  const handleSlideAction = (slide: BannerSlide) => {
+    if (slide.type === 'product' && slide.productId) {
+      const prod = products.find((p) => p.id === slide.productId);
+      if (prod) {
+        onViewDetails(prod);
+        return;
+      }
+    }
+    const url = slide.linkUrl?.toLowerCase() || '';
+    if (url === 'about' || url === '#about') {
+      onNavigateToPage?.('about');
+      return;
+    }
+    if (url === 'contact' || url === '#contact') {
+      onNavigateToPage?.('contact');
+      return;
+    }
+    if (url === 'account' || url === '#account') {
+      onNavigateToPage?.('account');
+      return;
+    }
+    if (url.startsWith('#category:') || url.startsWith('category:')) {
+      const cat = slide.linkUrl?.split(':')[1]?.trim();
+      if (cat && onNavigateToCategory) {
+        onNavigateToCategory(cat);
+        return;
+      }
+    }
+    if (onNavigateToCategory && slide.linkUrl && slide.linkUrl !== '#shop') {
+      const clean = slide.linkUrl.replace('#', '');
+      onNavigateToCategory(clean);
+      return;
+    }
+    if (onNavigateToShop) {
+      onNavigateToShop();
+    }
+  };
+
   return (
     <section
       aria-label="Featured collection showcase"
-      className="relative w-full m-0 mb-8 bg-neutral-950 border-0 border-none outline-none"
+      className="relative w-full m-0 p-0 overflow-hidden bg-neutral-950 border-0 select-none"
       onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
+      onMouseLeave={handleMouseLeave}
     >
-      <div className="relative w-full overflow-hidden min-h-[70vh] sm:min-h-[82vh] lg:min-h-[88vh] flex flex-col justify-end sm:justify-center bg-neutral-950">
-        {/* Still Slide Background Container */}
-        <div className="absolute inset-0 z-0 overflow-hidden">
-          <img
-            src={currentSlide.image}
-            alt={currentSlide.title || 'Aniq Lifestyle Showcase'}
-            className="w-full h-full object-cover object-center brightness-[0.72]"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/95 via-neutral-950/50 to-neutral-950/20 sm:bg-gradient-to-r sm:from-neutral-950/90 sm:via-neutral-950/60 sm:to-transparent" />
-        </div>
+      {/* 
+        Full-Screen Hero Height:
+        Fits from the very top on mobile & tablet without gap.
+        Fits full screen on laptop/desktop like Roheenaz & Qalamkar: h-screen (100vh / 100svh).
+      */}
+      <div
+        ref={containerRef}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={`relative w-full h-[100svh] min-h-[580px] max-h-[1080px] overflow-hidden ${
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+      >
+        {/* Horizontal Carousel Track - Smooth Slide Go Left & Right */}
+        <div
+          className="flex h-full w-full will-change-transform"
+          style={{
+            transform: `translateX(calc(-${currentIndex * 100}% + ${dragOffset}px))`,
+            transition: isDragging ? 'none' : 'transform 550ms cubic-bezier(0.22, 1, 0.36, 1)'
+          }}
+        >
+          {activeSlides.map((slide, idx) => {
+            const linkedProduct =
+              slide.type === 'product' && slide.productId
+                ? products.find((p) => p.id === slide.productId)
+                : null;
 
-        {/* Bottom Center Toggle Controls */}
-        {activeSlides.length > 1 && (
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3">
-            <button
-              onClick={handlePrev}
-              aria-label="Previous slide"
-              className="p-2.5 rounded-full bg-black/40 hover:bg-black/80 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/20 shadow-md"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-
-            {/* Dash Indicators */}
-            <div className="flex items-center gap-1.5 px-1">
-              {activeSlides.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentIndex(idx)}
-                  aria-label={`Go to slide ${idx + 1}`}
-                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                    currentIndex === idx
-                      ? 'w-7 bg-white shadow-xs'
-                      : 'w-2 bg-white/40 hover:bg-white/70'
-                  }`}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={handleNext}
-              aria-label="Next slide"
-              className="p-2.5 rounded-full bg-black/40 hover:bg-black/80 text-white backdrop-blur-md transition-all active:scale-95 cursor-pointer border border-white/20 shadow-md"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Animated Content Overlay */}
-        <div key={`content-${currentSlide.id || currentIndex}`} className="relative z-10 p-6 sm:p-12 lg:p-16 pt-24 sm:pt-32 max-w-2xl text-white animate-fade-in-up">
-          {linkedProduct && (
-            <span className="text-xs uppercase tracking-widest text-stone-300 font-semibold block mb-2">
-              {linkedProduct.category}
-            </span>
-          )}
-
-          <h1 className="font-heading font-bold text-2xl sm:text-3xl lg:text-4xl leading-tight mb-2.5 text-white tracking-tight">
-            {currentSlide.title || linkedProduct?.name}
-          </h1>
-
-          <p className="text-xs sm:text-sm text-neutral-300 line-clamp-2 mb-5 font-normal leading-relaxed">
-            {currentSlide.subtitle || linkedProduct?.description}
-          </p>
-
-          {/* Action Row */}
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            {linkedProduct ? (
-              <>
-                <div className="mr-2">
-                  <span className="font-heading font-extrabold text-xl sm:text-2xl text-stone-100">
-                    {formatBDT(linkedProduct.price)}
-                  </span>
+            return (
+              <div
+                key={slide.id || idx}
+                className="relative w-full h-full shrink-0 flex flex-col justify-end sm:justify-center overflow-hidden"
+              >
+                {/* Full-Bleed Background Image */}
+                <div className="absolute inset-0 z-0 overflow-hidden">
+                  <img
+                    src={slide.image}
+                    alt={slide.title || 'Aniq Luxury Showcase'}
+                    className="w-full h-full object-cover object-center brightness-[0.78]"
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                    draggable={false}
+                  />
+                  {/* Subtle Luxury Scrim Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/40 to-neutral-950/15 sm:bg-gradient-to-r sm:from-neutral-950/85 sm:via-neutral-950/50 sm:to-transparent" />
                 </div>
 
-                <button
-                  onClick={() => onAddToCart(linkedProduct)}
-                  className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-5 py-2.5 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase"
-                >
-                  <Plus className="h-3.5 w-3.5 text-neutral-900" />
-                  <span>Add to Bag</span>
-                </button>
+                {/* Banner Content Container */}
+                <div className="relative z-10 w-full max-w-7xl mx-auto px-6 sm:px-12 lg:px-16 pt-28 sm:pt-36 pb-16 sm:pb-24 text-white">
+                  <div className="max-w-2xl">
+                    {linkedProduct && (
+                      <span className="font-category text-[11px] sm:text-xs uppercase tracking-[0.25em] text-stone-300 font-semibold block mb-2 sm:mb-3">
+                        {linkedProduct.category}
+                      </span>
+                    )}
 
-                <button
-                  onClick={() => onViewDetails(linkedProduct)}
-                  className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white backdrop-blur-xs px-5 py-2.5 rounded-lg font-semibold transition-all cursor-pointer active:scale-95 text-xs uppercase border border-white/20"
-                >
-                  <span>Details</span>
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => {
-                  const targetUrl = 'linkUrl' in currentSlide && typeof currentSlide.linkUrl === 'string' ? currentSlide.linkUrl.trim() : '';
+                    <h1 className="font-heading font-bold text-3xl sm:text-4xl lg:text-5xl leading-[1.15] mb-3 text-white tracking-tight drop-shadow-xs">
+                      {slide.title || linkedProduct?.name}
+                    </h1>
 
-                  if (!targetUrl) {
-                    if (onNavigateToShop) onNavigateToShop();
-                    return;
-                  }
+                    <p className="font-subheading text-sm sm:text-base lg:text-lg text-stone-200 line-clamp-2 mb-6 font-normal leading-relaxed max-w-xl">
+                      {slide.subtitle || linkedProduct?.description}
+                    </p>
 
-                  // 1. External URL
-                  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
-                    window.location.href = targetUrl;
-                    return;
-                  }
+                    {/* Action Row */}
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      {linkedProduct ? (
+                        <>
+                          <div className="mr-3">
+                            <span className="font-heading font-extrabold text-xl sm:text-2xl text-stone-100 tabular-nums">
+                              {formatBDT(linkedProduct.price)}
+                            </span>
+                          </div>
 
-                  // 2. Specific pages
-                  const cleaned = targetUrl.replace(/^[#/]/, '').trim().toLowerCase();
-                  if (cleaned === 'about' || cleaned === 'about-us' || cleaned === 'aboutpage') {
-                    if (onNavigateToPage) {
-                      onNavigateToPage('about');
-                      return;
-                    }
-                  }
-                  if (cleaned === 'contact' || cleaned === 'contact-us' || cleaned === 'contactpage') {
-                    if (onNavigateToPage) {
-                      onNavigateToPage('contact');
-                      return;
-                    }
-                  }
-                  if (cleaned === 'account' || cleaned === 'profile') {
-                    if (onNavigateToPage) {
-                      onNavigateToPage('account');
-                      return;
-                    }
-                  }
-                  if (cleaned === 'home') {
-                    if (onNavigateToPage) {
-                      onNavigateToPage('home');
-                      return;
-                    }
-                  }
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAddToCart(linkedProduct);
+                            }}
+                            className="px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-neutral-900 hover:bg-stone-100 rounded-full font-category font-semibold text-xs sm:text-sm tracking-wider uppercase flex items-center gap-2 shadow-lg transition-all active:scale-95 cursor-pointer"
+                          >
+                            <span>Add to Bag</span>
+                          </button>
 
-                  // 3. Category matching (by exact name or cleaned name)
-                  if (onNavigateToCategory) {
-                    const rawTarget = targetUrl.replace(/^[#/]/, '').trim();
-                    if (rawTarget && rawTarget.toLowerCase() !== 'shop' && rawTarget.toLowerCase() !== 'home') {
-                      onNavigateToCategory(rawTarget);
-                      return;
-                    }
-                  }
-
-                  // 4. Fallback to shop
-                  if (onNavigateToShop) {
-                    onNavigateToShop();
-                  }
-                }}
-                className="flex items-center gap-2 bg-white hover:bg-stone-100 text-neutral-900 font-semibold px-6 py-3 rounded-lg transition-all shadow-sm cursor-pointer active:scale-95 text-xs uppercase"
-              >
-                <span>{'buttonText' in currentSlide && currentSlide.buttonText ? currentSlide.buttonText : 'Discover Collection'}</span>
-                <ArrowRight className="h-3.5 w-3.5 text-neutral-900" />
-              </button>
-            )}
-          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onViewDetails(linkedProduct);
+                            }}
+                            className="px-5 py-2.5 sm:py-3 bg-black/40 hover:bg-black/70 text-white rounded-full font-category font-semibold text-xs sm:text-sm tracking-wider uppercase backdrop-blur-md border border-white/30 transition-all active:scale-95 cursor-pointer"
+                          >
+                            <span>Details</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSlideAction(slide);
+                          }}
+                          className="px-7 py-3 bg-white text-neutral-900 hover:bg-stone-100 rounded-full font-category font-semibold text-xs sm:text-sm tracking-widest uppercase shadow-lg transition-all active:scale-95 cursor-pointer"
+                        >
+                          <span>{'buttonText' in slide && slide.buttonText ? slide.buttonText : 'Explore Collection'}</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
+
+        {/* Bottom Slide Clickable Dots - Touch and Clickable Controls */}
+        {activeSlides.length > 1 && (
+          <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-black/30 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/15">
+            {activeSlides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentIndex(idx);
+                }}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`transition-all duration-300 rounded-full cursor-pointer ${
+                  currentIndex === idx
+                    ? 'w-7 h-2 bg-white shadow-sm'
+                    : 'w-2 h-2 bg-white/40 hover:bg-white/80'
+                }`}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

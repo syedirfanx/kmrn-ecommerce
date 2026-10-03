@@ -15,15 +15,15 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Emerald & Gold' },
       { label: 'Size', value: 'Unstitched 3-Piece' }
     ],
-    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1800&q=95',
+      'https://images.unsplash.com/photo-1528459801416-a9e53bbf4e17?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: true,
-    rating: 0,
-    reviewsCount: 0
+    rating: 5,
+    reviewsCount: 12
   },
   {
     id: 'prod-pw-2',
@@ -38,14 +38,14 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Powder Blue & White' },
       { label: 'Size', value: 'Unstitched 3-Piece' }
     ],
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: true,
-    rating: 0,
-    reviewsCount: 0
+    rating: 4.8,
+    reviewsCount: 8
   },
   {
     id: 'prod-pw-3',
@@ -60,14 +60,14 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Rose Blush' },
       { label: 'Size', value: 'Unstitched 3-Piece' }
     ],
-    image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: false,
-    rating: 0,
-    reviewsCount: 0
+    rating: 5,
+    reviewsCount: 4
   },
   {
     id: 'prod-pw-4',
@@ -82,14 +82,14 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Peach & Sage' },
       { label: 'Size', value: 'Unstitched 3-Piece' }
     ],
-    image: 'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1585487000160-6ebcfceb0d03?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: false,
-    rating: 0,
-    reviewsCount: 0
+    rating: 4.9,
+    reviewsCount: 7
   },
 
   // 2. Home Decor
@@ -105,15 +105,15 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Ivory Cream' },
       { label: 'Size', value: 'King (7.5 ft x 8 ft)' }
     ],
-    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1200&q=80',
-      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1800&q=95',
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: true,
-    rating: 0,
-    reviewsCount: 0
+    rating: 5,
+    reviewsCount: 15
   },
   {
     id: 'prod-hd-2',
@@ -127,14 +127,14 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Burgundy Velvet' },
       { label: 'Size', value: 'King (90 x 100 Inches)' }
     ],
-    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: true,
-    rating: 0,
-    reviewsCount: 0
+    rating: 5,
+    reviewsCount: 9
   },
   {
     id: 'prod-hd-3',
@@ -148,14 +148,14 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Crisp White' },
       { label: 'Size', value: 'King (100 x 108 Inches)' }
     ],
-    image: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1616046229478-9901c5536a45?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: false,
-    rating: 0,
-    reviewsCount: 0
+    rating: 4.8,
+    reviewsCount: 6
   },
   {
     id: 'prod-hd-4',
@@ -169,13 +169,13 @@ export const PRODUCTS: Product[] = [
       { label: 'Colour', value: 'Pearl Grey' },
       { label: 'Size', value: 'Queen / King (88 x 96 Inches)' }
     ],
-    image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1200&q=80',
+    image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1800&q=95',
     additionalImages: [
-      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80'
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1800&q=95'
     ],
     inStock: true,
     featured: false,
-    rating: 0,
-    reviewsCount: 0
+    rating: 4.7,
+    reviewsCount: 3
   }
 ];

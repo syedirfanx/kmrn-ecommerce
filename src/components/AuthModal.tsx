@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, Mail, User as UserIcon, AlertCircle, Check, ExternalLink } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, AlertCircle, Check } from 'lucide-react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
-  GoogleAuthProvider
+  updateProfile
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { saveUserProfileToDb } from '../services/storeService';
@@ -23,86 +19,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [helpUrl, setHelpUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     if (isOpen) {
       setErrorMessage('');
-      setHelpUrl('');
       setSuccessMessage('');
-
-      getRedirectResult(auth)
-        .then((result) => {
-          if (result?.user) {
-            saveUserProfileToDb(result.user.uid, {
-              displayName: result.user.displayName || result.user.email?.split('@')[0] || 'User',
-              email: result.user.email || ''
-            });
-            setSuccessMessage('Signed in successfully with Google');
-            setTimeout(() => {
-              onClose();
-            }, 700);
-          }
-        })
-        .catch((err) => {
-          // Silent catch for initial redirect check unless actionable
-          const code = (err as { code?: string }).code;
-          if (code && code !== 'auth/argument-error' && code !== 'auth/null-user') {
-            handleAuthError(err);
-          }
-        });
     }
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   const handleAuthError = (err: unknown) => {
     const error = err as { code?: string; message?: string };
-    if (!error || error.code === 'auth/argument-error') {
-      return;
-    }
-    const errStr = `${error.message || ''} ${error.code || ''}`.toLowerCase();
-    const currentHost = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (!error) return;
 
-    if (error.code === 'auth/unauthorized-domain') {
-      setErrorMessage(
-        `Authorized Domain Required: Please add "${currentHost}" to your Firebase Console under Authentication > Settings > Authorized Domains.`
-      );
-      setHelpUrl('https://console.firebase.google.com/project/kamran-ecommerce/authentication/settings');
-    } else if (
-      errStr.includes('identity-toolkit') ||
-      errStr.includes('identitytoolkit.googleapis.com') ||
-      errStr.includes('api-has-not-been-used')
-    ) {
-      setErrorMessage(
-        'Identity Toolkit API is not yet enabled for project kamran-ecommerce. Please enable it in Google Cloud Console or Firebase Console to use account authentication.'
-      );
-      setHelpUrl('https://console.developers.google.com/apis/api/identitytoolkit.googleapis.com/overview?project=913533657733');
-    } else if (error.code === 'auth/operation-not-allowed') {
-      setErrorMessage(
-        'Sign-in provider is not enabled. Please enable Google and Email/Password in Firebase Console under Authentication > Sign-in method.'
-      );
-      setHelpUrl('https://console.firebase.google.com/project/kamran-ecommerce/authentication/providers');
-    } else if (error.code === 'auth/popup-blocked') {
-      setErrorMessage(
-        'The sign-in popup was blocked by your browser. Please allow popups for this site and try again.'
-      );
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      setErrorMessage('Sign-in popup was closed before completing');
-    } else if (error.code === 'auth/cancelled-popup-request') {
-      setErrorMessage('Sign-in request was cancelled.');
-    } else if (error.code === 'auth/account-exists-with-different-credential') {
-      setErrorMessage('An account already exists with the same email address but different sign-in credentials.');
-    } else if (
+    if (
       error.code === 'auth/invalid-credential' ||
       error.code === 'auth/wrong-password' ||
       error.code === 'auth/user-not-found'
     ) {
-      setErrorMessage('Invalid email or password');
+      setErrorMessage('Invalid email address or password.');
     } else if (error.code === 'auth/email-already-in-use') {
-      setErrorMessage('An account with this email already exists');
+      setErrorMessage('An account with this email address already exists. Please sign in instead.');
     } else if (error.code === 'auth/weak-password') {
-      setErrorMessage('Password must be at least 6 characters');
+      setErrorMessage('Password must be at least 6 characters long.');
+    } else if (error.code === 'auth/invalid-email') {
+      setErrorMessage('Please enter a valid email address.');
     } else {
       setErrorMessage(error.message || 'Authentication failed. Please try again.');
     }
@@ -111,20 +53,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
-    setHelpUrl('');
     setSuccessMessage('');
     setIsLoading(true);
 
     try {
       if (mode === 'signin') {
         await signInWithEmailAndPassword(auth, email.trim(), password);
-        setSuccessMessage('Signed in successfully');
+        setSuccessMessage('Signed in successfully.');
         setTimeout(() => {
           onClose();
         }, 800);
       } else {
         if (password.length < 6) {
-          setErrorMessage('Password must be at least 6 characters');
+          setErrorMessage('Password must be at least 6 characters long.');
           setIsLoading(false);
           return;
         }
@@ -147,7 +88,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           });
         }
 
-        setSuccessMessage('Account created successfully');
+        setSuccessMessage('Account created successfully.');
         setTimeout(() => {
           onClose();
         }, 800);
@@ -159,47 +100,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const handleGoogleSignIn = async () => {
-    setErrorMessage('');
-    setHelpUrl('');
-    setSuccessMessage('');
-    setIsLoading(true);
-
-    try {
-      const provider = new GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: 'select_account' });
-      
-      try {
-        const result = await signInWithPopup(auth, provider);
-        if (result.user) {
-          await saveUserProfileToDb(result.user.uid, {
-            displayName: result.user.displayName || result.user.email?.split('@')[0] || 'User',
-            email: result.user.email || ''
-          });
-        }
-        setSuccessMessage('Signed in successfully with Google');
-        setTimeout(() => {
-          onClose();
-        }, 700);
-      } catch (popupErr: unknown) {
-        const pErr = popupErr as { code?: string };
-        if (pErr.code === 'auth/popup-blocked' || pErr.code === 'auth/popup-closed-by-user') {
-          await signInWithRedirect(auth, provider);
-        } else {
-          throw popupErr;
-        }
-      }
-    } catch (err: unknown) {
-      handleAuthError(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const switchMode = (newMode: 'signin' | 'signup') => {
     setMode(newMode);
     setErrorMessage('');
-    setHelpUrl('');
     setSuccessMessage('');
   };
 
@@ -213,44 +116,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     >
       <div className="fixed inset-0" onClick={onClose} />
 
-      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl z-10 p-6 sm:p-8">
+      <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl z-10 p-6 sm:p-8 border border-stone-200/80 animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center">
               <UserIcon className="h-5 w-5" />
             </div>
-            <h2 className="font-heading font-extrabold text-xl text-neutral-900">
+            <h2 className="font-heading text-xl text-neutral-900">
               {mode === 'signin' ? 'Sign In' : 'Create Account'}
             </h2>
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 text-neutral-500 hover:text-neutral-900 rounded-full hover:bg-neutral-100 cursor-pointer"
+            className="p-1.5 text-neutral-400 hover:text-neutral-900 rounded-full hover:bg-stone-100 transition-colors cursor-pointer"
+            aria-label="Close dialog"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* Feedback message */}
+        {/* Feedback Messages */}
         {errorMessage && (
-          <div className="mb-4 p-3.5 bg-red-50 rounded-xl text-red-800 text-xs font-semibold space-y-2 border border-red-200/80">
+          <div className="mb-4 p-3.5 bg-red-50 rounded-xl text-red-800 text-xs font-semibold space-y-1 border border-red-200/80">
             <div className="flex items-start gap-2">
               <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
               <span className="leading-relaxed">{errorMessage}</span>
             </div>
-            {helpUrl && (
-              <a
-                href={helpUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-900 underline hover:text-red-700 pt-1"
-              >
-                <span>Enable Identity Toolkit in Google Cloud Console</span>
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
           </div>
         )}
 
@@ -261,47 +155,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           </div>
         )}
 
-        {/* Google Sign In Option */}
-        <button
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={isLoading}
-          className="w-full bg-white hover:bg-stone-50 border border-stone-300 text-neutral-800 font-bold text-xs sm:text-sm py-3 px-4 rounded-xl flex items-center justify-center gap-2.5 transition-all shadow-xs cursor-pointer mb-4"
-        >
-          <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-            />
-          </svg>
-          <span>Continue with Google</span>
-        </button>
-
-        <div className="flex items-center my-4">
-          <div className="flex-1 border-t border-stone-200" />
-          <span className="shrink-0 px-3 text-[11px] font-bold text-stone-400 uppercase text-center">
-            Or with email
-          </span>
-          <div className="flex-1 border-t border-stone-200" />
-        </div>
-
         {/* Email & Password Form */}
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (
             <div>
-              <label className="block text-xs font-semibold text-neutral-800 mb-1">
+              <label className="block text-xs font-category font-semibold text-neutral-800 mb-1.5">
                 Full Name
               </label>
               <div className="relative">
@@ -309,16 +167,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 <input
                   type="text"
                   required
+                  placeholder="e.g. Fatima Khan"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-white border border-stone-300 rounded-xl pl-10 pr-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                  className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:bg-white shadow-2xs"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-neutral-800 mb-1">
+            <label className="block text-xs font-category font-semibold text-neutral-800 mb-1.5">
               Email Address
             </label>
             <div className="relative">
@@ -326,15 +185,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="email"
                 required
+                placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-white border border-stone-300 rounded-xl pl-10 pr-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:bg-white shadow-2xs"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-neutral-800 mb-1">
+            <label className="block text-xs font-category font-semibold text-neutral-800 mb-1.5">
               Password
             </label>
             <div className="relative">
@@ -342,9 +202,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <input
                 type="password"
                 required
+                placeholder="At least 6 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-white border border-stone-300 rounded-xl pl-10 pr-3.5 py-2 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:bg-white shadow-2xs"
               />
             </div>
           </div>
@@ -352,25 +213,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-bold text-sm py-2.5 px-4 rounded-xl transition-all shadow-md cursor-pointer mt-1"
+            className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-500 text-white font-category font-bold text-xs uppercase tracking-wider py-3 px-4 rounded-xl transition-all shadow-md active:scale-98 cursor-pointer mt-2"
           >
             {isLoading
               ? 'Processing...'
               : mode === 'signin'
-              ? 'Sign In with Email'
-              : 'Create Account with Email'}
+              ? 'Sign In'
+              : 'Create Account'}
           </button>
         </form>
 
         {/* Mode Switcher */}
-        <div className="mt-5 pt-3 border-t border-stone-100 text-center">
+        <div className="mt-5 pt-4 border-t border-stone-100 text-center font-category">
           {mode === 'signin' ? (
             <p className="text-xs text-neutral-600">
               Do not have an account?{' '}
               <button
                 type="button"
                 onClick={() => switchMode('signup')}
-                className="font-bold text-neutral-900 hover:underline cursor-pointer"
+                className="font-bold text-neutral-900 hover:underline cursor-pointer ml-1"
               >
                 Create Account
               </button>
@@ -381,7 +242,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               <button
                 type="button"
                 onClick={() => switchMode('signin')}
-                className="font-bold text-neutral-900 hover:underline cursor-pointer"
+                className="font-bold text-neutral-900 hover:underline cursor-pointer ml-1"
               >
                 Sign In
               </button>
