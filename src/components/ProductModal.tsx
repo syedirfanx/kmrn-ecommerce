@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Star, Plus, Minus, ShoppingBag, Heart, MessageSquare, Check, AlertCircle, Sparkles, Trash2 } from 'lucide-react';
+import { X, Star, Plus, Minus, ShoppingBag, Heart, MessageSquare, Check, AlertCircle, Sparkles, Trash2, Tag } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Product, ProductReview } from '../types';
 import { formatBDT } from '../utils/format';
@@ -304,11 +304,14 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 {product.name}
               </h1>
 
-              {/* Price in different text weight than heading */}
+              {/* Price Tag Badge */}
               <div className="mb-5 pb-3 border-b border-stone-200/80">
-                <span className="font-sans font-normal text-2xl sm:text-3xl text-stone-900 tabular-nums">
-                  {formatBDT(product.price)}
-                </span>
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-xl text-neutral-900 shadow-xs">
+                  <Tag className="h-4 w-4 text-stone-600 shrink-0" />
+                  <span className="font-sans font-normal text-2xl sm:text-3xl text-stone-900 tabular-nums">
+                    {formatBDT(product.price)}
+                  </span>
+                </div>
               </div>
 
               {/* Description Accordion with + / - expansion */}
@@ -347,15 +350,15 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 </button>
                 {isSpecsOpen && (
                   <div className="pt-2 pb-2 space-y-2 text-xs animate-in fade-in duration-150">
-                    {/* Available Colours in Specifications */}
+                    {/* Colours in Specifications */}
                     <div className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
-                      <dt className="text-stone-500 font-medium">Available Colours</dt>
+                      <dt className="text-stone-500 font-medium">Colours</dt>
                       <dd className="text-neutral-900 font-semibold">{availableColours.join(', ')}</dd>
                     </div>
 
-                    {/* Available Sizes in Specifications */}
+                    {/* Sizes in Specifications */}
                     <div className="flex justify-between py-1.5 px-3 bg-stone-50 rounded-lg">
-                      <dt className="text-stone-500 font-medium">Available Sizes</dt>
+                      <dt className="text-stone-500 font-medium">Sizes</dt>
                       <dd className="text-neutral-900 font-semibold">{availableSizes.join(', ')}</dd>
                     </div>
 

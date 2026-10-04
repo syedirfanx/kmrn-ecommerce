@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Star, Plus, Minus, Heart, Check, Eye } from 'lucide-react';
+import { Star, Plus, Minus, Heart, Check, Eye, Tag } from 'lucide-react';
 import { Product } from '../types';
 import { formatBDT } from '../utils/format';
 
@@ -25,7 +25,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onAddToCart(product, qty);
+    const productWithVariants: Product = {
+      ...product,
+      selectedColour: product.selectedColour || (product.availableColours && product.availableColours[0]) || '',
+      selectedSize: product.selectedSize || (product.availableSizes && product.availableSizes[0]) || ''
+    };
+    onAddToCart(productWithVariants, qty);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1200);
   };
@@ -119,23 +124,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           {/* Title */}
           <h2
             onClick={() => onViewDetails(product)}
-            className="font-heading font-medium text-sm sm:text-[15px] text-neutral-900 mb-1 cursor-pointer hover:text-stone-600 transition-colors line-clamp-1"
+            className="font-heading font-medium text-sm sm:text-[15px] text-neutral-900 mb-1 cursor-pointer hover:text-stone-600 transition-colors line-clamp-2"
           >
             {product.name}
           </h2>
-
-          {/* Description */}
-          <p className="text-xs text-stone-500 line-clamp-2 mb-3 leading-relaxed hidden sm:block">
-            {product.description}
-          </p>
         </div>
 
         {/* Price & Unified Action Button */}
         <div className="pt-2.5 border-t border-stone-100 flex flex-col gap-2 mt-auto">
-          <div className="flex items-baseline justify-between">
-            <span className="font-heading font-semibold text-sm sm:text-base text-neutral-900 tabular-nums">
-              {formatBDT(product.price)}
-            </span>
+          <div className="flex items-center justify-between">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 border border-stone-200/80 rounded-lg text-neutral-900 shadow-2xs">
+              <Tag className="h-3.5 w-3.5 text-stone-600 shrink-0" />
+              <span className="font-heading font-semibold text-xs sm:text-sm text-neutral-900 tabular-nums">
+                {formatBDT(product.price)}
+              </span>
+            </div>
           </div>
 
           {/* Single Unified Stepper + Add Button */}

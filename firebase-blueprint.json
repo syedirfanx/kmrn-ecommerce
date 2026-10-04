@@ -26,15 +26,33 @@
     },
     "CategoryItem": {
       "title": "CategoryItem",
-      "description": "Product category and its subcategories (up to 10 subcategories)",
+      "description": "Store primary category (up to 5 categories)",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
         "name": { "type": "string", "maxLength": 80 },
-        "subcategories": { "type": "array" },
+        "description": { "type": "string", "maxLength": 500 },
+        "logo": { "type": "string" },
+        "order": { "type": "number" },
+        "locked": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
       "required": ["name"]
+    },
+    "Catalogue": {
+      "title": "Catalogue",
+      "description": "Product collection / designer catalogue assigned to a category in 16:9 banner format",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "image": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 80 },
+        "order": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["name", "image", "category"]
     },
     "Order": {
       "title": "Order",
@@ -117,7 +135,11 @@
     },
     "/categories/{categoryId}": {
       "schema": "CategoryItem",
-      "description": "Store categories and up to 10 subcategories, fully manageable by admin"
+      "description": "Store categories, fully manageable by admin"
+    },
+    "/catalogues/{catalogueId}": {
+      "schema": "Catalogue",
+      "description": "Designer catalogues & collections per category, in 16:9 banner showcase format"
     },
     "/settings/{settingId}": {
       "schema": "FeaturedSettings",

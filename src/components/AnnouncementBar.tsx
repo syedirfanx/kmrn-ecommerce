@@ -30,12 +30,9 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
 
   if (activeAnnouncements.length === 0) return null;
 
-  // Build marquee string by combining all active announcement texts
-  const announcementTexts = activeAnnouncements.map((ann) => {
-    return `${ann.text}${ann.linkText ? ` - ${ann.linkText}` : ''}`;
-  });
-
-  const fullMarqueeString = announcementTexts.join('   ✦   ');
+  // Uniform repeat for seamless infinite loop
+  const repeatCount = activeAnnouncements.length < 3 ? 4 : 2;
+  const repeatedItems = Array(repeatCount).fill(activeAnnouncements).flat();
 
   return (
     <aside
@@ -44,16 +41,16 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
       onClick={onNavigateToShop}
     >
       <div className="w-full overflow-hidden flex items-center">
-        {/* Continuous Marquee Track (Repeated for seamless infinite loop) */}
-        <div className="animate-marquee shrink-0 flex items-center gap-12 text-[10.5px] sm:text-[11px] font-heading font-medium tracking-[0.2em] uppercase text-stone-200">
-          <span>{fullMarqueeString}</span>
-          <span>✦</span>
-          <span>{fullMarqueeString}</span>
-          <span>✦</span>
-          <span>{fullMarqueeString}</span>
-          <span>✦</span>
-          <span>{fullMarqueeString}</span>
-          <span>✦</span>
+        {/* Continuous Marquee Track with identical uniform gap between all items */}
+        <div className="animate-marquee shrink-0 flex items-center gap-8 sm:gap-10 text-[10.5px] sm:text-[11px] font-heading font-medium tracking-[0.2em] uppercase text-stone-200">
+          {repeatedItems.map((ann, idx) => (
+            <React.Fragment key={`${ann.id}-${idx}`}>
+              <span className="whitespace-nowrap">
+                {ann.text}{ann.linkText ? ` - ${ann.linkText}` : ''}
+              </span>
+              <span className="text-stone-400 text-xs shrink-0 select-none">✦</span>
+            </React.Fragment>
+          ))}
         </div>
       </div>
     </aside>

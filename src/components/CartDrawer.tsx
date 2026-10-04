@@ -7,8 +7,8 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
-  onUpdateQuantity: (productId: string, quantity: number) => void;
-  onRemoveItem: (productId: string) => void;
+  onUpdateQuantity: (productId: string, quantity: number, selectedColour?: string, selectedSize?: string) => void;
+  onRemoveItem: (productId: string, selectedColour?: string, selectedSize?: string) => void;
   onProceedToCheckout: () => void;
 }
 
@@ -110,8 +110,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </button>
               </div>
             ) : (
-              items.map((item) => (
-                <div key={item.product.id} className="py-4 flex gap-4 first:pt-0 last:pb-0">
+              items.map((item, idx) => {
+                const itemColour = item.selectedColour || item.product.selectedColour;
+                const itemSize = item.selectedSize || item.product.selectedSize;
+                const uniqueKey = `${item.product.id}-${itemColour || ''}-${itemSize || ''}-${idx}`;
+
+                return (
+                <div key={uniqueKey} className="py-4 flex gap-4 first:pt-0 last:pb-0">
                   {/* Portrait Thumbnail */}
                   <img
                     src={item.product.image}
@@ -131,14 +136,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <span className="text-xs font-semibold text-neutral-900">
                           {formatBDT(item.product.price)}
                         </span>
-                        {(item.selectedColour || item.product.selectedColour) && (
+                        {itemColour && (
                           <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded font-medium">
-                            {item.selectedColour || item.product.selectedColour}
+                            {itemColour}
                           </span>
                         )}
-                        {(item.selectedSize || item.product.selectedSize) && (
+                        {itemSize && (
                           <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded font-medium">
-                            {item.selectedSize || item.product.selectedSize}
+                            {itemSize}
                           </span>
                         )}
                       </div>
@@ -148,7 +153,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <div className="flex items-center justify-between mt-3 pt-2">
                       <div className="flex items-center bg-stone-50 rounded border border-stone-200/80 p-0.5">
                         <button
-                          onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)}
+                          onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1, itemColour, itemSize)}
                           aria-label="Decrease item quantity"
                           className="w-5 h-5 flex items-center justify-center text-stone-600 hover:text-neutral-900 hover:bg-white rounded transition-colors cursor-pointer"
                         >
@@ -158,7 +163,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)}
+                          onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1, itemColour, itemSize)}
                           aria-label="Increase item quantity"
                           className="w-5 h-5 flex items-center justify-center text-stone-600 hover:text-neutral-900 hover:bg-white rounded transition-colors cursor-pointer"
                         >
@@ -167,7 +172,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       </div>
 
                       <button
-                        onClick={() => onRemoveItem(item.product.id)}
+                        onClick={() => onRemoveItem(item.product.id, itemColour, itemSize)}
                         className="text-stone-400 hover:text-red-600 transition-colors p-1 flex items-center gap-1 text-[11px] cursor-pointer"
                         aria-label={`Remove ${item.product.name}`}
                       >
@@ -177,7 +182,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     </div>
                   </div>
                 </div>
-              ))
+              );
+            })
             )}
           </div>
 

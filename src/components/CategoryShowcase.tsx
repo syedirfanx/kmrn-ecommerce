@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { ArrowRight } from 'lucide-react';
 import { CategoryData } from '../types';
 
 interface CategoryShowcaseProps {
@@ -62,14 +61,10 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
                 )}
               </div>
 
-              {/* Compact Category Indicator */}
-              <div className="relative z-10 w-full pt-2 border-t border-stone-100 flex items-center justify-between text-neutral-800 group-hover:text-neutral-950 transition-colors">
-                <span className="font-heading font-medium text-sm sm:text-base tracking-wide truncate">
+              {/* Centered Bigger Category Name */}
+              <div className="relative z-10 w-full pt-2.5 sm:pt-3 border-t border-stone-100 flex items-center justify-center text-center">
+                <span className="font-heading font-bold text-base sm:text-lg md:text-xl tracking-wide text-neutral-900 group-hover:text-stone-700 transition-colors truncate">
                   {cat.name}
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs font-category font-semibold text-neutral-600 group-hover:text-neutral-900 shrink-0">
-                  <span>Explore</span>
-                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </span>
               </div>
             </div>

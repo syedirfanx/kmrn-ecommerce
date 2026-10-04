@@ -498,51 +498,93 @@ export default function App() {
 
   // Cart handlers
   const handleAddToCart = async (product: Product, quantity = 1) => {
+    const colour = product.selectedColour || (product.availableColours && product.availableColours[0]) || '';
+    const size = product.selectedSize || (product.availableSizes && product.availableSizes[0]) || '';
+    const fullProduct = { ...product, selectedColour: colour, selectedSize: size };
+
     setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        return prev.map((item) =>
-          item.product.id === product.id
+      const existingIdx = prev.findIndex(
+        (item) =>
+          item.product.id === product.id &&
+          (item.selectedColour || item.product.selectedColour || '') === colour &&
+          (item.selectedSize || item.product.selectedSize || '') === size
+      );
+      if (existingIdx >= 0) {
+        return prev.map((item, idx) =>
+          idx === existingIdx
             ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
-      return [...prev, { product, quantity }];
+      return [...prev, { product: fullProduct, quantity, selectedColour: colour, selectedSize: size }];
     });
 
+    const variantInfo = [colour, size].filter(Boolean).join(' • ');
     setToastShowCart(true);
-    setToastMessage(`Added ${product.name} to cart`);
+    setToastMessage(`Added ${product.name}${variantInfo ? ` (${variantInfo})` : ''} to bag`);
     setIsToastOpen(true);
 
     if (currentUser) {
-      const existing = cart.find((item) => item.product.id === product.id);
+      const existing = cart.find(
+        (item) =>
+          item.product.id === product.id &&
+          (item.selectedColour || item.product.selectedColour || '') === colour &&
+          (item.selectedSize || item.product.selectedSize || '') === size
+      );
       const newQty = (existing?.quantity || 0) + quantity;
-      await saveCartItemToDb(currentUser.uid, product, newQty);
+      await saveCartItemToDb(currentUser.uid, fullProduct, newQty);
     }
   };
 
-  const handleUpdateQuantity = async (productId: string, newQuantity: number) => {
+  const handleUpdateQuantity = async (
+    productId: string,
+    newQuantity: number,
+    selectedColour?: string,
+    selectedSize?: string
+  ) => {
     if (newQuantity <= 0) {
-      handleRemoveItem(productId);
+      handleRemoveItem(productId, selectedColour, selectedSize);
       return;
     }
 
     setCart((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity: newQuantity } : item
-      )
+      prev.map((item) => {
+        const match =
+          item.product.id === productId &&
+          (selectedColour === undefined || (item.selectedColour || item.product.selectedColour || '') === selectedColour) &&
+          (selectedSize === undefined || (item.selectedSize || item.product.selectedSize || '') === selectedSize);
+        return match ? { ...item, quantity: newQuantity } : item;
+      })
     );
 
     if (currentUser) {
-      const item = cart.find((i) => i.product.id === productId);
+      const item = cart.find(
+        (i) =>
+          i.product.id === productId &&
+          (selectedColour === undefined || (i.selectedColour || i.product.selectedColour || '') === selectedColour) &&
+          (selectedSize === undefined || (i.selectedSize || i.product.selectedSize || '') === selectedSize)
+      );
       if (item) {
         await saveCartItemToDb(currentUser.uid, item.product, newQuantity);
       }
     }
   };
 
-  const handleRemoveItem = async (productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveItem = async (
+    productId: string,
+    selectedColour?: string,
+    selectedSize?: string
+  ) => {
+    setCart((prev) =>
+      prev.filter((item) => {
+        const match =
+          item.product.id === productId &&
+          (selectedColour === undefined || (item.selectedColour || item.product.selectedColour || '') === selectedColour) &&
+          (selectedSize === undefined || (item.selectedSize || item.product.selectedSize || '') === selectedSize);
+        return !match;
+      })
+    );
+
     if (currentUser) {
       await removeCartItemFromDb(currentUser.uid, productId);
     }
@@ -1057,12 +1099,8 @@ export default function App() {
                 )}
               </div>
 
-              {/* Sort Dropdown & Count */}
-              <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                <span className="text-xs text-stone-500 font-medium">
-                  <strong className="text-neutral-900 font-bold">{filteredProducts.length}</strong> Products
-                </span>
-
+              {/* Sort Dropdown */}
+              <div className="flex items-center justify-end shrink-0">
                 <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-xl px-3.5 py-2 shadow-xs">
                   <ArrowUpDown className="h-3.5 w-3.5 text-neutral-400" />
                   <select
@@ -1085,12 +1123,6 @@ export default function App() {
               selectedSubcategory === 'All' ? (
                 /* 1. All Catalogues View (No products under) */
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="font-heading font-semibold text-xs uppercase tracking-wider text-stone-500">
-                      Select a Collection or Catalogue
-                    </span>
-                  </div>
-
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {currentCategoryCatalogues.map((catg) => {
                       const catgCount = categoryProducts.filter(
@@ -1103,7 +1135,7 @@ export default function App() {
                           onClick={() => setSelectedSubcategory(catg.name)}
                           className="group relative bg-white rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md"
                         >
-                          <div className="aspect-[4/3] bg-stone-100 overflow-hidden relative">
+                          <div className="aspect-video bg-stone-100 overflow-hidden relative">
                             <img
                               src={catg.image}
                               alt={catg.name}
@@ -1142,9 +1174,9 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => setSelectedSubcategory('All')}
-                            className="px-3 py-1.5 rounded-xl border border-stone-300 hover:border-neutral-900 hover:bg-neutral-900 hover:text-white text-xs font-semibold text-neutral-800 transition-all cursor-pointer shrink-0"
+                            className="px-3.5 py-1.5 rounded-xl border border-stone-300 hover:border-neutral-900 hover:bg-neutral-900 hover:text-white text-xs font-semibold text-neutral-800 transition-all cursor-pointer shrink-0"
                           >
-                            All Catalogues
+                            ← See all
                           </button>
                           <div>
                             <h2 className="font-heading font-bold text-sm sm:text-base text-neutral-900">
@@ -1188,43 +1220,15 @@ export default function App() {
                         onClick={() => setSelectedSubcategory('All')}
                         className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer mt-3"
                       >
-                        Return to Catalogues
+                        See all
                       </button>
                     </div>
                   )}
                 </div>
               )
             ) : (
-              /* Standard subcategories & product grid for categories without catalogues or when searching */
+              /* Product grid for categories without catalogues or when searching */
               <div className="space-y-6">
-                {/* Subcategories Filter Bar */}
-                {currentCategoryData && (currentCategoryData.subcategories || []).length > 0 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                    <button
-                      onClick={() => setSelectedSubcategory('All')}
-                      className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
-                        selectedSubcategory === 'All'
-                          ? 'bg-neutral-900 text-white'
-                          : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80'
-                      }`}
-                    >
-                      All
-                    </button>
-                    {(currentCategoryData.subcategories || []).map((sub, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setSelectedSubcategory(sub)}
-                        className={`px-3 py-1 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors cursor-pointer shrink-0 ${
-                          selectedSubcategory === sub
-                            ? 'bg-neutral-900 text-white'
-                            : 'bg-white text-stone-600 hover:text-neutral-900 border border-stone-200/80'
-                        }`}
-                      >
-                        {sub}
-                      </button>
-                    ))}
-                  </div>
-                )}
 
                 {/* Active Search Result Tag */}
                 {searchQuery && (

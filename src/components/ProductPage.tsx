@@ -12,7 +12,8 @@ import {
   RotateCcw,
   Sparkles,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  Tag
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Product, ProductReview } from '../types';
@@ -196,36 +197,15 @@ export const ProductPage: React.FC<ProductPageProps> = ({
     .filter((p) => p.category === product.category && p.id !== product.id)
     .slice(0, 4);
 
-  const averageRating =
-    reviews.length > 0
-      ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-      : (product.rating || 5).toFixed(1);
+  const hasReviews = reviews.length > 0;
+  const averageRatingNumber = hasReviews
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : (product.reviewsCount > 0 ? (product.rating || 0) : 0);
+
+  const averageRating = averageRatingNumber > 0 ? averageRatingNumber.toFixed(1) : '0.0';
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-12 animate-in fade-in duration-300">
-      {/* Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-category text-stone-500">
-        <button
-          type="button"
-          onClick={onNavigateToHome}
-          className="hover:text-neutral-900 transition-colors cursor-pointer"
-        >
-          Home
-        </button>
-        <span>/</span>
-        <button
-          type="button"
-          onClick={() => onNavigateToCategory(product.category)}
-          className="hover:text-neutral-900 transition-colors cursor-pointer"
-        >
-          {product.category}
-        </button>
-        <span>/</span>
-        <span className="text-neutral-900 font-semibold truncate max-w-[200px] sm:max-w-md">
-          {product.name}
-        </span>
-      </nav>
-
       {/* Main Product Showcase Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
         {/* Left Column: Gallery */}
@@ -284,27 +264,22 @@ export const ProductPage: React.FC<ProductPageProps> = ({
         {/* Right Column: Product Information & Purchase Actions */}
         <div className="lg:col-span-5 space-y-6">
           <div>
-            <span className="font-category text-xs uppercase tracking-[0.25em] text-stone-400 font-semibold block mb-2">
-              {product.category.toLowerCase().includes('decor') || product.category.toLowerCase().includes('home')
-                ? 'Home Decor'
-                : "Women's Wear"}
-            </span>
-
             <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 leading-tight mb-3">
               {product.name}
             </h1>
 
             {/* Price & Rating Row */}
             <div className="flex items-center justify-between pb-4 border-b border-stone-200/80">
-              <div>
-                <span className="font-sans font-normal text-2xl sm:text-3xl text-stone-900 tabular-nums">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-xl text-neutral-900 shadow-xs">
+                <Tag className="h-4 w-4 text-stone-600 shrink-0" />
+                <span className="font-sans font-normal text-2xl sm:text-3xl tabular-nums">
                   {formatBDT(product.price)}
                 </span>
               </div>
 
               {/* Star Rating Badge */}
               <div className="flex items-center gap-1.5 bg-stone-100 px-3 py-1.5 rounded-xl border border-stone-200">
-                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <Star className={`h-4 w-4 ${averageRatingNumber > 0 ? 'fill-amber-400 text-amber-400' : 'fill-stone-300 text-stone-300'}`} />
                 <span className="font-bold text-xs text-neutral-900 tabular-nums">{averageRating}</span>
                 <span className="text-[11px] text-stone-500 font-medium">({reviews.length} reviews)</span>
               </div>
@@ -326,11 +301,6 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             {isDescOpen && (
               <div className="pt-2 pb-2 text-xs sm:text-sm text-stone-600 leading-relaxed space-y-2 animate-in fade-in duration-150">
                 <p>{product.description}</p>
-                {product.details && product.details !== product.description && (
-                  <p className="text-stone-500 text-xs bg-stone-50 p-3 rounded-xl border border-stone-200/70">
-                    {product.details}
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -349,15 +319,15 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             </button>
             {isSpecsOpen && (
               <div className="pt-2 pb-2 space-y-2 text-xs animate-in fade-in duration-150">
-                {/* Available Colours in Specifications */}
+                {/* Colours in Specifications */}
                 <div className="flex justify-between py-2 px-3 bg-stone-50 rounded-lg">
-                  <dt className="text-stone-500 font-medium">Available Colours</dt>
+                  <dt className="text-stone-500 font-medium">Colours</dt>
                   <dd className="text-neutral-900 font-semibold">{availableColours.join(', ')}</dd>
                 </div>
 
-                {/* Available Sizes in Specifications */}
+                {/* Sizes in Specifications */}
                 <div className="flex justify-between py-2 px-3 bg-stone-50 rounded-lg">
-                  <dt className="text-stone-500 font-medium">Available Sizes</dt>
+                  <dt className="text-stone-500 font-medium">Sizes</dt>
                   <dd className="text-neutral-900 font-semibold">{availableSizes.join(', ')}</dd>
                 </div>
 

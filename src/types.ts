@@ -1,7 +1,10 @@
 export interface CategoryData {
   id: string;
   name: string;
-  subcategories: string[];
+  description?: string;
+  logo?: string;
+  order?: number;
+  locked?: boolean;
 }
 
 export interface Catalogue {
@@ -10,6 +13,7 @@ export interface Catalogue {
   description?: string;
   image: string;
   category: string;
+  order?: number;
   itemCount?: number;
   createdAt?: string;
 }
@@ -27,12 +31,14 @@ export interface Product {
   selectedSize?: string;
   price: number;
   description: string;
-  details: string;
+  details?: string;
   specs: { label: string; value: string }[];
   image: string;
   additionalImages?: string[];
   inStock: boolean;
+  archived?: boolean;
   featured?: boolean;
+  order?: number;
   rating: number;
   reviewsCount: number;
   createdAt?: string;
@@ -48,7 +54,10 @@ export interface BannerSlide {
   image: string;
   buttonText?: string;
   linkUrl?: string;
+  hasLinkOverBanner?: boolean;
+  noLinkOverBanner?: boolean;
   hideButton?: boolean;
+  order?: number;
 }
 
 export interface AnnouncementItem {
@@ -58,6 +67,16 @@ export interface AnnouncementItem {
   linkUrl?: string;
   startDate?: string;
   endDate?: string;
+  active: boolean;
+  createdAt?: string;
+}
+
+export interface PromoCode {
+  id: string;
+  code: string;
+  discountType: 'percentage' | 'fixed';
+  discountValue: number;
+  minOrderAmount?: number;
   active: boolean;
   createdAt?: string;
 }
@@ -81,6 +100,8 @@ export interface OrderConfirmation {
   items: CartItem[];
   subtotal: number;
   shipping: number;
+  discountAmount?: number;
+  promoCode?: string;
   total: number;
   status: 'Processing' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled';
   paymentMethod: 'Cash on Delivery';

@@ -21,7 +21,8 @@ import {
   BannerSlide,
   AnnouncementItem,
   StoreSettings,
-  ContactMessage
+  ContactMessage,
+  PromoCode
 } from '../types';
 import { PRODUCTS } from '../data/products';
 
@@ -60,12 +61,18 @@ export const DEFAULT_CATEGORIES: CategoryData[] = [
   {
     id: 'cat-womens-wear',
     name: "Elegant Women's Wear",
-    subcategories: ['Original Pakistani Lawn', 'Luxury Chiffon', 'Festive Embroidered', 'Ready to Wear']
+    description: 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.',
+    logo: '/images/aniq-1.png',
+    order: 0,
+    locked: true
   },
   {
     id: 'cat-home-decor',
     name: 'Home Decor',
-    subcategories: ['Bedsheets', 'Comforters', 'Duvet Sets', 'Quilt Sets']
+    description: 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.',
+    logo: '/images/aniq-2.png',
+    order: 1,
+    locked: true
   }
 ];
 
@@ -222,7 +229,9 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
           image: data.image || '',
           additionalImages: Array.isArray(data.additionalImages) ? data.additionalImages : [],
           inStock: data.inStock !== false,
+          archived: Boolean(data.archived),
           featured: Boolean(data.featured),
+          order: typeof data.order === 'number' ? data.order : 0,
           rating: Number(data.rating) || 0,
           reviewsCount: Number(data.reviewsCount) || 0,
           createdAt: data.createdAt || new Date().toISOString(),
@@ -255,10 +264,12 @@ export const subscribeCatalogues = (onUpdate: (catalogues: Catalogue[]) => void)
           description: data.description || '',
           image: data.image || '',
           category: data.category || "Elegant Women's Wear",
+          order: typeof data.order === 'number' ? data.order : 0,
           itemCount: Number(data.itemCount) || 0,
           createdAt: data.createdAt || new Date().toISOString()
         });
       });
+      list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       onUpdate(list);
     },
     (error) => {
@@ -274,6 +285,7 @@ export const saveCatalogueToDb = async (catalogue: Catalogue): Promise<DbResult>
     const docRef = doc(db, 'catalogues', catalogue.id);
     const cleanCatalogue = sanitizeForFirestore({
       ...catalogue,
+      order: typeof catalogue.order === 'number' ? catalogue.order : 0,
       createdAt: catalogue.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     });
@@ -302,19 +314,28 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
   return onSnapshot(
     collection(db, path),
     (snapshot) => {
+      if (snapshot.empty) {
+        onUpdate(DEFAULT_CATEGORIES);
+        return;
+      }
       const list: CategoryData[] = [];
       snapshot.forEach((d) => {
         const data = d.data();
         list.push({
           id: d.id,
           name: data.name || '',
-          subcategories: Array.isArray(data.subcategories) ? data.subcategories : []
+          description: data.description || '',
+          logo: data.logo || '',
+          order: typeof data.order === 'number' ? data.order : 0,
+          locked: d.id === 'cat-womens-wear' || d.id === 'cat-home-decor' || Boolean(data.locked)
         });
       });
+      list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
       onUpdate(list);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
+      onUpdate(DEFAULT_CATEGORIES);
     }
   );
 };
@@ -328,7 +349,6 @@ export const saveProductToDb = async (product: Product): Promise<DbResult> => {
   const path = `products/${product.id}`;
   try {
     const docRef = doc(db, 'products', product.id);
-    // Sanitize and ensure no undefined fields to eliminate FirebaseError
     const cleanedProduct = sanitizeForFirestore({
       id: product.id,
       name: product.name || '',
@@ -340,12 +360,14 @@ export const saveProductToDb = async (product: Product): Promise<DbResult> => {
       availableSizes: Array.isArray(product.availableSizes) ? product.availableSizes : [],
       price: Number(product.price) || 0,
       description: product.description || '',
-      details: product.details || '',
+      details: product.details || product.description || '',
       specs: Array.isArray(product.specs) ? product.specs : [],
       image: product.image || '',
       additionalImages: Array.isArray(product.additionalImages) ? product.additionalImages : [],
       inStock: product.inStock !== false,
+      archived: Boolean(product.archived),
       featured: Boolean(product.featured),
+      order: typeof product.order === 'number' ? product.order : 0,
       rating: Number(product.rating) || 0,
       reviewsCount: Number(product.reviewsCount) || 0,
       createdAt: product.createdAt || new Date().toISOString(),
@@ -1154,17 +1176,22 @@ export const saveBannerSlides = async (slides: BannerSlide[]): Promise<DbResult>
   try {
     const docRef = doc(db, 'settings', 'banner');
     const sanitizedSlides = await Promise.all(
-      slides.slice(0, 15).map(async (s, idx) => ({
-        id: s.id || `slide-${idx}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        type: s.type || 'custom',
-        productId: s.productId || '',
-        title: s.title || '',
-        subtitle: s.subtitle || '',
-        image: await compressImageIfLarge(s.image || ''),
-        buttonText: s.buttonText || '',
-        linkUrl: s.linkUrl || '',
-        hideButton: s.hideButton === true || s.buttonText === 'none'
-      }))
+      slides.slice(0, 15).map(async (s, idx) => {
+        const noLink = s.noLinkOverBanner === true;
+        return {
+          id: s.id || `slide-${idx}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          type: s.type || 'custom',
+          productId: s.productId || '',
+          title: s.title || '',
+          subtitle: s.subtitle || '',
+          image: await compressImageIfLarge(s.image || ''),
+          buttonText: s.buttonText || '',
+          linkUrl: noLink ? '' : (s.linkUrl || ''),
+          hideButton: s.hideButton === true || s.buttonText === 'none',
+          noLinkOverBanner: noLink,
+          hasLinkOverBanner: !noLink && s.hasLinkOverBanner === true
+        };
+      })
     );
 
     // Save each slide to its own individual document in settings/banner_slide_${i}
@@ -1459,3 +1486,59 @@ export const markContactMessageRead = async (messageId: string, read = true): Pr
     return { success: true };
   }
 };
+
+export const subscribePromoCodes = (onUpdate: (promos: PromoCode[]) => void) => {
+  const path = 'promocodes';
+  return onSnapshot(
+    collection(db, path),
+    (snapshot) => {
+      const list: PromoCode[] = [];
+      snapshot.forEach((d) => {
+        const data = d.data();
+        list.push({
+          id: d.id,
+          code: (data.code || '').toUpperCase().trim(),
+          discountType: data.discountType || 'percentage',
+          discountValue: Number(data.discountValue) || 0,
+          minOrderAmount: Number(data.minOrderAmount) || 0,
+          active: data.active !== false,
+          createdAt: data.createdAt || new Date().toISOString()
+        });
+      });
+      onUpdate(list);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+};
+
+export const savePromoCodeToDb = async (promo: PromoCode): Promise<DbResult> => {
+  const path = `promocodes/${promo.id}`;
+  try {
+    const docRef = doc(db, 'promocodes', promo.id);
+    const cleaned = sanitizeForFirestore({
+      ...promo,
+      code: promo.code.toUpperCase().trim(),
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(docRef, cleaned, { merge: true });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+export const deletePromoCodeFromDb = async (promoId: string): Promise<DbResult> => {
+  const path = `promocodes/${promoId}`;
+  try {
+    const docRef = doc(db, 'promocodes', promoId);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+    return { success: false, error: String(error) };
+  }
+};
+

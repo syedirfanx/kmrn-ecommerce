@@ -35,7 +35,7 @@ service cloud.firestore {
       }
     }
 
-    // Categories and subcategories
+    // Store primary categories
     match /categories/{categoryId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(categoryId);
@@ -51,6 +51,12 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(settingId);
+    }
+
+    // Promo codes collection
+    match /promocodes/{promoId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(promoId);
     }
 
     // Customer inquiries / messages from contact form (live sync to Admin Portal)
