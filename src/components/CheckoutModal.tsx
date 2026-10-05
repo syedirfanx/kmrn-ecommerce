@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { CartItem, OrderConfirmation, UserProfile } from '../types';
 import { formatBDT } from '../utils/format';
 import { saveUserProfileToDb, saveUserOrderToDb } from '../services/storeService';
+import { BANGLADESH_DISTRICTS, DELIVERY_OPTIONS, DeliveryZoneOption } from '../data/bangladeshDistricts';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -28,10 +29,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     fullName: '',
     email: '',
     phone: '',
+    district: 'Dhaka',
+    subDistrict: '',
     street: '',
-    city: '',
     country: 'Bangladesh'
   });
+
+  const [deliveryZone, setDeliveryZone] = useState<DeliveryZoneOption>('Inside Dhaka City');
+  const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'bKash'>('Cash on Delivery');
+  const [bkashNumber, setBkashNumber] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<OrderConfirmation | null>(null);
@@ -40,14 +46,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Prefill details from user profile or auth if signed in
   useEffect(() => {
     if (isOpen) {
+      const defaultAddr =
+        userProfile?.addresses?.find((a) => a.isDefault || a.id === userProfile?.defaultAddressId) ||
+        userProfile?.addresses?.[0];
+
+      const initialDistrict = defaultAddr?.district || userProfile?.district || 'Dhaka';
+      const initialZone: DeliveryZoneOption =
+        (defaultAddr?.deliveryZone as DeliveryZoneOption) ||
+        (userProfile?.deliveryZone as DeliveryZoneOption) ||
+        (initialDistrict === 'Dhaka' ? 'Inside Dhaka City' : 'Outside Dhaka City');
+
       setFormData({
-        fullName: userProfile?.displayName || currentUser?.displayName || '',
+        fullName: defaultAddr?.recipientName || userProfile?.displayName || currentUser?.displayName || '',
         email: userProfile?.email || currentUser?.email || '',
-        phone: userProfile?.phone || '',
-        street: userProfile?.street || userProfile?.address || '',
-        city: userProfile?.city || '',
+        phone: defaultAddr?.phone || userProfile?.phone || '',
+        district: initialDistrict,
+        subDistrict: defaultAddr?.subDistrict || userProfile?.subDistrict || '',
+        street: defaultAddr?.street || userProfile?.street || userProfile?.address || '',
         country: userProfile?.country || 'Bangladesh'
       });
+      setDeliveryZone(initialZone);
+      setPaymentMethod((userProfile?.preferredPaymentMethod as 'Cash on Delivery' | 'bKash') || 'Cash on Delivery');
+      setBkashNumber(userProfile?.preferredBkashNumber || '');
       setErrorMsg('');
       setCompletedOrder(null);
     }
@@ -70,19 +90,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   if (!isOpen) return null;
 
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const shipping = subtotal >= 15000 ? 0 : 500;
+  const shipping = deliveryZone === 'Inside Dhaka City' ? 80 : 150;
   const total = subtotal + shipping;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    // When district changes, automatically adjust the delivery zone
+    if (name === 'district') {
+      if (value === 'Dhaka') {
+        setDeliveryZone('Inside Dhaka City');
+      } else {
+        setDeliveryZone('Outside Dhaka City');
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
-    // Strict validation for mandatory fields: name, phone, street, city, country
+    // Strict validation for mandatory fields
     if (!formData.fullName.trim()) {
       setErrorMsg('Full name is required.');
       return;
@@ -95,23 +124,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setErrorMsg('Email address is required.');
       return;
     }
+    if (!formData.district.trim()) {
+      setErrorMsg('Please select a district.');
+      return;
+    }
+    if (!formData.subDistrict.trim()) {
+      setErrorMsg('Sub District / Thana / Union is required.');
+      return;
+    }
     if (!formData.street.trim()) {
       setErrorMsg('Street address is required.');
       return;
     }
-    if (!formData.city.trim()) {
-      setErrorMsg('City is required.');
-      return;
-    }
-    if (!formData.country.trim()) {
-      setErrorMsg('Country is required.');
-      return;
+
+    if (paymentMethod === 'bKash') {
+      if (!bkashNumber.trim()) {
+        setErrorMsg('Please enter your bKash phone number.');
+        return;
+      }
     }
 
     setIsSubmitting(true);
 
     try {
-      // 1. If signed in, update their user profile with address and phone in Firebase
+      const fullShippingAddress = `${formData.street.trim()}, ${formData.subDistrict.trim()}, ${formData.district.trim()}, Bangladesh`;
+
+      // 1. If signed in, update their user profile with address and district in Firebase
       if (currentUser) {
         await saveUserProfileToDb(currentUser.uid, {
           displayName: formData.fullName.trim(),
@@ -119,8 +157,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           phone: formData.phone.trim(),
           street: formData.street.trim(),
           address: formData.street.trim(),
-          city: formData.city.trim(),
-          country: formData.country.trim()
+          district: formData.district.trim(),
+          subDistrict: formData.subDistrict.trim(),
+          deliveryZone: deliveryZone,
+          city: formData.district.trim(),
+          country: formData.country.trim(),
+          preferredPaymentMethod: paymentMethod,
+          preferredBkashNumber: paymentMethod === 'bKash' ? bkashNumber.trim() : undefined
         });
       }
 
@@ -131,11 +174,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         street: formData.street.trim(),
-        city: formData.city.trim(),
+        city: formData.district.trim(),
+        district: formData.district.trim(),
+        subDistrict: formData.subDistrict.trim(),
+        deliveryZone: deliveryZone,
         country: formData.country.trim(),
-        shippingAddress: `${formData.street.trim()}, ${formData.city.trim()}, ${formData.country.trim()}`,
+        shippingAddress: fullShippingAddress,
         items: items.map((item) => ({
           quantity: Number(item.quantity) || 1,
+          selectedColour: item.selectedColour,
+          selectedSize: item.selectedSize,
           product: {
             ...item.product,
             specs: item.product.specs || [],
@@ -150,7 +198,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         shipping: Number(shipping) || 0,
         total: Number(total) || 0,
         status: 'Processing',
-        paymentMethod: 'Cash on Delivery',
+        paymentMethod: paymentMethod,
+        bkashNumber: paymentMethod === 'bKash' ? bkashNumber.trim() : undefined,
         userId: currentUser?.uid || '',
         isGuest: !currentUser,
         customerType: currentUser ? 'Registered Account' : 'Guest Checkout',
@@ -225,12 +274,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span className="font-medium text-neutral-900">{completedOrder.phone}</span>
               </div>
               <div className="flex justify-between pb-2 border-b border-stone-200/60">
+                <span className="text-neutral-600">District & Area</span>
+                <span className="font-medium text-neutral-900 text-right">{completedOrder.subDistrict}, {completedOrder.district}</span>
+              </div>
+              <div className="flex justify-between pb-2 border-b border-stone-200/60">
                 <span className="text-neutral-600">Shipping Address</span>
                 <span className="font-medium text-neutral-900 text-right max-w-xs">{completedOrder.shippingAddress}</span>
               </div>
               <div className="flex justify-between pb-2 border-b border-stone-200/60">
-                <span className="text-neutral-600">Payment</span>
-                <span className="font-medium text-neutral-900">{completedOrder.paymentMethod}</span>
+                <span className="text-neutral-600">Delivery Option</span>
+                <span className="font-semibold text-neutral-900">{completedOrder.deliveryZone} ({formatBDT(completedOrder.shipping)})</span>
+              </div>
+              <div className="flex justify-between pb-2 border-b border-stone-200/60">
+                <span className="text-neutral-600">Payment Method</span>
+                <span className="font-bold text-neutral-900">
+                  {completedOrder.paymentMethod}
+                  {completedOrder.bkashNumber && (
+                    <span className="block text-xs text-stone-500 font-normal">bKash: {completedOrder.bkashNumber}</span>
+                  )}
+                </span>
               </div>
               <div className="flex justify-between pt-1">
                 <span className="text-neutral-900 font-bold">Total Amount</span>
@@ -317,14 +379,71 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <Truck className="h-4 w-4 text-neutral-600" />
                   Delivery Information
                 </h3>
-                {currentUser && (
-                  <span className="text-[11px] text-emerald-700 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md">
-                    Account Synced
-                  </span>
-                )}
               </div>
 
               <div className="space-y-3.5">
+                {/* Saved Addresses Quick Selector */}
+                {userProfile?.addresses && userProfile.addresses.length > 0 && (
+                  <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200/90 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-neutral-900">
+                        Choose Saved Delivery Address
+                      </span>
+                      <span className="text-[11px] text-stone-500 font-medium">
+                        {userProfile.addresses.length} saved
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {userProfile.addresses.map((addr) => {
+                        const isSelected =
+                          formData.street === addr.street &&
+                          formData.district === addr.district &&
+                          formData.subDistrict === addr.subDistrict;
+                        return (
+                          <button
+                            key={addr.id}
+                            type="button"
+                            onClick={() => {
+                              const zone: DeliveryZoneOption =
+                                (addr.deliveryZone as DeliveryZoneOption) ||
+                                (addr.district === 'Dhaka' ? 'Inside Dhaka City' : 'Outside Dhaka City');
+                              setFormData((prev) => ({
+                                ...prev,
+                                fullName: addr.recipientName || prev.fullName,
+                                phone: addr.phone || prev.phone,
+                                district: addr.district,
+                                subDistrict: addr.subDistrict,
+                                street: addr.street
+                              }));
+                              setDeliveryZone(zone);
+                            }}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                              isSelected
+                                ? 'border-neutral-900 bg-white ring-1 ring-neutral-900/10 shadow-xs'
+                                : 'border-stone-200 bg-white hover:border-stone-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1 mb-1">
+                              <span className="font-bold text-xs text-neutral-900 truncate">
+                                {addr.label || 'Delivery Address'}
+                              </span>
+                              {addr.isDefault && (
+                                <span className="text-[9px] font-extrabold bg-amber-100 text-amber-900 px-1.5 py-0.5 rounded-full">
+                                  DEFAULT
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-stone-700 truncate">{addr.street}</p>
+                            <p className="text-[10px] text-stone-500 truncate">
+                              {addr.subDistrict}, {addr.district}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-semibold text-neutral-800 mb-1">
                     Full Name *
@@ -372,89 +491,202 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
                 </div>
 
+                {/* District Dropdown Option */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      District *
+                    </label>
+                    <select
+                      name="district"
+                      required
+                      value={formData.district}
+                      onChange={handleInputChange}
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs cursor-pointer font-medium"
+                    >
+                      {BANGLADESH_DISTRICTS.map((dist) => (
+                        <option key={dist.name} value={dist.name}>
+                          {dist.name} ({dist.division} Division)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Sub District / Thana / Union Field */}
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
+                      Sub District / Thana / Union *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      name="subDistrict"
+                      placeholder="e.g. Dhanmondi, Gulshan, Savar, Kotwali"
+                      value={formData.subDistrict}
+                      onChange={handleInputChange}
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Street Address */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                    Street Address *
+                    Street Address / House & Road *
                   </label>
                   <input
                     type="text"
                     required
                     name="street"
-                    placeholder="House, Road, Block / Area"
+                    placeholder="House number, Road name, Block or Village details"
                     value={formData.street}
                     onChange={handleInputChange}
                     className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
                   />
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                      City / District *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      name="city"
-                      placeholder="e.g. Dhaka, Chittagong, Sylhet"
-                      value={formData.city}
-                      onChange={handleInputChange}
-                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 mb-1">
-                      Country *
-                    </label>
-                    <select
-                      name="country"
-                      value={formData.country}
-                      onChange={handleInputChange}
-                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs"
-                    >
-                      <option value="Bangladesh">Bangladesh</option>
-                    </select>
-                  </div>
-                </div>
               </div>
             </div>
 
-            {/* Payment Method: Cash on Delivery Only */}
+            {/* Delivery Option Selection (Inside Dhaka City 80 taka / Outside Dhaka City 150 taka) */}
             <div>
-              <span className="block text-xs font-semibold text-neutral-800 mb-2 uppercase tracking-wider">
-                Payment Method
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-neutral-900 uppercase tracking-wider">
+                  Delivery Option *
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {DELIVERY_OPTIONS.map((opt) => {
+                  const isSelected = deliveryZone === opt.id;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => setDeliveryZone(opt.id)}
+                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-neutral-900 bg-stone-50 shadow-xs ring-1 ring-neutral-900/10'
+                          : 'border-stone-200 bg-white hover:border-stone-300 opacity-75'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="font-heading font-bold text-xs sm:text-sm text-neutral-900">
+                          {opt.label}
+                        </span>
+                        <div
+                          className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                            isSelected ? 'border-neutral-900' : 'border-stone-300'
+                          }`}
+                        >
+                          {isSelected && <div className="h-2 w-2 rounded-full bg-neutral-900" />}
+                        </div>
+                      </div>
+                      <div className="flex items-baseline justify-between mt-1">
+                        <span className="text-[11px] text-stone-500 leading-tight">
+                          {opt.description}
+                        </span>
+                        <span className="font-heading font-extrabold text-sm text-neutral-900 shrink-0 ml-2">
+                          {formatBDT(opt.price)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Payment Method Selection (COD / bKash Payment) */}
+            <div>
+              <span className="block text-xs font-bold text-neutral-900 uppercase tracking-wider mb-2">
+                Payment Method *
               </span>
 
-              <div className="p-4 rounded-2xl bg-neutral-900 text-white flex items-center justify-between shadow-xs">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-xl bg-neutral-800 flex items-center justify-center">
-                    <Truck className="h-5 w-5 text-white" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                {/* 1. Cash on Delivery Card */}
+                <div
+                  onClick={() => setPaymentMethod('Cash on Delivery')}
+                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                    paymentMethod === 'Cash on Delivery'
+                      ? 'border-neutral-900 bg-stone-50 shadow-xs'
+                      : 'border-stone-200 bg-white hover:border-stone-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-neutral-900 text-white flex items-center justify-center shrink-0">
+                      <Truck className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-neutral-900">Cash on Delivery</p>
+                      <p className="text-[10px] text-stone-500">Pay cash upon delivery</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold">Cash on Delivery</p>
-                    <p className="text-xs text-stone-300">Pay cash upon delivery at your doorstep</p>
+                  <div
+                    className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                      paymentMethod === 'Cash on Delivery' ? 'border-neutral-900' : 'border-stone-300'
+                    }`}
+                  >
+                    {paymentMethod === 'Cash on Delivery' && <div className="h-2 w-2 rounded-full bg-neutral-900" />}
                   </div>
                 </div>
-                <div className="h-5 w-5 rounded-full border-2 border-white flex items-center justify-center">
-                  <div className="h-2.5 w-2.5 rounded-full bg-white" />
+
+                {/* 2. bKash Payment Card */}
+                <div
+                  onClick={() => setPaymentMethod('bKash')}
+                  className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between ${
+                    paymentMethod === 'bKash'
+                      ? 'border-[#e2136e] bg-pink-50/50 shadow-xs'
+                      : 'border-stone-200 bg-white hover:border-stone-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-8 w-8 rounded-xl bg-[#e2136e] text-white flex items-center justify-center shrink-0 font-extrabold text-xs">
+                      bK
+                    </div>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-neutral-900">bKash Payment</p>
+                      <p className="text-[10px] text-stone-500">Send money via bKash</p>
+                    </div>
+                  </div>
+                  <div
+                    className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                      paymentMethod === 'bKash' ? 'border-[#e2136e]' : 'border-stone-300'
+                    }`}
+                  >
+                    {paymentMethod === 'bKash' && <div className="h-2 w-2 rounded-full bg-[#e2136e]" />}
+                  </div>
                 </div>
               </div>
+
+              {/* bKash Payment Details Box */}
+              {paymentMethod === 'bKash' && (
+                <div className="p-4 bg-pink-50/60 border border-pink-200 rounded-2xl animate-in fade-in duration-200">
+                  <label className="block text-xs font-bold text-neutral-800 mb-1.5">
+                    Your bKash Phone / Account Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={bkashNumber}
+                    onChange={(e) => setBkashNumber(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    className="w-full bg-white border border-pink-200 rounded-xl px-3.5 py-2.5 text-xs text-neutral-900 focus:outline-none focus:border-[#e2136e] focus:ring-1 focus:ring-[#e2136e]"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Order Cost Breakdown */}
             <div className="p-4 bg-neutral-50 rounded-2xl space-y-2 border border-stone-200/80">
               <div className="flex justify-between text-xs text-neutral-600">
-                <span>Subtotal</span>
+                <span>Subtotal ({items.length} items)</span>
                 <span>{formatBDT(subtotal)}</span>
               </div>
               <div className="flex justify-between text-xs text-neutral-600">
-                <span>Shipping</span>
-                <span>{shipping === 0 ? 'Free' : formatBDT(shipping)}</span>
+                <span>Shipping ({deliveryZone})</span>
+                <span className="font-semibold text-neutral-900">{formatBDT(shipping)}</span>
               </div>
-              <div className="flex justify-between text-base font-extrabold text-neutral-900 pt-1 border-t border-stone-200">
+              <div className="flex justify-between text-base font-extrabold text-neutral-900 pt-2 border-t border-stone-200">
                 <span>Total Payable</span>
-                <span>{formatBDT(total)}</span>
+                <span className="font-heading font-extrabold text-xl text-neutral-900">{formatBDT(total)}</span>
               </div>
             </div>
 
@@ -465,7 +697,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             >
               <ShieldCheck className="h-5 w-5 text-stone-200" />
               <span>
-                {isSubmitting ? 'Confirming Order...' : `Place Order with Cash on Delivery`}
+                {isSubmitting
+                  ? 'Confirming Order...'
+                  : paymentMethod === 'bKash'
+                  ? `Confirm & Place Order (${formatBDT(total)})`
+                  : `Place Order with Cash on Delivery (${formatBDT(total)})`}
               </span>
             </button>
           </form>

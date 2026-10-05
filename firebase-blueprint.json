@@ -78,6 +78,26 @@
       },
       "required": ["orderId", "customerName", "phone", "email", "total", "status"]
     },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with contact info, delivery address and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "district": { "type": "string" },
+        "subDistrict": { "type": "string" },
+        "street": { "type": "string" },
+        "address": { "type": "string" },
+        "deliveryZone": { "type": "string" },
+        "preferredPaymentMethod": { "type": "string" },
+        "preferredBkashNumber": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid"]
+    },
     "CartItem": {
       "title": "CartItem",
       "description": "Item in user shopping cart",

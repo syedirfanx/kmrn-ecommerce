@@ -115,15 +115,20 @@ const getInitialRoute = (): { page: AppPage; categoryName?: string; productId?: 
   }
 
   // Handle category routes
-  if (path === '/womens-wear' || path === '/category/womens-wear') {
+  if (path === '/womens-wear' || path === '/category/womens-wear' || path.includes('women')) {
     return { page: 'category', categoryName: "Elegant Women's Wear" };
   }
-  if (path === '/home-decor' || path === '/category/home-decor') {
+  if (path === '/home-decor' || path === '/category/home-decor' || path.includes('decor') || path.includes('home')) {
     return { page: 'category', categoryName: "Home Decor" };
   }
   if (path.startsWith('/category/')) {
     const slug = path.replace('/category/', '').split('/')[0];
-    return { page: 'category', categoryName: slug };
+    const catName = slug.includes('women')
+      ? "Elegant Women's Wear"
+      : slug.includes('decor') || slug.includes('home')
+      ? "Home Decor"
+      : slug;
+    return { page: 'category', categoryName: catName };
   }
 
   return { page: 'home' };
@@ -230,6 +235,8 @@ export default function App() {
   const [toastShowCart, setToastShowCart] = useState(false);
 
   const navigateTo = (page: AppPage) => {
+    setActiveProduct(null);
+    setQuickViewProduct(null);
     setCurrentPage(page);
     setSelectedSubcategory('All');
     setSearchQuery('');
@@ -245,19 +252,67 @@ export default function App() {
     }
   };
 
-  const navigateToCategory = (categoryName: string) => {
-    setSelectedCategory(categoryName);
-    setSelectedSubcategory('All');
+  const navigateToCategory = (categoryNameOrSlug: string, subcategoryName?: string) => {
+    setActiveProduct(null);
+    setQuickViewProduct(null);
+
+    const lower = (categoryNameOrSlug || '').toLowerCase().trim();
+    // 1. Resolve slug or name to actual category
+    const matchedCategory = categories.find((c) => {
+      const cLower = c.name.toLowerCase();
+      const cSlug = cLower.replace(/[^a-z0-9]+/g, '-');
+      return (
+        cLower === lower ||
+        cSlug === lower ||
+        (lower.includes('women') && cLower.includes('women')) ||
+        ((lower.includes('decor') || lower.includes('home') || lower.includes('bed')) &&
+          (cLower.includes('decor') || cLower.includes('home')))
+      );
+    });
+
+    let targetCategory = matchedCategory?.name;
+    let targetSubcategory = subcategoryName || 'All';
+
+    // 2. If no direct category match, check if it's a catalogue name or ID
+    if (!targetCategory) {
+      const matchedCatalogue = catalogues.find(
+        (cat) =>
+          cat.id.toLowerCase() === lower ||
+          cat.name.toLowerCase() === lower ||
+          cat.name.toLowerCase().includes(lower)
+      );
+      if (matchedCatalogue) {
+        targetCategory = matchedCatalogue.category;
+        targetSubcategory = matchedCatalogue.name;
+      }
+    }
+
+    // 3. Check if it's a product subcategory
+    if (!targetCategory) {
+      const prodWithSub = products.find(
+        (p) =>
+          (p.subcategory && p.subcategory.toLowerCase() === lower) ||
+          (p.catalogueName && p.catalogueName.toLowerCase() === lower)
+      );
+      if (prodWithSub) {
+        targetCategory = prodWithSub.category;
+        targetSubcategory = prodWithSub.subcategory || prodWithSub.catalogueName || 'All';
+      }
+    }
+
+    const finalCategoryName = targetCategory || categories[0]?.name || "Elegant Women's Wear";
+
+    setSelectedCategory(finalCategoryName);
+    setSelectedSubcategory(targetSubcategory);
     setSearchQuery('');
     setCurrentPage('category');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     try {
-      const lower = categoryName.toLowerCase();
-      const slug = lower.includes('women')
+      const slug = finalCategoryName.toLowerCase().includes('women')
         ? 'womens-wear'
-        : lower.includes('decor') || lower.includes('home')
+        : finalCategoryName.toLowerCase().includes('decor') || finalCategoryName.toLowerCase().includes('home')
         ? 'home-decor'
-        : categoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        : finalCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       window.history.pushState(null, '', `/category/${slug}`);
     } catch {
       // fallback
@@ -281,15 +336,19 @@ export default function App() {
       const route = getInitialRoute();
       setCurrentPage(route.page);
       if (route.categoryName) {
+        const lower = route.categoryName.toLowerCase();
         const foundCat = categories.find(
           (c) =>
-            c.name.toLowerCase() === route.categoryName?.toLowerCase() ||
-            c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === route.categoryName?.toLowerCase()
+            c.name.toLowerCase() === lower ||
+            c.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') === lower ||
+            (lower.includes('women') && c.name.toLowerCase().includes('women')) ||
+            ((lower.includes('decor') || lower.includes('home')) &&
+              (c.name.toLowerCase().includes('decor') || c.name.toLowerCase().includes('home')))
         );
         if (foundCat) {
           setSelectedCategory(foundCat.name);
-        } else if (route.categoryName) {
-          setSelectedCategory(route.categoryName);
+        } else {
+          setSelectedCategory(categories[0]?.name || "Elegant Women's Wear");
         }
       }
       if (route.productId) {
@@ -637,6 +696,16 @@ export default function App() {
     return catalogues.filter((c) => c.category === selectedCategory);
   }, [catalogues, selectedCategory]);
 
+  // Subcategories / collections present in this category's products
+  const categorySubcategories = useMemo(() => {
+    const subs = new Set<string>();
+    categoryProducts.forEach((p) => {
+      if (p.subcategory && p.subcategory.trim()) subs.add(p.subcategory.trim());
+      if (p.catalogueName && p.catalogueName.trim()) subs.add(p.catalogueName.trim());
+    });
+    return Array.from(subs);
+  }, [categoryProducts]);
+
   // Filtered and sorted products for active category
   const filteredProducts = useMemo(() => {
     return categoryProducts
@@ -747,6 +816,8 @@ export default function App() {
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
           items={cart}
+          userDistrict={userProfile?.district}
+          deliveryZone={userProfile?.deliveryZone}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -759,15 +830,6 @@ export default function App() {
           userProfile={userProfile}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOrderComplete={handleOrderComplete}
-        />
-        <ProductModal
-          product={activeProduct}
-          currentUser={currentUser}
-          onClose={() => setActiveProduct(null)}
-          onAddToCart={handleAddToCart}
-          isWishlisted={activeProduct ? wishlistProductIds.includes(activeProduct.id) : false}
-          onToggleWishlist={handleToggleWishlist}
-          onOpenAuth={() => setIsAuthModalOpen(true)}
         />
         <Toast
           isOpen={isToastOpen}
@@ -829,6 +891,8 @@ export default function App() {
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
           items={cart}
+          userDistrict={userProfile?.district}
+          deliveryZone={userProfile?.deliveryZone}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -887,6 +951,8 @@ export default function App() {
           isOpen={isCartOpen}
           onClose={() => setIsCartOpen(false)}
           items={cart}
+          userDistrict={userProfile?.district}
+          deliveryZone={userProfile?.deliveryZone}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -902,8 +968,8 @@ export default function App() {
   // Customer Storefront: Home Page or Dynamic Category Page
   return (
     <div className="min-h-screen bg-[#faf9f6] text-neutral-900 flex flex-col font-sans">
-      {/* Top Navbar & Home Hero Banner (Fit to top on mobile/tablet and full screen on laptop) */}
-      {currentPage === 'home' ? (
+      {/* Top Navbar & Hero Banner (Fit to top on both Home and Category pages, full width left-right) */}
+      {currentPage === 'home' || currentPage === 'category' ? (
         <div className="relative w-full m-0 p-0 border-0 outline-none">
           {/* Header Overlay: Announcement Bar at top, Navbar directly below it */}
           <div className="absolute top-0 left-0 right-0 z-30 pointer-events-auto">
@@ -920,6 +986,8 @@ export default function App() {
               logoUrl={storeSettings.logoUrl}
               onOpenCart={() => setIsCartOpen(true)}
               onOpenAccount={(tab) => {
+                setActiveProduct(null);
+                setQuickViewProduct(null);
                 if (!currentUser) {
                   setIsAuthModalOpen(true);
                 } else {
@@ -939,15 +1007,74 @@ export default function App() {
             />
           </div>
 
-          <FeaturedBanner
-            slides={bannerSlides}
-            products={products}
-            onAddToCart={(p) => handleAddToCart(p, 1)}
-            onViewDetails={(p) => navigateToProduct(p)}
-            onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
-            onNavigateToCategory={navigateToCategory}
-            onNavigateToPage={navigateTo}
-          />
+          {currentPage === 'home' ? (
+            <FeaturedBanner
+              slides={bannerSlides}
+              products={products}
+              categories={categories}
+              catalogues={catalogues}
+              onAddToCart={(p) => handleAddToCart(p, 1)}
+              onViewDetails={(p) => navigateToProduct(p)}
+              onNavigateToShop={() => navigateToCategory(categories[0]?.name || "Elegant Women's Wear")}
+              onNavigateToCategory={navigateToCategory}
+              onNavigateToPage={navigateTo}
+              onOpenCart={() => setIsCartOpen(true)}
+            />
+          ) : (
+            /* Full Bleed Category Hero Section (fit till top navbar, left and right full fit) */
+            <div className="relative w-full min-h-[380px] sm:min-h-[440px] md:min-h-[490px] flex items-end pb-10 sm:pb-14 pt-32 sm:pt-40 overflow-hidden bg-neutral-950">
+              {/* Category Background Image */}
+              <img
+                src={
+                  selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
+                    ? 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=2560&q=95'
+                    : 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=2560&q=95'
+                }
+                alt={selectedCategory}
+                className="absolute inset-0 w-full h-full object-cover object-center scale-102"
+              />
+              {/* High Contrast Overlays */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/40" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
+
+              {/* Hero Content text & logo */}
+              <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                <div className="max-w-2xl text-white">
+                  <h1 className="font-heading font-bold text-3xl sm:text-4xl md:text-5xl text-white mb-3 tracking-tight drop-shadow-md">
+                    {selectedCategory}
+                  </h1>
+                  <p className="text-xs sm:text-sm md:text-base text-stone-200 leading-relaxed font-light drop-shadow-xs max-w-xl">
+                    {selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')
+                      ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.'
+                      : selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
+                        ? 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.'
+                        : `Explore our collection of authentic ${selectedCategory} products.`}
+                  </p>
+                </div>
+
+                {/* Category Logo - Backgroundless and Bigger */}
+                {(selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')) && (
+                  <div className="shrink-0 flex items-center justify-start md:justify-end">
+                    <img
+                      src="/images/aniq-1.png"
+                      alt="ANIQ Women's Wear"
+                      className="w-auto h-auto max-h-44 sm:max-h-56 md:max-h-68 max-w-[320px] sm:max-w-[420px] md:max-w-[500px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
+                    />
+                  </div>
+                )}
+
+                {(selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')) && (
+                  <div className="shrink-0 flex items-center justify-start md:justify-end">
+                    <img
+                      src="/images/aniq-2.png"
+                      alt="ANIQ Home Decor"
+                      className="w-auto h-auto max-h-44 sm:max-h-56 md:max-h-68 max-w-[320px] sm:max-w-[420px] md:max-w-[500px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -964,6 +1091,8 @@ export default function App() {
             logoUrl={storeSettings.logoUrl}
             onOpenCart={() => setIsCartOpen(true)}
             onOpenAccount={(tab) => {
+              setActiveProduct(null);
+              setQuickViewProduct(null);
               if (!currentUser) {
                 setIsAuthModalOpen(true);
               } else {
@@ -1024,105 +1153,13 @@ export default function App() {
 
         {/* VIEW 2: Dynamic Category Page (e.g. Women's Wear, Home Decor, or any admin added category) */}
         {currentPage === 'category' && (
-          <div className="space-y-6">
-            {/* Editorial Header */}
-            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-stone-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 text-xs text-stone-400 mb-2">
-                  <button
-                    onClick={() => navigateTo('home')}
-                    className="hover:text-neutral-900 transition-colors cursor-pointer"
-                  >
-                    Home
-                  </button>
-                  <span>/</span>
-                  <span className="text-neutral-900 font-semibold">
-                    {selectedCategory}
-                  </span>
-                </div>
-
-                <h1 className="font-heading font-medium text-2xl sm:text-3xl text-neutral-900 mb-2 tracking-tight">
-                  {selectedCategory}
-                </h1>
-
-                <p className="text-xs sm:text-sm text-stone-600 max-w-2xl leading-relaxed">
-                  {selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')
-                    ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.'
-                    : selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
-                      ? 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.'
-                      : `Explore our collection of authentic ${selectedCategory} products.`}
-                </p>
-              </div>
-
-              {/* Right side category logo badge preserving original shape */}
-              {(selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')) && (
-                <div className="shrink-0 flex items-center justify-center p-2 max-w-[260px] sm:max-w-[340px]">
-                  <img
-                    src="/images/aniq-1.png"
-                    alt="ANIQ Women's Wear"
-                    className="w-full h-auto aspect-auto object-contain max-h-36 sm:max-h-48 mix-blend-multiply transition-transform duration-300 hover:scale-105"
-                  />
-                </div>
-              )}
-
-              {(selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')) && (
-                <div className="shrink-0 flex items-center justify-center p-2 max-w-[260px] sm:max-w-[340px]">
-                  <img
-                    src="/images/aniq-2.png"
-                    alt="ANIQ Home Decor"
-                    className="w-full h-auto aspect-auto object-contain max-h-36 sm:max-h-48 mix-blend-multiply transition-transform duration-300 hover:scale-105"
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Search Bar & Sorting Controls */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              {/* Search input */}
-              <div className="relative flex-1 sm:max-w-md">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={`Search in ${selectedCategory}...`}
-                  className="w-full bg-white border border-stone-300 rounded-xl pl-11 pr-10 py-2.5 text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs transition-all"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    aria-label="Clear search"
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-
-              {/* Sort Dropdown */}
-              <div className="flex items-center justify-end shrink-0">
-                <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-xl px-3.5 py-2 shadow-xs">
-                  <ArrowUpDown className="h-3.5 w-3.5 text-neutral-400" />
-                  <select
-                    id="sort-select"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as SortOption)}
-                    className="bg-transparent text-xs text-neutral-900 font-semibold focus:outline-none cursor-pointer"
-                  >
-                    <option value="featured">Featured Order</option>
-                    <option value="price-asc">Price: Low to High</option>
-                    <option value="price-desc">Price: High to Low</option>
-                    <option value="rating-desc">Highest Rated</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Catalogue Showcase (Women's Wear and Categories with Catalogues) */}
+          <div className="space-y-8">
+            {/* Case A: Category with Catalogues */}
             {currentCategoryCatalogues.length > 0 && !searchQuery.trim() ? (
               selectedSubcategory === 'All' ? (
-                /* 1. All Catalogues View (No products under) */
-                <div className="space-y-4">
+                /* 1. All Catalogues View (Catalogues first, search and sort hidden until selection) */
+                <div className="space-y-8">
+                  {/* Catalogue Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                     {currentCategoryCatalogues.map((catg) => {
                       const catgCount = categoryProducts.filter(
@@ -1162,37 +1199,79 @@ export default function App() {
                   </div>
                 </div>
               ) : (
-                /* 2. Single Selected Catalogue View (Other catalogues hidden, only its products shown) */
+                /* 2. Single Selected Catalogue View (Catalogue header, then search and sort under, then products) */
                 <div className="space-y-6">
                   {(() => {
                     const activeCatg = currentCategoryCatalogues.find(
                       (c) => c.name === selectedSubcategory || c.id === selectedSubcategory
                     );
                     return (
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80 shadow-xs">
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedSubcategory('All')}
-                            className="px-3.5 py-1.5 rounded-xl border border-stone-300 hover:border-neutral-900 hover:bg-neutral-900 hover:text-white text-xs font-semibold text-neutral-800 transition-all cursor-pointer shrink-0"
-                          >
-                            ← See all
-                          </button>
-                          <div>
-                            <h2 className="font-heading font-bold text-sm sm:text-base text-neutral-900">
-                              {activeCatg?.name || selectedSubcategory}
-                            </h2>
-                            {activeCatg?.description && (
-                              <p className="text-xs text-stone-500">
-                                {activeCatg.description}
-                              </p>
+                      <>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80 shadow-xs">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedSubcategory('All')}
+                              className="px-3.5 py-1.5 rounded-xl border border-stone-300 hover:border-neutral-900 hover:bg-neutral-900 hover:text-white text-xs font-semibold text-neutral-800 transition-all cursor-pointer shrink-0"
+                            >
+                              ← See all
+                            </button>
+                            <div>
+                              <h2 className="font-heading font-bold text-sm sm:text-base text-neutral-900">
+                                {activeCatg?.name || selectedSubcategory}
+                              </h2>
+                              {activeCatg?.description && (
+                                <p className="text-xs text-stone-500">
+                                  {activeCatg.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-xs text-stone-500 font-medium shrink-0">
+                            <strong className="text-neutral-900 font-bold">{filteredProducts.length}</strong> Products Available
+                          </span>
+                        </div>
+
+                        {/* Search Bar & Sorting Controls placed UNDER the selected collection header */}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                          <div className="relative flex-1 sm:max-w-md">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder={`Search in ${activeCatg?.name || selectedSubcategory}...`}
+                              className="w-full bg-white border border-stone-300 rounded-xl pl-11 pr-10 py-2.5 text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs transition-all"
+                            />
+                            {searchQuery && (
+                              <button
+                                onClick={() => setSearchQuery('')}
+                                aria-label="Clear search"
+                                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
                             )}
                           </div>
+
+                          <div className="flex items-center justify-end shrink-0">
+                            <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-xl px-3.5 py-2 shadow-xs">
+                              <ArrowUpDown className="h-3.5 w-3.5 text-neutral-400" />
+                              <select
+                                id="sort-select-subcat"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                                className="bg-transparent text-xs text-neutral-900 font-semibold focus:outline-none cursor-pointer"
+                              >
+                                <option value="featured">Featured Order</option>
+                                <option value="price-asc">Price: Low to High</option>
+                                <option value="price-desc">Price: High to Low</option>
+                                <option value="rating-desc">Highest Rated</option>
+                              </select>
+                            </div>
+                          </div>
                         </div>
-                        <span className="text-xs text-stone-500 font-medium shrink-0">
-                          <strong className="text-neutral-900 font-bold">{filteredProducts.length}</strong> Products Available
-                        </span>
-                      </div>
+                      </>
                     );
                   })()}
 
@@ -1226,9 +1305,177 @@ export default function App() {
                   )}
                 </div>
               )
-            ) : (
-              /* Product grid for categories without catalogues or when searching */
+            ) : categorySubcategories.length > 0 && selectedSubcategory === 'All' && !searchQuery.trim() ? (
+              /* Case B: Category without Catalogues but with Subcategories/Collections - Grid view before selection (Search & Sort hidden) */
+              <div className="space-y-8">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  {categorySubcategories.map((subName) => {
+                    const subProducts = categoryProducts.filter(
+                      (p) => p.subcategory === subName || p.catalogueName === subName
+                    );
+                    const coverImage = subProducts[0]?.image || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=85';
+
+                    return (
+                      <div
+                        key={subName}
+                        onClick={() => setSelectedSubcategory(subName)}
+                        className="group relative bg-white rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md"
+                      >
+                        <div className="aspect-video bg-stone-100 overflow-hidden relative">
+                          <img
+                            src={coverImage}
+                            alt={subName}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-white px-2 py-0.5 rounded-md text-[10px] font-bold tabular-nums">
+                            {subProducts.length} Items
+                          </div>
+                        </div>
+
+                        <div className="p-3">
+                          <h3 className="font-heading font-bold text-xs sm:text-sm text-neutral-900 truncate group-hover:text-stone-600 transition-colors">
+                            {subName}
+                          </h3>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : selectedSubcategory !== 'All' && !searchQuery.trim() ? (
+              /* Case C: Single Selected Collection view (Header, then Search & Sort, then Products) */
               <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSubcategory('All')}
+                      className="px-3.5 py-1.5 rounded-xl border border-stone-300 hover:border-neutral-900 hover:bg-neutral-900 hover:text-white text-xs font-semibold text-neutral-800 transition-all cursor-pointer shrink-0"
+                    >
+                      ← See all
+                    </button>
+                    <div>
+                      <h2 className="font-heading font-bold text-sm sm:text-base text-neutral-900">
+                        {selectedSubcategory}
+                      </h2>
+                    </div>
+                  </div>
+                  <span className="text-xs text-stone-500 font-medium shrink-0">
+                    <strong className="text-neutral-900 font-bold">{filteredProducts.length}</strong> Products Available
+                  </span>
+                </div>
+
+                {/* Search Bar & Sorting Controls placed UNDER the selected collection header */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 sm:max-w-md">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={`Search in ${selectedSubcategory}...`}
+                      className="w-full bg-white border border-stone-300 rounded-xl pl-11 pr-10 py-2.5 text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end shrink-0">
+                    <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-xl px-3.5 py-2 shadow-xs">
+                      <ArrowUpDown className="h-3.5 w-3.5 text-neutral-400" />
+                      <select
+                        id="sort-select-subcat-coll"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="bg-transparent text-xs text-neutral-900 font-semibold focus:outline-none cursor-pointer"
+                      >
+                        <option value="featured">Featured Order</option>
+                        <option value="price-asc">Price: Low to High</option>
+                        <option value="price-desc">Price: High to Low</option>
+                        <option value="rating-desc">Highest Rated</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Products Grid for this selected collection */}
+                {filteredProducts.length > 0 ? (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                    {filteredProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onAddToCart={(p, q) => handleAddToCart(p, q || 1)}
+                        onViewDetails={(p) => navigateToProduct(p)}
+                        onQuickView={(p) => setQuickViewProduct(p)}
+                        isWishlisted={wishlistProductIds.includes(product.id)}
+                        onToggleWishlist={handleToggleWishlist}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-16 text-center bg-white rounded-2xl border border-stone-200/80 shadow-xs px-4">
+                    <p className="font-heading font-medium text-base text-neutral-900 mb-1">
+                      No products found in this collection
+                    </p>
+                    <button
+                      onClick={() => setSelectedSubcategory('All')}
+                      className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer mt-3"
+                    >
+                      See all
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Case D: General product grid with active search */
+              <div className="space-y-6">
+                {/* Search Bar & Sorting Controls */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="relative flex-1 sm:max-w-md">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder={`Search in ${selectedCategory}...`}
+                      className="w-full bg-white border border-stone-300 rounded-xl pl-11 pr-10 py-2.5 text-xs sm:text-sm text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:border-neutral-900 focus:ring-1 focus:ring-neutral-900 shadow-xs transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Clear search"
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 p-1 cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end shrink-0">
+                    <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-xl px-3.5 py-2 shadow-xs">
+                      <ArrowUpDown className="h-3.5 w-3.5 text-neutral-400" />
+                      <select
+                        id="sort-select-default"
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as SortOption)}
+                        className="bg-transparent text-xs text-neutral-900 font-semibold focus:outline-none cursor-pointer"
+                      >
+                        <option value="featured">Featured Order</option>
+                        <option value="price-asc">Price: Low to High</option>
+                        <option value="price-desc">Price: High to Low</option>
+                        <option value="rating-desc">Highest Rated</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
 
                 {/* Active Search Result Tag */}
                 {searchQuery && (
@@ -1266,16 +1513,16 @@ export default function App() {
                       No products found
                     </p>
                     <p className="text-xs text-stone-500 mb-4">
-                      Try adjusting your search query or subcategory filter.
+                      Try adjusting your search query or filters.
                     </p>
                     <button
                       onClick={() => {
-                        setSelectedSubcategory('All');
                         setSearchQuery('');
+                        setSelectedSubcategory('All');
                       }}
                       className="bg-neutral-900 text-white font-semibold text-xs uppercase tracking-wider px-4 py-2 rounded-lg cursor-pointer"
                     >
-                      Reset Filters
+                      Reset filters
                     </button>
                   </div>
                 )}
@@ -1317,6 +1564,8 @@ export default function App() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         items={cart}
+        userDistrict={userProfile?.district}
+        deliveryZone={userProfile?.deliveryZone}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onProceedToCheckout={() => setIsCheckoutOpen(true)}

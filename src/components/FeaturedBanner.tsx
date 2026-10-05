@@ -1,25 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Product, BannerSlide } from '../types';
+import { Product, BannerSlide, CategoryData, Catalogue } from '../types';
 import { formatBDT } from '../utils/format';
 
 interface FeaturedBannerProps {
   slides?: BannerSlide[];
   products: Product[];
+  categories?: CategoryData[];
+  catalogues?: Catalogue[];
   onAddToCart: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onNavigateToShop?: () => void;
-  onNavigateToCategory?: (categoryName: string) => void;
+  onNavigateToCategory?: (categoryName: string, subcategoryName?: string) => void;
   onNavigateToPage?: (page: 'home' | 'about' | 'contact' | 'account') => void;
+  onOpenCart?: () => void;
 }
 
 export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
   slides = [],
   products,
+  categories = [],
+  catalogues = [],
   onAddToCart,
   onViewDetails,
   onNavigateToShop,
   onNavigateToCategory,
-  onNavigateToPage
+  onNavigateToPage,
+  onOpenCart
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -140,53 +146,203 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
     setIsPaused(false);
   };
 
-  const handleSlideAction = (slide: BannerSlide) => {
-    if (slide.noLinkOverBanner === true) return;
-    if (slide.type === 'product' && slide.productId) {
-      const prod = products.find((p) => p.id === slide.productId);
-      if (prod) {
-        onViewDetails(prod);
-        return;
-      }
-    }
-    const rawUrl = (slide.linkUrl || '').trim();
-    const url = rawUrl.toLowerCase().replace(/^#/, '');
+  const handleInternalPath = (rawPath: string) => {
+    let clean = (rawPath || '').trim();
+    // Remove query params/hash for route matching if needed, but preserve if relevant
+    clean = clean.replace(/^[/#]+/, '').replace(/\/+$/, '');
+    const lower = clean.toLowerCase();
 
-    if (url === 'about' || url === '/about') {
+    // Home
+    if (lower === '' || lower === 'home') {
+      onNavigateToPage?.('home');
+      return;
+    }
+
+    // Static pages
+    if (lower === 'about' || lower === 'about-us') {
       onNavigateToPage?.('about');
       return;
     }
-    if (url === 'contact' || url === '/contact') {
+    if (lower === 'contact' || lower === 'contact-us' || lower === 'boutique') {
       onNavigateToPage?.('contact');
       return;
     }
-    if (url === 'account' || url === '/account') {
+    if (lower === 'account' || lower === 'orders' || lower === 'profile' || lower === 'my-account') {
       onNavigateToPage?.('account');
       return;
     }
-    if (url.startsWith('category:')) {
-      const cat = rawUrl.split(':')[1]?.trim();
-      if (cat && onNavigateToCategory) {
-        onNavigateToCategory(cat);
-        return;
-      }
+    if (lower === 'cart' || lower === 'checkout') {
+      onOpenCart?.();
+      return;
     }
-    if (url.startsWith('/product/') || url.startsWith('product/')) {
-      const prodId = url.replace(/^\/?product\//, '');
-      const prod = products.find((p) => p.id === prodId);
+
+    // Shop / All Products
+    if (lower === 'shop' || lower === 'products' || lower === 'collection' || lower === 'all') {
+      if (onNavigateToShop) {
+        onNavigateToShop();
+      } else if (onNavigateToCategory && categories && categories.length > 0) {
+        onNavigateToCategory(categories[0].name, 'All');
+      }
+      return;
+    }
+
+    // Product link (e.g. product/123, /product/123, products/123, or product query)
+    if (lower.startsWith('product/') || lower.startsWith('products/') || lower.includes('product=')) {
+      const prodId = clean
+        .replace(/^(product|products)\//i, '')
+        .replace(/.*[?&](id|product)=/i, '')
+        .split('?')[0]
+        .split('#')[0]
+        .trim();
+
+      const prod = products.find(
+        (p) =>
+          p.id.toLowerCase() === prodId.toLowerCase() ||
+          String(p.id) === prodId ||
+          p.name.toLowerCase() === prodId.toLowerCase() ||
+          p.name.toLowerCase().includes(prodId.toLowerCase())
+      );
       if (prod) {
         onViewDetails(prod);
         return;
       }
     }
-    if (onNavigateToCategory && url && url !== 'shop' && url !== '/shop') {
-      const clean = url.replace(/^\//, '').replace(/^category\//, '');
-      onNavigateToCategory(clean);
+
+    // Check if it's a direct product ID or exact product name
+    const directProd = products.find(
+      (p) =>
+        p.id.toLowerCase() === clean.toLowerCase() ||
+        String(p.id) === clean ||
+        p.name.toLowerCase() === lower
+    );
+    if (directProd) {
+      onViewDetails(directProd);
       return;
     }
+
+    // Check for catalogue link (e.g. catalogue/catg-lawn, catalogues/catg-lawn, or catalogue name)
+    const catalogueIdOrName = clean
+      .replace(/^(catalogue|catalogues|collection|collections)\//i, '')
+      .trim()
+      .toLowerCase();
+
+    const matchedCatalogue = catalogues?.find(
+      (c) =>
+        c.id.toLowerCase() === catalogueIdOrName ||
+        c.name.toLowerCase() === catalogueIdOrName ||
+        c.name.toLowerCase().includes(catalogueIdOrName)
+    );
+    if (matchedCatalogue) {
+      onNavigateToCategory?.(matchedCatalogue.category, matchedCatalogue.name);
+      return;
+    }
+
+    // Check for subcategory / collection in products
+    const matchedProdWithSub = products.find(
+      (p) =>
+        (p.subcategory && p.subcategory.toLowerCase() === lower) ||
+        (p.catalogueName && p.catalogueName.toLowerCase() === lower) ||
+        (p.subcategory && p.subcategory.toLowerCase() === catalogueIdOrName) ||
+        (p.catalogueName && p.catalogueName.toLowerCase() === catalogueIdOrName)
+    );
+    if (matchedProdWithSub) {
+      onNavigateToCategory?.(matchedProdWithSub.category, matchedProdWithSub.subcategory || matchedProdWithSub.catalogueName);
+      return;
+    }
+
+    // Category link (e.g. category/womens-wear, womens-wear, category/home-decor, home-decor, Elegant Women's Wear)
+    const catClean = clean.replace(/^category\//i, '').trim();
+    const catLower = catClean.toLowerCase();
+
+    // Women's wear aliases
+    if (catLower.includes('women') || catLower === 'lawn' || catLower === 'womens-wear' || catLower === 'women-wear') {
+      const womenCat = categories?.find((c) => c.name.toLowerCase().includes('women'))?.name || "Elegant Women's Wear";
+      onNavigateToCategory?.(womenCat, 'All');
+      return;
+    }
+
+    // Home decor aliases
+    if (catLower.includes('decor') || catLower.includes('home') || catLower === 'home-decor' || catLower.includes('bed')) {
+      const homeCat = categories?.find((c) => c.name.toLowerCase().includes('decor') || c.name.toLowerCase().includes('home'))?.name || "Home Decor";
+      onNavigateToCategory?.(homeCat, 'All');
+      return;
+    }
+
+    // Match any category by name or slug
+    const matchedCategory = categories?.find((c) => {
+      const cLower = c.name.toLowerCase();
+      const cSlug = cLower.replace(/[^a-z0-9]+/g, '-');
+      return cLower === catLower || cSlug === catLower;
+    });
+
+    if (matchedCategory) {
+      onNavigateToCategory?.(matchedCategory.name, 'All');
+      return;
+    }
+
+    // Generic shop fallback - NEVER open a blank page!
     if (onNavigateToShop) {
       onNavigateToShop();
+    } else if (onNavigateToCategory && categories && categories.length > 0) {
+      onNavigateToCategory(categories[0].name, 'All');
+    } else {
+      onNavigateToPage?.('home');
     }
+  };
+
+  const handleSlideAction = (slide: BannerSlide) => {
+    if (slide.noLinkOverBanner === true) return;
+
+    // 1. Linked direct product slide
+    if (slide.type === 'product' && slide.productId) {
+      const prod = products.find((p) => p.id === slide.productId || String(p.id) === String(slide.productId));
+      if (prod) {
+        onViewDetails(prod);
+        return;
+      }
+    }
+
+    const rawUrl = (slide.linkUrl || '').trim();
+    if (!rawUrl) {
+      // Default to shop
+      if (onNavigateToShop) {
+        onNavigateToShop();
+      } else if (onNavigateToCategory && categories && categories.length > 0) {
+        onNavigateToCategory(categories[0].name, 'All');
+      }
+      return;
+    }
+
+    // 2. Web URLs (http:// or https:// or //)
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('//')) {
+      try {
+        const fullUrl = rawUrl.startsWith('//') ? window.location.protocol + rawUrl : rawUrl;
+        const parsed = new URL(fullUrl);
+        // If it is the current app, any preview run.app domain, localhost, or firebase host
+        if (
+          parsed.origin === window.location.origin ||
+          parsed.hostname.includes('run.app') ||
+          parsed.hostname.includes('localhost') ||
+          parsed.hostname.includes('127.0.0.1') ||
+          parsed.hostname.includes('firebaseapp.com') ||
+          parsed.hostname.includes('web.app')
+        ) {
+          // Route internally to prevent reloading the page or blank iframe
+          handleInternalPath(parsed.pathname + parsed.search + parsed.hash);
+          return;
+        }
+
+        // True external link: open safely in new window with noopener to avoid blanking current app
+        window.open(fullUrl, '_blank', 'noopener,noreferrer');
+        return;
+      } catch {
+        handleInternalPath(rawUrl);
+        return;
+      }
+    }
+
+    // 3. Internal routing for relative paths
+    handleInternalPath(rawUrl);
   };
 
   return (

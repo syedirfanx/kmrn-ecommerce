@@ -15,6 +15,7 @@ import {
   CategoryData,
   Catalogue,
   UserProfile,
+  UserAddress,
   OrderConfirmation,
   CartItem,
   ProductReview,
@@ -54,6 +55,27 @@ export const DEFAULT_CATALOGUES: Catalogue[] = [
     description: 'Tailored luxury pret kurtas and coordinated festive sets, ready to wear for everyday elegance.',
     image: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?auto=format&fit=crop&w=1200&q=85',
     category: "Elegant Women's Wear"
+  },
+  {
+    id: 'catg-bedsheets',
+    name: 'Bedsheets',
+    description: '1000 Thread Count Egyptian cotton and sateen luxury bedsheet sets with matching pillowcases.',
+    image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=85',
+    category: 'Home Decor'
+  },
+  {
+    id: 'catg-comforters',
+    name: 'Comforters',
+    description: 'Royal velvet quilted winter comforter sets and plush all-season microfiber duvets.',
+    image: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?auto=format&fit=crop&w=1200&q=85',
+    category: 'Home Decor'
+  },
+  {
+    id: 'catg-cushions',
+    name: 'Cushions',
+    description: 'Embroidered silk and velvet cushion covers with geometric motifs and festive embellishments.',
+    image: 'https://images.unsplash.com/photo-1579656381226-5fc0f0100c3b?auto=format&fit=crop&w=1200&q=85',
+    category: 'Home Decor'
   }
 ];
 
@@ -460,6 +482,151 @@ export const saveUserProfileToDb = async (
   }
 };
 
+/**
+ * Saves a user address (supports multiple addresses per user).
+ * If isDefault or first address, sets it as the default address in their profile.
+ */
+export const saveUserAddressInDb = async (
+  userId: string,
+  address: UserAddress
+): Promise<DbResult> => {
+  const path = `users/${userId}/profile/main`;
+  try {
+    const docRef = doc(db, 'users', userId, 'profile', 'main');
+    const snap = await getDoc(docRef);
+    let existingAddresses: UserAddress[] = [];
+    if (snap.exists()) {
+      existingAddresses = (snap.data()?.addresses as UserAddress[]) || [];
+    }
+
+    const index = existingAddresses.findIndex((a) => a.id === address.id);
+    const shouldBeDefault = address.isDefault || existingAddresses.length === 0;
+
+    const cleanNewAddress: UserAddress = {
+      ...address,
+      isDefault: shouldBeDefault,
+      createdAt: address.createdAt || new Date().toISOString()
+    };
+
+    let updatedAddresses: UserAddress[];
+    if (index >= 0) {
+      updatedAddresses = existingAddresses.map((a, i) =>
+        i === index ? cleanNewAddress : shouldBeDefault ? { ...a, isDefault: false } : a
+      );
+    } else {
+      updatedAddresses = shouldBeDefault
+        ? [...existingAddresses.map((a) => ({ ...a, isDefault: false })), cleanNewAddress]
+        : [...existingAddresses, cleanNewAddress];
+    }
+
+    const defaultAddr = updatedAddresses.find((a) => a.isDefault) || updatedAddresses[0];
+
+    const payload: Partial<UserProfile> = {
+      addresses: updatedAddresses,
+      defaultAddressId: defaultAddr?.id,
+      ...(defaultAddr
+        ? {
+            street: defaultAddr.street,
+            address: defaultAddr.street,
+            district: defaultAddr.district,
+            subDistrict: defaultAddr.subDistrict,
+            deliveryZone: defaultAddr.deliveryZone
+          }
+        : {})
+    };
+
+    await setDoc(docRef, sanitizeForFirestore(payload), { merge: true });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+/**
+ * Deletes a saved address from the user's account data.
+ */
+export const deleteUserAddressInDb = async (
+  userId: string,
+  addressId: string
+): Promise<DbResult> => {
+  const path = `users/${userId}/profile/main`;
+  try {
+    const docRef = doc(db, 'users', userId, 'profile', 'main');
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return { success: true };
+
+    const existingAddresses: UserAddress[] = (snap.data()?.addresses as UserAddress[]) || [];
+    const filtered = existingAddresses.filter((a) => a.id !== addressId);
+
+    let defaultAddr = filtered.find((a) => a.isDefault);
+    if (!defaultAddr && filtered.length > 0) {
+      filtered[0].isDefault = true;
+      defaultAddr = filtered[0];
+    }
+
+    const payload: Partial<UserProfile> = {
+      addresses: filtered,
+      defaultAddressId: defaultAddr?.id || '',
+      ...(defaultAddr
+        ? {
+            street: defaultAddr.street,
+            address: defaultAddr.street,
+            district: defaultAddr.district,
+            subDistrict: defaultAddr.subDistrict,
+            deliveryZone: defaultAddr.deliveryZone
+          }
+        : {})
+    };
+
+    await setDoc(docRef, sanitizeForFirestore(payload), { merge: true });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
+/**
+ * Sets an address as the default address for the user.
+ */
+export const setDefaultUserAddressInDb = async (
+  userId: string,
+  addressId: string
+): Promise<DbResult> => {
+  const path = `users/${userId}/profile/main`;
+  try {
+    const docRef = doc(db, 'users', userId, 'profile', 'main');
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return { success: false, error: 'User profile not found' };
+
+    const existingAddresses: UserAddress[] = (snap.data()?.addresses as UserAddress[]) || [];
+    const updated = existingAddresses.map((a) => ({
+      ...a,
+      isDefault: a.id === addressId
+    }));
+
+    const defaultAddr = updated.find((a) => a.id === addressId);
+    if (!defaultAddr) return { success: false, error: 'Address not found' };
+
+    const payload: Partial<UserProfile> = {
+      addresses: updated,
+      defaultAddressId: addressId,
+      street: defaultAddr.street,
+      address: defaultAddr.street,
+      district: defaultAddr.district,
+      subDistrict: defaultAddr.subDistrict,
+      deliveryZone: defaultAddr.deliveryZone
+    };
+
+    await setDoc(docRef, sanitizeForFirestore(payload), { merge: true });
+    return { success: true };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    return { success: false, error: String(error) };
+  }
+};
+
 export const subscribeUserCart = (
   userId: string,
   onUpdate: (items: CartItem[]) => void
@@ -757,6 +924,9 @@ export const sanitizeOrder = (d: { id: string; data: () => Record<string, unknow
     phone: String(data.phone || ''),
     street: String(data.street || ''),
     city: String(data.city || ''),
+    district: data.district ? String(data.district) : undefined,
+    subDistrict: data.subDistrict ? String(data.subDistrict) : undefined,
+    deliveryZone: data.deliveryZone ? String(data.deliveryZone) : undefined,
     country: String(data.country || 'Bangladesh'),
     shippingAddress: String(data.shippingAddress || ''),
     items: Array.isArray(data.items)
@@ -767,9 +937,13 @@ export const sanitizeOrder = (d: { id: string; data: () => Record<string, unknow
       : [],
     subtotal: Number(data.subtotal) || 0,
     shipping: Number(data.shipping) || 0,
+    discountAmount: data.discountAmount !== undefined ? Number(data.discountAmount) : undefined,
+    promoCode: data.promoCode ? String(data.promoCode) : undefined,
     total: Number(data.total) || 0,
     status: (data.status as OrderConfirmation['status']) || 'Processing',
-    paymentMethod: 'Cash on Delivery',
+    paymentMethod: String(data.paymentMethod || 'Cash on Delivery'),
+    bkashNumber: data.bkashNumber ? String(data.bkashNumber) : undefined,
+    bkashTrxId: data.bkashTrxId ? String(data.bkashTrxId) : undefined,
     userId: data.userId ? String(data.userId) : undefined,
     isGuest: Boolean(data.isGuest),
     customerType: (data.customerType as OrderConfirmation['customerType']) || (data.userId ? 'Registered Account' : 'Guest Checkout'),
@@ -838,6 +1012,33 @@ export const subscribeAllOrders = (
 ) => {
   const path = 'orders';
 
+  const mergeWithLocalAndSync = (liveOrders: OrderConfirmation[]) => {
+    let local: OrderConfirmation[] = [];
+    try {
+      local = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+    } catch {
+      local = [];
+    }
+
+    const merged = [...liveOrders];
+    local.forEach((lo) => {
+      if (!merged.some((o) => o.orderId === lo.orderId)) {
+        merged.push(lo);
+        // Auto-sync missing local order to central Firestore
+        try {
+          const docRef = doc(db, 'orders', lo.orderId);
+          setDoc(docRef, sanitizeForFirestore(lo), { merge: true }).catch(() => {});
+        } catch {
+          // silent sync
+        }
+      }
+    });
+
+    return merged.sort(
+      (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
+    );
+  };
+
   // Initial immediate fetch for instant availability
   getDocs(collection(db, path))
     .then((snap) => {
@@ -846,11 +1047,7 @@ export const subscribeAllOrders = (
         snap.forEach((d) => {
           orders.push(sanitizeOrder(d));
         });
-        onUpdate(
-          orders.sort(
-            (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
-          )
-        );
+        onUpdate(mergeWithLocalAndSync(orders));
       }
     })
     .catch(() => {
@@ -865,12 +1062,7 @@ export const subscribeAllOrders = (
         orders.push(sanitizeOrder(d));
       });
 
-      // Pure live Firestore list without re-merging stale local storage
-      onUpdate(
-        orders.sort(
-          (a, b) => (new Date(b.placedAt || 0).getTime() || 0) - (new Date(a.placedAt || 0).getTime() || 0)
-        )
-      );
+      onUpdate(mergeWithLocalAndSync(orders));
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
@@ -937,6 +1129,47 @@ export const updateOrderStatusInDb = async (
     } catch {
       // storage fallback
     }
+    return { success: false, error: String(error) };
+  }
+};
+
+/**
+ * Cancels an order requested by the user.
+ * Strictly checks that the order is still in 'Processing' status (before confirmed by admin).
+ * Once confirmed, shipped, or delivered, cancellations are blocked.
+ */
+export const cancelUserOrderInDb = async (
+  orderId: string,
+  userId?: string
+): Promise<DbResult> => {
+  try {
+    const adminDocRef = doc(db, 'orders', orderId);
+    let currentStatus: OrderConfirmation['status'] = 'Processing';
+
+    try {
+      const snap = await getDoc(adminDocRef);
+      if (snap.exists()) {
+        currentStatus = (snap.data()?.status as OrderConfirmation['status']) || 'Processing';
+      }
+    } catch {
+      // fallback to local storage
+      const local: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
+      const localOrder = local.find((o) => o.orderId === orderId);
+      if (localOrder?.status) {
+        currentStatus = localOrder.status;
+      }
+    }
+
+    if (currentStatus !== 'Processing') {
+      return {
+        success: false,
+        error: `This order is already ${currentStatus.toLowerCase()} by the admin and cannot be cancelled.`
+      };
+    }
+
+    return await updateOrderStatusInDb(orderId, 'Cancelled', userId);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `orders/${orderId}`);
     return { success: false, error: String(error) };
   }
 };

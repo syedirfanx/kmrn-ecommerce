@@ -69,9 +69,13 @@ service cloud.firestore {
       allow get, list, create, update, delete: if true;
     }
 
-    // User private data: profile, cart, wishlist, orders
-    match /users/{userId}/{document=**} {
+    // User private data: user profile document and all subcollections (addresses, cart, wishlist, orders)
+    match /users/{userId} {
       allow get, list, create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      match /{document=**} {
+        allow get, list, create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      }
     }
 
     // Admin authorization mapping

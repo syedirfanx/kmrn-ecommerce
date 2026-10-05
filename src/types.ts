@@ -95,6 +95,9 @@ export interface OrderConfirmation {
   phone: string;
   street: string;
   city: string;
+  district?: string;
+  subDistrict?: string; // Sub District / Thana / Union
+  deliveryZone?: 'Inside Dhaka City' | 'Outside Dhaka City' | string;
   country: string;
   shippingAddress: string;
   items: CartItem[];
@@ -104,11 +107,26 @@ export interface OrderConfirmation {
   promoCode?: string;
   total: number;
   status: 'Processing' | 'Confirmed' | 'Shipped' | 'Delivered' | 'Cancelled';
-  paymentMethod: 'Cash on Delivery';
+  paymentMethod: 'Cash on Delivery' | 'bKash' | string;
+  bkashNumber?: string;
+  bkashTrxId?: string;
   userId?: string;
   isGuest?: boolean;
   customerType?: 'Registered Account' | 'Guest Checkout';
   placedAt: string;
+}
+
+export interface UserAddress {
+  id: string;
+  label?: string; // e.g. 'Home', 'Office', 'Apartment', etc.
+  recipientName?: string;
+  phone?: string;
+  street: string;
+  district: string;
+  subDistrict: string; // Sub District / Thana / Union
+  deliveryZone?: 'Inside Dhaka City' | 'Outside Dhaka City' | string;
+  isDefault: boolean;
+  createdAt?: string;
 }
 
 export interface UserProfile {
@@ -119,8 +137,15 @@ export interface UserProfile {
   street?: string;
   address?: string;
   city?: string;
+  district?: string;
+  subDistrict?: string; // Sub District / Thana / Union
+  deliveryZone?: 'Inside Dhaka City' | 'Outside Dhaka City' | string;
+  preferredPaymentMethod?: 'Cash on Delivery' | 'bKash' | string;
+  preferredBkashNumber?: string;
   country?: string;
   postalCode?: string;
+  addresses?: UserAddress[];
+  defaultAddressId?: string;
   updatedAt?: string;
 }
 

@@ -247,38 +247,41 @@ export const ProductModal: React.FC<ProductModalProps> = ({
         </button>
 
         <div className="grid grid-cols-1 md:grid-cols-2">
-          {/* Gallery Column */}
-          <div className="p-6 md:p-8 bg-stone-50 flex flex-col justify-between">
-            <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-white shadow-xs mb-4 border border-stone-200/60">
+          {/* Gallery Column (Thumbnails on left side up to down, main image on right) */}
+          <div className="p-5 sm:p-6 md:p-8 bg-stone-50 flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 items-start">
+            {/* Thumbnail selector on left side stacked up to down */}
+            {allImages.length > 1 && (
+              <div className="flex sm:flex-col gap-2.5 overflow-x-auto sm:overflow-y-auto max-h-[460px] pb-1 sm:pb-0 scrollbar-none shrink-0 w-full sm:w-auto">
+                {allImages.map((img, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setSelectedImage(img)}
+                    className={`relative w-14 sm:w-16 aspect-[3/4] rounded-xl overflow-hidden shadow-xs transition-all shrink-0 cursor-pointer border-2 ${
+                      selectedImage === img
+                        ? 'border-neutral-900 ring-1 ring-neutral-900 shadow-md scale-95'
+                        : 'border-stone-200/80 opacity-70 hover:opacity-100'
+                    }`}
+                    aria-label={`Select thumbnail ${i + 1}`}
+                  >
+                    <img
+                      src={img}
+                      alt={`Thumbnail ${i + 1}`}
+                      className="w-full h-full object-cover object-center"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Main Preview Image */}
+            <div className="relative flex-1 w-full aspect-[3/4] rounded-2xl overflow-hidden bg-white shadow-xs border border-stone-200/80">
               <img
                 src={selectedImage || product.image}
                 alt={product.name}
                 className="w-full h-full object-cover object-center"
               />
             </div>
-
-            {/* Thumbnail selector */}
-            {allImages.length > 1 && (
-              <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none">
-                {allImages.map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedImage(img)}
-                    className={`relative w-14 h-18 rounded-lg overflow-hidden shadow-xs transition-all shrink-0 cursor-pointer border ${
-                      selectedImage === img
-                        ? 'border-neutral-900 ring-1 ring-neutral-900'
-                        : 'border-stone-200 opacity-70 hover:opacity-100'
-                    }`}
-                  >
-                    <img
-                      src={img}
-                      alt={`Thumbnail ${i + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Details Column */}

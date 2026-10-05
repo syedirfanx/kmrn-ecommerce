@@ -7,6 +7,8 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
+  userDistrict?: string;
+  deliveryZone?: string;
   onUpdateQuantity: (productId: string, quantity: number, selectedColour?: string, selectedSize?: string) => void;
   onRemoveItem: (productId: string, selectedColour?: string, selectedSize?: string) => void;
   onProceedToCheckout: () => void;
@@ -16,6 +18,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,
   items,
+  userDistrict,
+  deliveryZone,
   onUpdateQuantity,
   onRemoveItem,
   onProceedToCheckout
@@ -43,8 +47,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const totalItemsCount = items.reduce((acc, it) => acc + it.quantity, 0);
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
   const discountAmount = appliedPromo === 'WELCOME10' ? Math.round(subtotal * 0.1) : 0;
-  const shippingThreshold = 15000;
-  const shippingCost = subtotal === 0 ? 0 : subtotal >= shippingThreshold ? 0 : 500;
+  const defaultDelivery = deliveryZone === 'Outside Dhaka City' || (userDistrict && userDistrict !== 'Dhaka') ? 150 : 80;
+  const shippingCost = subtotal === 0 ? 0 : defaultDelivery;
   const total = Math.max(0, subtotal - discountAmount + shippingCost);
 
   const handleApplyPromo = (e: React.FormEvent) => {
@@ -244,10 +248,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   </div>
                 )}
 
-                <div className="flex justify-between">
-                  <span>Delivery across Bangladesh</span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="block">Delivery</span>
+                    <span className="text-[10px] text-stone-400 font-normal">
+                      {defaultDelivery === 80 ? 'Inside Dhaka City (৳80)' : 'Outside Dhaka City (৳150)'}
+                    </span>
+                  </div>
                   <span className="font-semibold text-neutral-900">
-                    {shippingCost === 0 ? 'Free' : formatBDT(shippingCost)}
+                    {shippingCost === 0 ? '৳0' : formatBDT(shippingCost)}
                   </span>
                 </div>
 

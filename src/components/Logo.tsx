@@ -20,8 +20,8 @@ export const Logo: React.FC<LogoProps> = ({
 
   const sizeClasses = {
     sm: 'h-8 sm:h-9',
-    md: 'h-10 sm:h-11',
-    lg: 'h-12 sm:h-14'
+    md: 'h-10 sm:h-12',
+    lg: 'h-14 sm:h-16'
   };
 
   const textClasses = {
@@ -47,7 +47,8 @@ export const Logo: React.FC<LogoProps> = ({
   }
 
   // Reverse colour for dark backgrounds: brightness-0 invert makes dark pixels pure white
-  const imageFilterClass = variant === 'dark' ? 'brightness-0 invert' : '';
+  // For light backgrounds: mix-blend-multiply removes any background box
+  const imageFilterClass = variant === 'dark' ? 'brightness-0 invert drop-shadow-md' : 'mix-blend-multiply';
 
   return (
     <div className={`inline-flex items-center ${className}`}>
@@ -55,7 +56,7 @@ export const Logo: React.FC<LogoProps> = ({
         src={candidateSrc}
         alt="ANIQ"
         onError={() => setHasImageError(true)}
-        className={`${sizeClasses[size]} w-auto max-w-[180px] sm:max-w-[240px] object-contain transition-all duration-200 ${imageFilterClass}`}
+        className={`${sizeClasses[size]} w-auto max-w-[200px] sm:max-w-[280px] object-contain transition-all duration-200 ${imageFilterClass} select-none`}
       />
     </div>
   );

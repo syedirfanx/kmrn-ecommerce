@@ -13,17 +13,19 @@ export const AboutPage: React.FC<AboutPageProps> = () => {
         <div className="bg-white rounded-3xl p-8 sm:p-12 border border-stone-200/80 shadow-xs mb-8">
           <div className="max-w-3xl">
             <h1 className="font-heading font-medium text-3xl sm:text-5xl text-neutral-900 tracking-tight mb-6">
-              ANIQ
+              About ANIQ
             </h1>
-            <p className="text-base sm:text-lg text-neutral-800 leading-relaxed mb-5 font-medium">
-              ANIQ brings together authentic Pakistani stitched and unstitched collections with a curated home aesthetic.
-            </p>
-            <p className="text-sm sm:text-base text-stone-600 leading-relaxed mb-4">
-              ANIQ offers pieces designed for elegance, comfort, and sophistication, from distinctive outfits celebrating personal style to home essentials creating comfort and warmth.
-            </p>
-            <p className="text-sm sm:text-base text-stone-600 leading-relaxed">
-              Elevated living begins with the pieces that surround you and the way you express yourself.
-            </p>
+            <div className="space-y-5 text-sm sm:text-base text-stone-700 font-normal leading-relaxed">
+              <p>
+                ANIQ Lifestyle began its journey on 10 October 2024 with a simple vision — to bring elegant, authentic and thoughtfully selected lifestyle products to customers in Bangladesh. What started with a passion for Pakistani-inspired women&apos;s wear has gradually grown into a lifestyle brand, with ANIQ Women&apos;s Wear and ANIQ Home Decor bringing together fashion and beautiful everyday living.
+              </p>
+              <p>
+                At ANIQ, we believe trust comes before a sale. We are committed to offering authentic, carefully selected products with honest descriptions and transparent pricing. Every product is chosen with attention to quality, design and customer expectations, so that what you see is what you receive.
+              </p>
+              <p>
+                Our relationship with customers does not end with delivery. We stand behind the products we offer and provide exchange and return facilities according to our policy for eligible cases. Our goal is simple: to build ANIQ as a brand that customers can return to with confidence — for quality, authenticity and a shopping experience they can trust.
+              </p>
+            </div>
           </div>
         </div>
 

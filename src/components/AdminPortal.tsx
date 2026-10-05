@@ -126,7 +126,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Orders State
   const [orders, setOrders] = useState<OrderConfirmation[]>([]);
-  const [ordersFilter, setOrdersFilter] = useState<'active' | 'history'>('active');
+  const [ordersFilter, setOrdersFilter] = useState<'all' | 'active' | 'history'>('all');
   const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
 
@@ -864,8 +864,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       'Customer Type',
       'Phone',
       'Email',
+      'District',
+      'Sub District / Thana',
+      'Delivery Zone',
       'Shipping Address',
       'Payment Method',
+      'bKash Number',
       'Status',
       'Items Count',
       'Subtotal BDT',
@@ -880,8 +884,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       `"${o.isGuest || !o.userId ? 'Guest Checkout' : 'Registered Account'}"`,
       `"${(o.phone || '').replace(/"/g, '""')}"`,
       `"${(o.email || '').replace(/"/g, '""')}"`,
+      `"${(o.district || o.city || '').replace(/"/g, '""')}"`,
+      `"${(o.subDistrict || '').replace(/"/g, '""')}"`,
+      `"${(o.deliveryZone || '').replace(/"/g, '""')}"`,
       `"${(o.shippingAddress || `${o.street}, ${o.city}, ${o.country}`).replace(/"/g, '""')}"`,
       `"${o.paymentMethod || 'Cash on Delivery'}"`,
+      `"${(o.bkashNumber || '').replace(/"/g, '""')}"`,
       `"${o.status}"`,
       `"${(o.items || []).length}"`,
       `"${o.subtotal || o.total}"`,
@@ -1047,7 +1055,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               }`}
               title="Featured Homepage"
             >
-              <Sparkles className="h-4.5 w-4.5 text-amber-400" />
+              <Sparkles className="h-4.5 w-4.5" />
             </button>
 
             <button
@@ -1245,7 +1253,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Sparkles className="h-4 w-4 text-amber-400" />
+                <Sparkles className="h-4 w-4" />
                 <span>Featured Homepage</span>
               </div>
               <span className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -2774,7 +2782,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   </label>
                                   <input
                                     type="text"
-                                    placeholder={slide.productId ? `/product/${slide.productId}` : 'e.g. /womens-wear'}
+                                    list="banner-url-presets"
+                                    placeholder={slide.productId ? `/product/${slide.productId}` : 'e.g. /womens-wear, /home-decor, or /about'}
                                     value={slide.linkUrl || ''}
                                     onChange={(e) => handleUpdateBannerSlide(idx, { linkUrl: e.target.value })}
                                     className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
@@ -2791,6 +2800,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 </label>
                                 <input
                                   type="text"
+                                  list="banner-url-presets"
                                   placeholder={slide.productId ? `/product/${slide.productId}` : 'e.g. /womens-wear, /home-decor, or /product/id'}
                                   value={slide.linkUrl || ''}
                                   onChange={(e) => handleUpdateBannerSlide(idx, { linkUrl: e.target.value })}
@@ -2807,6 +2817,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     );
                   })}
                 </div>
+
+                {/* Datalist for preset URL suggestions */}
+                <datalist id="banner-url-presets">
+                  <option value="/womens-wear">Women's Wear Collection</option>
+                  <option value="/home-decor">Home Decor Collection</option>
+                  <option value="/about">About Aniq</option>
+                  <option value="/contact">Contact & Boutique Location</option>
+                  <option value="/account">Customer Account / Track Orders</option>
+                  {products.slice(0, 10).map((p) => (
+                    <option key={p.id} value={`/product/${p.id}`}>
+                      {p.name} ({p.category})
+                    </option>
+                  ))}
+                </datalist>
               </div>
             </div>
           )}
@@ -2988,21 +3012,30 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     <div className="flex bg-stone-100 p-1 rounded-xl">
                       <button
                         type="button"
-                        onClick={() => setOrdersFilter('active')}
+                        onClick={() => setOrdersFilter('all')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          ordersFilter === 'active' ? 'bg-white text-neutral-900 shadow-xs' : 'text-stone-600'
+                          ordersFilter === 'all' ? 'bg-white text-neutral-900 shadow-xs' : 'text-stone-600 hover:text-neutral-900'
                         }`}
                       >
-                        Active Orders
+                        All ({orders.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOrdersFilter('active')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                          ordersFilter === 'active' ? 'bg-white text-neutral-900 shadow-xs' : 'text-stone-600 hover:text-neutral-900'
+                        }`}
+                      >
+                        Active ({orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled').length})
                       </button>
                       <button
                         type="button"
                         onClick={() => setOrdersFilter('history')}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                          ordersFilter === 'history' ? 'bg-white text-neutral-900 shadow-xs' : 'text-stone-600'
+                          ordersFilter === 'history' ? 'bg-white text-neutral-900 shadow-xs' : 'text-stone-600 hover:text-neutral-900'
                         }`}
                       >
-                        Order History
+                        History ({orders.filter((o) => o.status === 'Delivered' || o.status === 'Cancelled').length})
                       </button>
                     </div>
 
@@ -3057,6 +3090,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <Clock className="h-3 w-3" />
                               {new Date(ord.placedAt).toLocaleString()}
                             </span>
+
+                            {/* Payment Method Badge */}
+                            {(ord.paymentMethod === 'bKash' || ord.paymentMethod?.toLowerCase().includes('bkash')) ? (
+                              <span className="text-xs font-bold bg-pink-50 text-[#e2136e] border border-pink-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 shadow-xs">
+                                <span className="h-2 w-2 rounded-full bg-[#e2136e]" />
+                                bKash {ord.bkashNumber ? `(${ord.bkashNumber})` : 'Payment'}
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 shadow-xs">
+                                <span className="h-2 w-2 rounded-full bg-emerald-600" />
+                                Cash on Delivery
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-3">
@@ -3090,7 +3136,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <p className="font-bold text-neutral-900">{ord.customerName}</p>
                             <p className="text-stone-600">Phone: {ord.phone}</p>
                             <p className="text-stone-600">Email: {ord.email}</p>
-                            <p className="text-stone-600 pt-1">Address: {ord.shippingAddress}</p>
+                            {(ord.district || ord.subDistrict) && (
+                              <p className="text-stone-600 font-medium pt-0.5">
+                                Location: {ord.subDistrict ? `${ord.subDistrict}, ` : ''}{ord.district || ord.city}
+                              </p>
+                            )}
+                            <p className="text-stone-600 pt-0.5">Address: {ord.shippingAddress}</p>
                           </div>
 
                           <div className="md:col-span-5 space-y-1.5">
@@ -3111,18 +3162,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                           <div className="md:col-span-3 flex flex-col justify-between border-t md:border-t-0 md:border-l border-stone-200 pt-3 md:pt-0 md:pl-4">
                             <div className="space-y-1">
-                              <span className="text-[10px] font-bold uppercase text-stone-400 block">Summary</span>
+                              <span className="text-[10px] font-bold uppercase text-stone-400 block">Summary & Payment</span>
                               <div className="flex justify-between text-stone-600">
                                 <span>Subtotal</span>
                                 <span>{formatBDT(ord.subtotal || ord.total)}</span>
                               </div>
                               <div className="flex justify-between text-stone-600">
-                                <span>Shipping</span>
+                                <span>Shipping {ord.deliveryZone ? `(${ord.deliveryZone === 'Inside Dhaka City' ? 'Dhaka' : 'Outside'})` : ''}</span>
                                 <span>{ord.shipping === 0 ? 'Free' : formatBDT(ord.shipping || 0)}</span>
                               </div>
-                              <div className="flex justify-between font-bold text-neutral-900 pt-1 border-t border-stone-200">
+                              <div className="flex justify-between text-stone-700 pt-1 border-t border-stone-100">
+                                <span className="font-semibold">Payment</span>
+                                <span className="font-bold text-neutral-900">{ord.paymentMethod || 'Cash on Delivery'}</span>
+                              </div>
+                              {ord.bkashNumber && (
+                                <div className="flex justify-between text-[11px] text-[#e2136e] font-medium">
+                                  <span>bKash Sender</span>
+                                  <span className="font-mono">{ord.bkashNumber}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between font-bold text-neutral-900 pt-1 border-t border-stone-200 text-sm">
                                 <span>Total</span>
-                                <span className="tabular-nums">{formatBDT(ord.total)}</span>
+                                <span className="tabular-nums font-heading">{formatBDT(ord.total)}</span>
                               </div>
                             </div>
                           </div>
