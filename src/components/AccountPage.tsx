@@ -43,8 +43,8 @@ interface AccountPageProps {
   logoUrl?: string;
   onNavigateToStore: () => void;
   onLogout: () => void;
-  onUpdateCartQuantity: (productId: string, quantity: number) => void;
-  onRemoveFromCart: (productId: string) => void;
+  onUpdateCartQuantity: (productId: string, quantity: number, selectedColour?: string, selectedSize?: string) => void;
+  onRemoveFromCart: (productId: string, selectedColour?: string, selectedSize?: string) => void;
   onProceedToCheckout: () => void;
   onToggleWishlist: (productId: string) => void;
   onAddToCart: (product: Product, quantity?: number) => void;
@@ -617,7 +617,6 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                       >
                         <div>
                           <p className="text-xs font-bold text-neutral-900">Cash on Delivery</p>
-                          <p className="text-[11px] text-stone-500">Pay cash upon delivery</p>
                         </div>
                         <div
                           className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
@@ -638,7 +637,6 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                       >
                         <div>
                           <p className="text-xs font-bold text-neutral-900">bKash Payment</p>
-                          <p className="text-[11px] text-stone-500">Fast mobile wallet</p>
                         </div>
                         <div
                           className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
@@ -862,9 +860,14 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {cart.map((item) => (
+                    {cart.map((item, idx) => {
+                      const itemColour = item.selectedColour || item.product.selectedColour;
+                      const itemSize = item.selectedSize || item.product.selectedSize;
+                      const uniqueKey = `${item.product.id}-${itemColour || ''}-${itemSize || ''}-${idx}`;
+
+                      return (
                       <div
-                        key={item.product.id}
+                        key={uniqueKey}
                         className="p-4 bg-neutral-50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
                       >
                         <div className="flex items-center gap-4">
@@ -877,23 +880,35 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                             <h4 className="font-heading font-bold text-base text-neutral-900">
                               {item.product.name}
                             </h4>
-                            <span className="text-xs text-neutral-500 block">
-                              {formatBDT(item.product.price)} each
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                              <span className="text-xs text-neutral-500 font-semibold">
+                                {formatBDT(item.product.price)} each
+                              </span>
+                              {itemColour && (
+                                <span className="text-[11px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md font-medium">
+                                  Colour: {itemColour}
+                                </span>
+                              )}
+                              {itemSize && (
+                                <span className="text-[11px] bg-stone-200 text-stone-700 px-2 py-0.5 rounded-md font-medium">
+                                  Size: {itemSize}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between sm:justify-end gap-4">
                           <div className="flex items-center bg-white rounded-xl px-2 py-1 shadow-xs">
                             <button
-                              onClick={() => onUpdateCartQuantity(item.product.id, item.quantity - 1)}
+                              onClick={() => onUpdateCartQuantity(item.product.id, item.quantity - 1, itemColour, itemSize)}
                               className="p-1 text-neutral-600 hover:text-neutral-900 cursor-pointer"
                             >
                               <Minus className="h-3.5 w-3.5" />
                             </button>
                             <span className="px-3 text-xs font-bold text-neutral-900">{item.quantity}</span>
                             <button
-                              onClick={() => onUpdateCartQuantity(item.product.id, item.quantity + 1)}
+                              onClick={() => onUpdateCartQuantity(item.product.id, item.quantity + 1, itemColour, itemSize)}
                               className="p-1 text-neutral-600 hover:text-neutral-900 cursor-pointer"
                             >
                               <Plus className="h-3.5 w-3.5" />
@@ -905,7 +920,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           </span>
 
                           <button
-                            onClick={() => onRemoveFromCart(item.product.id)}
+                            onClick={() => onRemoveFromCart(item.product.id, itemColour, itemSize)}
                             className="p-2 text-neutral-400 hover:text-red-600 cursor-pointer"
                             aria-label="Remove item"
                           >
@@ -913,7 +928,8 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                           </button>
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
 
                     <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
                       <div>

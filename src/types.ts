@@ -74,9 +74,10 @@ export interface AnnouncementItem {
 export interface PromoCode {
   id: string;
   code: string;
-  discountType: 'percentage' | 'fixed';
-  discountValue: number;
+  discountType: 'percentage' | 'fixed' | 'delivery';
+  discountValue: number; // percentage value (e.g. 10%), fixed amount in BDT (e.g. 200), or delivery discount (0 or discount off shipping)
   minOrderAmount?: number;
+  hasMinOrder?: boolean;
   active: boolean;
   createdAt?: string;
 }

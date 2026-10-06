@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone } from 'lucide-react';
+import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone, Tag } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { CartItem, OrderConfirmation, UserProfile } from '../types';
+import { CartItem, OrderConfirmation, UserProfile, PromoCode } from '../types';
 import { formatBDT } from '../utils/format';
-import { saveUserProfileToDb, saveUserOrderToDb } from '../services/storeService';
+import { saveUserProfileToDb, saveUserOrderToDb, subscribePromoCodes } from '../services/storeService';
 import { BANGLADESH_DISTRICTS, DELIVERY_OPTIONS, DeliveryZoneOption } from '../data/bangladeshDistricts';
 
 interface CheckoutModalProps {
@@ -42,6 +42,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<OrderConfirmation | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Promo Code States
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
+  const [promoError, setPromoError] = useState('');
+  const [promoSuccess, setPromoSuccess] = useState('');
+
+  useEffect(() => {
+    const unsub = subscribePromoCodes((list) => {
+      setPromoCodes(list.filter((p) => p.active));
+    });
+    return () => unsub();
+  }, []);
 
   // Prefill details from user profile or auth if signed in
   useEffect(() => {
@@ -90,8 +104,64 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   if (!isOpen) return null;
 
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const shipping = deliveryZone === 'Inside Dhaka City' ? 80 : 150;
-  const total = subtotal + shipping;
+  const baseShipping = deliveryZone === 'Inside Dhaka City' ? 80 : 150;
+
+  // Calculate discount based on promo code type (percentage, fixed amount, or delivery charge)
+  let discountAmount = 0;
+  let shipping = baseShipping;
+
+  if (appliedPromo) {
+    if (appliedPromo.discountType === 'percentage') {
+      discountAmount = Math.round((subtotal * (appliedPromo.discountValue || 0)) / 100);
+    } else if (appliedPromo.discountType === 'delivery') {
+      // Delivery charge discount: if discountValue is 0 or >= baseShipping, delivery is free; otherwise reduce by discountValue
+      if (!appliedPromo.discountValue || appliedPromo.discountValue >= baseShipping) {
+        discountAmount = baseShipping;
+        shipping = 0;
+      } else {
+        discountAmount = appliedPromo.discountValue;
+        shipping = Math.max(0, baseShipping - appliedPromo.discountValue);
+      }
+    } else {
+      // Fixed amount discount
+      discountAmount = Math.min(subtotal, appliedPromo.discountValue || 0);
+    }
+  }
+
+  const total = Math.max(0, subtotal + shipping - (appliedPromo?.discountType === 'delivery' ? 0 : discountAmount));
+
+  const handleApplyPromo = () => {
+    setPromoError('');
+    setPromoSuccess('');
+    const cleanCode = promoInput.trim().toUpperCase();
+    if (!cleanCode) return;
+
+    const matched = promoCodes.find((p) => p.code.toUpperCase() === cleanCode);
+    if (!matched) {
+      setPromoError('Invalid promo code');
+      return;
+    }
+    if (matched.hasMinOrder && matched.minOrderAmount && subtotal < matched.minOrderAmount) {
+      setPromoError(`Minimum order of ${formatBDT(matched.minOrderAmount)} required for this code`);
+      return;
+    }
+
+    setAppliedPromo(matched);
+    if (matched.discountType === 'percentage') {
+      setPromoSuccess(`Applied! ${matched.discountValue}% discount added`);
+    } else if (matched.discountType === 'delivery') {
+      setPromoSuccess('Applied! Delivery charge discount added');
+    } else {
+      setPromoSuccess(`Applied! ${formatBDT(matched.discountValue)} discount added`);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError('');
+    setPromoSuccess('');
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -196,6 +266,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         })),
         subtotal: Number(subtotal) || 0,
         shipping: Number(shipping) || 0,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
+        promoCode: appliedPromo ? appliedPromo.code : undefined,
         total: Number(total) || 0,
         status: 'Processing',
         paymentMethod: paymentMethod,
@@ -580,10 +652,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           {isSelected && <div className="h-2 w-2 rounded-full bg-neutral-900" />}
                         </div>
                       </div>
-                      <div className="flex items-baseline justify-between mt-1">
-                        <span className="text-[11px] text-stone-500 leading-tight">
-                          {opt.description}
-                        </span>
+                      <div className="flex items-baseline justify-end mt-1">
                         <span className="font-heading font-extrabold text-sm text-neutral-900 shrink-0 ml-2">
                           {formatBDT(opt.price)}
                         </span>
@@ -616,7 +685,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                     <div>
                       <p className="text-xs sm:text-sm font-bold text-neutral-900">Cash on Delivery</p>
-                      <p className="text-[10px] text-stone-500">Pay cash upon delivery</p>
                     </div>
                   </div>
                   <div
@@ -643,7 +711,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     </div>
                     <div>
                       <p className="text-xs sm:text-sm font-bold text-neutral-900">bKash Payment</p>
-                      <p className="text-[10px] text-stone-500">Send money via bKash</p>
                     </div>
                   </div>
                   <div
@@ -674,6 +741,57 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               )}
             </div>
 
+            {/* Promo Code Input Section */}
+            <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-2">
+              <label className="block text-xs font-bold text-neutral-900 uppercase tracking-wider">
+                Promo Code
+              </label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-stone-400" />
+                  <input
+                    type="text"
+                    value={promoInput}
+                    onChange={(e) => {
+                      setPromoInput(e.target.value.toUpperCase());
+                      setPromoError('');
+                    }}
+                    placeholder="ENTER CODE"
+                    className="w-full uppercase font-mono text-xs bg-white border border-stone-300 rounded-xl pl-9 pr-3 py-2.5 text-neutral-900 focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+                {appliedPromo ? (
+                  <button
+                    type="button"
+                    onClick={handleRemovePromo}
+                    className="px-4 py-2.5 bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Remove
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={!promoInput.trim()}
+                    className="px-5 py-2.5 bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+                  >
+                    Apply
+                  </button>
+                )}
+              </div>
+              {promoSuccess && (
+                <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5 pt-0.5">
+                  <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{promoSuccess}</span>
+                </p>
+              )}
+              {promoError && (
+                <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1.5 pt-0.5">
+                  <span>{promoError}</span>
+                </p>
+              )}
+            </div>
+
             {/* Order Cost Breakdown */}
             <div className="p-4 bg-neutral-50 rounded-2xl space-y-2 border border-stone-200/80">
               <div className="flex justify-between text-xs text-neutral-600">
@@ -684,6 +802,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <span>Shipping ({deliveryZone})</span>
                 <span className="font-semibold text-neutral-900">{formatBDT(shipping)}</span>
               </div>
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-xs text-emerald-700 font-bold">
+                  <span>Discount ({appliedPromo?.code})</span>
+                  <span>-{formatBDT(discountAmount)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-base font-extrabold text-neutral-900 pt-2 border-t border-stone-200">
                 <span>Total Payable</span>
                 <span className="font-heading font-extrabold text-xl text-neutral-900">{formatBDT(total)}</span>
@@ -697,11 +821,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             >
               <ShieldCheck className="h-5 w-5 text-stone-200" />
               <span>
-                {isSubmitting
-                  ? 'Confirming Order...'
-                  : paymentMethod === 'bKash'
-                  ? `Confirm & Place Order (${formatBDT(total)})`
-                  : `Place Order with Cash on Delivery (${formatBDT(total)})`}
+                {isSubmitting ? 'Confirming Order...' : 'Place Order'}
               </span>
             </button>
           </form>

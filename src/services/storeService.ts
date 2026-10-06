@@ -685,23 +685,39 @@ export const saveCartItemToDb = async (
 
 export const removeCartItemFromDb = async (
   userId: string,
-  productIdOrKey: string
+  productIdOrKey: string,
+  selectedColour?: string,
+  selectedSize?: string
 ): Promise<DbResult> => {
-  const path = `users/${userId}/cart/${productIdOrKey}`;
+  const specificKey = selectedColour !== undefined || selectedSize !== undefined
+    ? `${productIdOrKey}_${(selectedColour || 'def').replace(/[^a-zA-Z0-9]/g, '')}_${(selectedSize || 'def').replace(/[^a-zA-Z0-9]/g, '')}`
+    : productIdOrKey;
+
+  const path = `users/${userId}/cart/${specificKey}`;
   try {
     // Attempt direct key deletion
-    const docRef = doc(db, 'users', userId, 'cart', productIdOrKey);
+    const docRef = doc(db, 'users', userId, 'cart', specificKey);
     await deleteDoc(docRef);
 
-    // Also scan for any matches if productId was passed
+    // If specific key was not found or productId was passed, also scan for matching documents
     try {
       const snap = await getDocs(collection(db, 'users', userId, 'cart'));
       const batch = writeBatch(db);
       let count = 0;
       snap.forEach((d) => {
-        if (d.id.startsWith(productIdOrKey) || d.data().product?.id === productIdOrKey) {
-          batch.delete(d.ref);
-          count++;
+        const data = d.data();
+        const matchesProduct = d.id.startsWith(productIdOrKey) || data.product?.id === productIdOrKey;
+        if (matchesProduct) {
+          const itemCol = data.selectedColour || data.product?.selectedColour || '';
+          const itemSz = data.selectedSize || data.product?.selectedSize || '';
+          const matchVariant =
+            (selectedColour === undefined || itemCol === (selectedColour || '')) &&
+            (selectedSize === undefined || itemSz === (selectedSize || ''));
+
+          if (matchVariant || (!selectedColour && !selectedSize)) {
+            batch.delete(d.ref);
+            count++;
+          }
         }
       });
       if (count > 0) {
@@ -1734,6 +1750,7 @@ export const subscribePromoCodes = (onUpdate: (promos: PromoCode[]) => void) => 
           discountType: data.discountType || 'percentage',
           discountValue: Number(data.discountValue) || 0,
           minOrderAmount: Number(data.minOrderAmount) || 0,
+          hasMinOrder: data.hasMinOrder === true,
           active: data.active !== false,
           createdAt: data.createdAt || new Date().toISOString()
         });

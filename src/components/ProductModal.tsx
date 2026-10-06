@@ -98,7 +98,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
       });
       return () => unsub();
     }
-  }, [product, availableColours, availableSizes]);
+  }, [product?.id]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

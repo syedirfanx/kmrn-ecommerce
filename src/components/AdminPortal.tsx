@@ -24,7 +24,8 @@ import {
   User,
   Clock,
   BookOpen,
-  Menu
+  Menu,
+  Tag
 } from 'lucide-react';
 import {
   Product,
@@ -33,7 +34,8 @@ import {
   BannerSlide,
   AnnouncementItem,
   ContactMessage,
-  OrderConfirmation
+  OrderConfirmation,
+  PromoCode
 } from '../types';
 import { formatBDT } from '../utils/format';
 import { ADMIN_CREDENTIALS } from '../config/adminAuth';
@@ -56,6 +58,9 @@ import {
   subscribeAllOrders,
   updateOrderStatusInDb,
   deleteOrderInDb,
+  subscribePromoCodes,
+  savePromoCodeToDb,
+  deletePromoCodeFromDb,
   DEFAULT_CATALOGUES
 } from '../services/storeService';
 
@@ -106,8 +111,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Navigation options on the left side
   const [activeTab, setActiveTab] = useState<
-    'products' | 'catalogues' | 'categories' | 'featured' | 'banner' | 'announcements' | 'messages' | 'orders'
+    'products' | 'catalogues' | 'categories' | 'featured' | 'banner' | 'announcements' | 'promocodes' | 'messages' | 'orders'
   >('products');
+
+  // Promo Codes State
+  const [promoCodesList, setPromoCodesList] = useState<PromoCode[]>([]);
+  const [isPromoFormOpen, setIsPromoFormOpen] = useState(false);
+  const [editingPromo, setEditingPromo] = useState<PromoCode | null>(null);
+  const [promoFormData, setPromoFormData] = useState<{
+    code: string;
+    discountType: 'percentage' | 'fixed' | 'delivery';
+    discountValue: number;
+    hasMinOrder: boolean;
+    minOrderAmount: number;
+    active: boolean;
+  }>({
+    code: '',
+    discountType: 'percentage',
+    discountValue: 10,
+    hasMinOrder: false,
+    minOrderAmount: 0,
+    active: true
+  });
 
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isProductFormOpen, setIsProductFormOpen] = useState(false);
@@ -207,7 +232,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [statusNotice, setStatusNotice] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
-    type: 'product' | 'catalogue' | 'category' | 'banner' | 'announcement' | 'message' | 'order';
+    type: 'product' | 'catalogue' | 'category' | 'banner' | 'announcement' | 'message' | 'order' | 'promocode';
     id: string;
     name: string;
     index?: number;
@@ -224,10 +249,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const unsubCatg = subscribeCatalogues((liveCatgs) => {
       setCatalogues(liveCatgs);
     });
+    const unsubPromos = subscribePromoCodes((livePromos) => {
+      setPromoCodesList(livePromos);
+    });
     return () => {
       unsubMsgs();
       unsubOrders();
       unsubCatg();
+      unsubPromos();
     };
   }, []);
 
@@ -816,6 +845,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
+  // Promo Codes Actions
+  const handleOpenNewPromo = () => {
+    setEditingPromo(null);
+    setPromoFormData({
+      code: '',
+      discountType: 'percentage',
+      discountValue: 10,
+      hasMinOrder: false,
+      minOrderAmount: 0,
+      active: true
+    });
+    setIsPromoFormOpen(true);
+  };
+
+  const handleOpenEditPromo = (promo: PromoCode) => {
+    setEditingPromo(promo);
+    setPromoFormData({
+      code: promo.code,
+      discountType: promo.discountType,
+      discountValue: promo.discountValue,
+      hasMinOrder: promo.hasMinOrder ?? ((promo.minOrderAmount || 0) > 0),
+      minOrderAmount: promo.minOrderAmount || 0,
+      active: promo.active !== false
+    });
+    setIsPromoFormOpen(true);
+  };
+
+  const handleSavePromoCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = promoFormData.code.trim().toUpperCase();
+    if (!cleanCode) {
+      setErrorMessage('Promo code name is required');
+      return;
+    }
+
+    const promo: PromoCode = {
+      id: editingPromo ? editingPromo.id : `promo-${Date.now()}`,
+      code: cleanCode,
+      discountType: promoFormData.discountType,
+      discountValue: Number(promoFormData.discountValue) || 0,
+      hasMinOrder: promoFormData.hasMinOrder,
+      minOrderAmount: promoFormData.hasMinOrder ? Number(promoFormData.minOrderAmount) || 0 : 0,
+      active: promoFormData.active,
+      createdAt: editingPromo?.createdAt || new Date().toISOString()
+    };
+
+    const res = await savePromoCodeToDb(promo);
+    if (res.success) {
+      setIsPromoFormOpen(false);
+      setEditingPromo(null);
+      setStatusNotice(`Promo code ${promo.code} saved successfully`);
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else {
+      setErrorMessage(res.error || 'Failed to save promo code');
+    }
+  };
+
+  const executeDeletePromoCode = async (promoId: string) => {
+    const res = await deletePromoCodeFromDb(promoId);
+    if (res.success) {
+      setStatusNotice('Promo code deleted from database');
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else {
+      setErrorMessage(res.error || 'Failed to delete promo code');
+    }
+  };
+
   // Orders Actions
   const handleUpdateOrderStatus = async (
     orderId: string,
@@ -1086,6 +1182,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               type="button"
+              onClick={() => setActiveTab('promocodes')}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
+                activeTab === 'promocodes'
+                  ? 'bg-white text-neutral-950 shadow-md font-bold'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+              }`}
+              title="Promo Codes"
+            >
+              <Tag className="h-4.5 w-4.5" />
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('messages')}
               className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
                 activeTab === 'messages'
@@ -1306,6 +1415,29 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 activeTab === 'announcements' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
               }`}>
                 {localAnnouncements.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('promocodes');
+                setIsAdminMenuOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'promocodes'
+                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
+                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Tag className="h-4 w-4" />
+                <span>Promo Codes</span>
+              </div>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                activeTab === 'promocodes' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
+              }`}>
+                {promoCodesList.length}
               </span>
             </button>
 
@@ -1918,25 +2050,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                       <div>
                         <label className="block text-xs font-bold text-neutral-800 mb-1">
-                          Short Description *
+                          Description *
                         </label>
                         <textarea
-                          rows={2}
+                          rows={3}
                           required
                           value={formData.description || ''}
                           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-800 mb-1">
-                          Additional Details (Optional)
-                        </label>
-                        <textarea
-                          rows={2}
-                          value={formData.details || ''}
-                          onChange={(e) => setFormData({ ...formData, details: e.target.value })}
                           className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
                         />
                       </div>
@@ -2994,6 +3114,219 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
           )}
 
+          {/* TAB: Promo Codes */}
+          {activeTab === 'promocodes' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-stone-100">
+                  <div>
+                    <h3 className="font-heading font-bold text-lg text-neutral-900">
+                      Promo Codes ({promoCodesList.length})
+                    </h3>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      Create promotional coupon codes with percentage discount, free/discounted delivery charge, or fixed BDT discount.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenNewPromo}
+                    className="inline-flex items-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer self-start sm:self-auto"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Create Promo Code</span>
+                  </button>
+                </div>
+
+                {/* Promo Code Form Modal / Panel */}
+                {isPromoFormOpen && (
+                  <form onSubmit={handleSavePromoCode} className="mb-6 p-5 bg-stone-50 rounded-2xl border border-stone-200 space-y-4 animate-in fade-in">
+                    <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                      <h4 className="font-heading font-bold text-sm text-neutral-900">
+                        {editingPromo ? 'Edit Promo Code' : 'New Promo Code'}
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setIsPromoFormOpen(false)}
+                        className="p-1 text-stone-400 hover:text-neutral-900 rounded-lg cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {/* Code */}
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1">
+                          Promo Code *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={promoFormData.code}
+                          onChange={(e) => setPromoFormData({ ...promoFormData, code: e.target.value.toUpperCase() })}
+                          placeholder="e.g. SUMMER10, FREEDEL"
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs font-mono uppercase text-neutral-900 focus:outline-none focus:border-neutral-900"
+                        />
+                      </div>
+
+                      {/* Discount Type */}
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1">
+                          Discount Type *
+                        </label>
+                        <select
+                          value={promoFormData.discountType}
+                          onChange={(e) => setPromoFormData({ ...promoFormData, discountType: e.target.value as 'percentage' | 'fixed' | 'delivery' })}
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs font-bold text-neutral-900 focus:outline-none focus:border-neutral-900 cursor-pointer"
+                        >
+                          <option value="percentage">Percentage Discount (%)</option>
+                          <option value="delivery">Delivery Charge Discount (Free/Off)</option>
+                          <option value="fixed">Fixed Amount Discount (BDT)</option>
+                        </select>
+                      </div>
+
+                      {/* Discount Value */}
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-800 mb-1">
+                          {promoFormData.discountType === 'percentage'
+                            ? 'Discount Percentage (%)'
+                            : promoFormData.discountType === 'delivery'
+                            ? 'Delivery Off in BDT (0 for Free Delivery)'
+                            : 'Fixed Discount Amount (BDT)'}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max={promoFormData.discountType === 'percentage' ? 100 : 50000}
+                          value={promoFormData.discountValue}
+                          onChange={(e) => setPromoFormData({ ...promoFormData, discountValue: Number(e.target.value) })}
+                          className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Minimum Order Toggle & Amount */}
+                    <div className="pt-2 border-t border-stone-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-neutral-800">
+                          <input
+                            type="checkbox"
+                            checked={promoFormData.hasMinOrder}
+                            onChange={(e) => setPromoFormData({ ...promoFormData, hasMinOrder: e.target.checked })}
+                            className="rounded text-neutral-900 focus:ring-neutral-900 h-4 w-4"
+                          />
+                          <span>Set Minimum Order Requirement</span>
+                        </label>
+
+                        {promoFormData.hasMinOrder && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-stone-500 font-medium">Min BDT:</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={promoFormData.minOrderAmount}
+                              onChange={(e) => setPromoFormData({ ...promoFormData, minOrderAmount: Number(e.target.value) })}
+                              className="w-28 bg-white border border-stone-300 rounded-xl px-2.5 py-1 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                              placeholder="e.g. 5000"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-3 self-end sm:self-auto">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-neutral-800">
+                          <input
+                            type="checkbox"
+                            checked={promoFormData.active}
+                            onChange={(e) => setPromoFormData({ ...promoFormData, active: e.target.checked })}
+                            className="rounded text-neutral-900 focus:ring-neutral-900 h-4 w-4"
+                          />
+                          <span>Active</span>
+                        </label>
+
+                        <button
+                          type="submit"
+                          className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-5 py-2 rounded-xl transition-all shadow-xs cursor-pointer"
+                        >
+                          {editingPromo ? 'Update Code' : 'Save Code'}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                )}
+
+                {/* Promo Codes List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {promoCodesList.length === 0 ? (
+                    <div className="col-span-full py-12 text-center bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                      <Tag className="h-8 w-8 text-stone-300 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-stone-600 mb-0.5">No promo codes created yet</p>
+                      <p className="text-[11px] text-stone-400">Click "Create Promo Code" to launch your first discount coupon.</p>
+                    </div>
+                  ) : (
+                    promoCodesList.map((promo) => (
+                      <div
+                        key={promo.id}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between space-y-3 ${
+                          promo.active
+                            ? 'bg-white border-stone-200 hover:border-neutral-900 shadow-2xs'
+                            : 'bg-stone-50/80 border-stone-200 opacity-60'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono font-extrabold text-sm tracking-wider bg-stone-100 text-neutral-950 px-2.5 py-1 rounded-lg border border-stone-300">
+                              {promo.code}
+                            </span>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                              promo.active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                            }`}>
+                              {promo.active ? 'ACTIVE' : 'INACTIVE'}
+                            </span>
+                          </div>
+
+                          <div className="pt-1">
+                            <p className="text-sm font-heading font-extrabold text-neutral-900">
+                              {promo.discountType === 'percentage'
+                                ? `${promo.discountValue}% Off Total Order`
+                                : promo.discountType === 'delivery'
+                                ? (promo.discountValue ? `${formatBDT(promo.discountValue)} Off Delivery Charge` : '100% Free Delivery Charge')
+                                : `${formatBDT(promo.discountValue)} Flat Discount`}
+                            </p>
+                            <p className="text-[11px] text-stone-500 mt-0.5">
+                              {promo.hasMinOrder && promo.minOrderAmount
+                                ? `Min. Order: ${formatBDT(promo.minOrderAmount)}`
+                                : 'No minimum order required'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditPromo(promo)}
+                            className="font-bold text-stone-700 hover:text-neutral-950 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Edit2 className="h-3 w-3" />
+                            <span>Edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmModal({ type: 'promocode', id: promo.id, name: `Promo Code "${promo.code}"` })}
+                            className="text-stone-400 hover:text-red-600 p-1 cursor-pointer"
+                            title="Delete promo code"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 8: Orders */}
           {activeTab === 'orders' && (
             <div className="space-y-6">
@@ -3146,17 +3479,45 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                           <div className="md:col-span-5 space-y-1.5">
                             <span className="text-[10px] font-bold uppercase text-stone-400 block">Items ({(ord.items || []).length})</span>
-                            <div className="space-y-1 max-h-32 overflow-y-auto">
-                              {(ord.items || []).map((it, idx) => (
-                                <div key={idx} className="flex justify-between items-center bg-white p-2 rounded-lg border border-stone-200">
-                                  <span className="font-medium text-neutral-800 truncate max-w-[180px]">
-                                    {it.product?.name} (x{it.quantity})
-                                  </span>
-                                  <span className="font-semibold tabular-nums text-neutral-900">
-                                    {formatBDT((it.product?.price || 0) * (it.quantity || 1))}
-                                  </span>
-                                </div>
-                              ))}
+                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                              {(ord.items || []).map((it, idx) => {
+                                const colour = it.selectedColour || it.product?.selectedColour;
+                                const size = it.selectedSize || it.product?.selectedSize;
+                                return (
+                                  <div key={idx} className="flex items-center gap-3 bg-white p-2.5 rounded-xl border border-stone-200 shadow-2xs">
+                                    {it.product?.image && (
+                                      <img
+                                        src={it.product.image}
+                                        alt={it.product.name || 'Product'}
+                                        className="w-12 h-14 object-cover rounded-lg shrink-0 bg-stone-100 border border-stone-200/80"
+                                      />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-bold text-neutral-900 truncate text-xs">
+                                        {it.product?.name}
+                                      </p>
+                                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                        <span className="text-[11px] font-bold text-neutral-700 bg-stone-100 px-1.5 py-0.5 rounded">
+                                          Qty: {it.quantity || 1}
+                                        </span>
+                                        {colour && (
+                                          <span className="text-[11px] font-medium bg-amber-50 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded">
+                                            Colour: {colour}
+                                          </span>
+                                        )}
+                                        {size && (
+                                          <span className="text-[11px] font-medium bg-blue-50 text-blue-900 border border-blue-200 px-1.5 py-0.5 rounded">
+                                            Size: {size}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="font-heading font-bold tabular-nums text-xs text-neutral-900 shrink-0">
+                                      {formatBDT((it.product?.price || 0) * (it.quantity || 1))}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
 
@@ -3244,6 +3605,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     await executeDeleteMessage(target.id);
                   } else if (target.type === 'order') {
                     await executeDeleteOrder(target.id, target.userId);
+                  } else if (target.type === 'promocode') {
+                    await executeDeletePromoCode(target.id);
                   }
                 }}
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs shadow-md cursor-pointer"

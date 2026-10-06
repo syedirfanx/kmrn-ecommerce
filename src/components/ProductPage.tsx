@@ -117,7 +117,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
     setIsDescOpen(false);
     setIsSpecsOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [product, availableColours, availableSizes]);
+  }, [product?.id]);
 
   // Subscribe to real-time reviews
   useEffect(() => {

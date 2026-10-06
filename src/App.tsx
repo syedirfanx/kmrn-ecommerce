@@ -645,7 +645,7 @@ export default function App() {
     );
 
     if (currentUser) {
-      await removeCartItemFromDb(currentUser.uid, productId);
+      await removeCartItemFromDb(currentUser.uid, productId, selectedColour, selectedSize);
     }
   };
 
@@ -1178,13 +1178,10 @@ export default function App() {
                               alt={catg.name}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
-                            <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-white px-2 py-0.5 rounded-md text-[10px] font-bold tabular-nums">
-                              {catgCount} Items
-                            </div>
                           </div>
 
                           <div className="p-3">
-                            <h3 className="font-heading font-bold text-xs sm:text-sm text-neutral-900 truncate group-hover:text-stone-600 transition-colors">
+                            <h3 className="font-heading font-extrabold text-sm sm:text-base text-neutral-900 truncate group-hover:text-stone-700 transition-colors">
                               {catg.name}
                             </h3>
                             {catg.description && (
@@ -1327,13 +1324,10 @@ export default function App() {
                             alt={subName}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
-                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-xs text-white px-2 py-0.5 rounded-md text-[10px] font-bold tabular-nums">
-                            {subProducts.length} Items
-                          </div>
                         </div>
 
                         <div className="p-3">
-                          <h3 className="font-heading font-bold text-xs sm:text-sm text-neutral-900 truncate group-hover:text-stone-600 transition-colors">
+                          <h3 className="font-heading font-extrabold text-sm sm:text-base text-neutral-900 truncate group-hover:text-stone-700 transition-colors">
                             {subName}
                           </h3>
                         </div>
