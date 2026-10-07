@@ -639,11 +639,17 @@ export const subscribeUserCart = (
       snapshot.forEach((d) => {
         const data = d.data();
         if (data.product && data.quantity) {
+          const col = data.selectedColour || data.product?.selectedColour || undefined;
+          const sz = data.selectedSize || data.product?.selectedSize || undefined;
           items.push({
-            product: data.product as Product,
+            product: {
+              ...(data.product as Product),
+              selectedColour: col,
+              selectedSize: sz
+            },
             quantity: Number(data.quantity) || 1,
-            selectedColour: data.selectedColour || undefined,
-            selectedSize: data.selectedSize || undefined
+            selectedColour: col,
+            selectedSize: sz
           });
         }
       });
@@ -660,19 +666,36 @@ export const saveCartItemToDb = async (
   productOrItem: Product | CartItem,
   optionalQuantity?: number
 ): Promise<DbResult> => {
-  const item: CartItem = 'product' in productOrItem
-    ? productOrItem
-    : { product: productOrItem, quantity: optionalQuantity || 1 };
+  const isCartItem = 'product' in productOrItem && Boolean((productOrItem as CartItem).product);
+  const rawProduct: Product = isCartItem ? (productOrItem as CartItem).product : (productOrItem as Product);
+  const quantity: number = optionalQuantity !== undefined
+    ? optionalQuantity
+    : (isCartItem ? (productOrItem as CartItem).quantity : 1);
 
-  const cartKey = `${item.product.id}_${(item.selectedColour || 'def').replace(/[^a-zA-Z0-9]/g, '')}_${(item.selectedSize || 'def').replace(/[^a-zA-Z0-9]/g, '')}`;
+  const selectedColour = isCartItem
+    ? ((productOrItem as CartItem).selectedColour || rawProduct.selectedColour || '')
+    : (rawProduct.selectedColour || '');
+  const selectedSize = isCartItem
+    ? ((productOrItem as CartItem).selectedSize || rawProduct.selectedSize || '')
+    : (rawProduct.selectedSize || '');
+
+  const safeColour = (selectedColour || 'def').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase();
+  const safeSize = (selectedSize || 'def').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase();
+  const cartKey = `${rawProduct.id}__c_${safeColour}__s_${safeSize}`;
   const path = `users/${userId}/cart/${cartKey}`;
+
   try {
     const docRef = doc(db, 'users', userId, 'cart', cartKey);
+    const cleanProduct: Product = {
+      ...rawProduct,
+      selectedColour: selectedColour || undefined,
+      selectedSize: selectedSize || undefined
+    };
     const cleanItem = sanitizeForFirestore({
-      product: item.product,
-      quantity: item.quantity,
-      selectedColour: item.selectedColour || '',
-      selectedSize: item.selectedSize || '',
+      product: cleanProduct,
+      quantity,
+      selectedColour: selectedColour || '',
+      selectedSize: selectedSize || '',
       updatedAt: new Date().toISOString()
     });
     await setDoc(docRef, cleanItem, { merge: true });
@@ -689,24 +712,29 @@ export const removeCartItemFromDb = async (
   selectedColour?: string,
   selectedSize?: string
 ): Promise<DbResult> => {
-  const specificKey = selectedColour !== undefined || selectedSize !== undefined
-    ? `${productIdOrKey}_${(selectedColour || 'def').replace(/[^a-zA-Z0-9]/g, '')}_${(selectedSize || 'def').replace(/[^a-zA-Z0-9]/g, '')}`
-    : productIdOrKey;
+  const safeColour = (selectedColour || 'def').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase();
+  const safeSize = (selectedSize || 'def').replace(/[^a-zA-Z0-9_\-]/g, '_').toLowerCase();
+  const specificKey = `${productIdOrKey}__c_${safeColour}__s_${safeSize}`;
+  const legacyKey = `${productIdOrKey}_${(selectedColour || 'def').replace(/[^a-zA-Z0-9]/g, '')}_${(selectedSize || 'def').replace(/[^a-zA-Z0-9]/g, '')}`;
 
   const path = `users/${userId}/cart/${specificKey}`;
   try {
-    // Attempt direct key deletion
-    const docRef = doc(db, 'users', userId, 'cart', specificKey);
-    await deleteDoc(docRef);
+    // Delete by specific generated keys
+    await deleteDoc(doc(db, 'users', userId, 'cart', specificKey)).catch(() => {});
+    await deleteDoc(doc(db, 'users', userId, 'cart', legacyKey)).catch(() => {});
+    await deleteDoc(doc(db, 'users', userId, 'cart', productIdOrKey)).catch(() => {});
 
-    // If specific key was not found or productId was passed, also scan for matching documents
+    // Also scan subcollection to clean up any matching documents
     try {
       const snap = await getDocs(collection(db, 'users', userId, 'cart'));
       const batch = writeBatch(db);
       let count = 0;
       snap.forEach((d) => {
         const data = d.data();
-        const matchesProduct = d.id.startsWith(productIdOrKey) || data.product?.id === productIdOrKey;
+        const matchesProduct =
+          d.id.startsWith(productIdOrKey) ||
+          data.product?.id === productIdOrKey;
+
         if (matchesProduct) {
           const itemCol = data.selectedColour || data.product?.selectedColour || '';
           const itemSz = data.selectedSize || data.product?.selectedSize || '';

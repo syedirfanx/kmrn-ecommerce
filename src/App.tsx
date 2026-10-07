@@ -17,7 +17,8 @@ import {
   UserProfile,
   BannerSlide,
   AnnouncementItem,
-  StoreSettings
+  StoreSettings,
+  PromoCode
 } from './types';
 import {
   seedInitialDataIfEmpty,
@@ -228,6 +229,25 @@ export default function App() {
 
   // Orders state
   const [orders, setOrders] = useState<OrderConfirmation[]>([]);
+
+  // Promo Code state (consistent across side bag and checkout)
+  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('aniq_applied_promo');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
+
+  useEffect(() => {
+    try {
+      if (appliedPromo) {
+        sessionStorage.setItem('aniq_applied_promo', JSON.stringify(appliedPromo));
+      } else {
+        sessionStorage.removeItem('aniq_applied_promo');
+      }
+    } catch {}
+  }, [appliedPromo]);
 
   // Toast feedback state
   const [toastMessage, setToastMessage] = useState<string>('');
@@ -591,7 +611,12 @@ export default function App() {
           (item.selectedSize || item.product.selectedSize || '') === size
       );
       const newQty = (existing?.quantity || 0) + quantity;
-      await saveCartItemToDb(currentUser.uid, fullProduct, newQty);
+      await saveCartItemToDb(currentUser.uid, {
+        product: fullProduct,
+        quantity: newQty,
+        selectedColour: colour,
+        selectedSize: size
+      });
     }
   };
 
@@ -624,7 +649,12 @@ export default function App() {
           (selectedSize === undefined || (i.selectedSize || i.product.selectedSize || '') === selectedSize)
       );
       if (item) {
-        await saveCartItemToDb(currentUser.uid, item.product, newQuantity);
+        await saveCartItemToDb(currentUser.uid, {
+          ...item,
+          quantity: newQuantity,
+          selectedColour: item.selectedColour || selectedColour,
+          selectedSize: item.selectedSize || selectedSize
+        });
       }
     }
   };
@@ -652,6 +682,7 @@ export default function App() {
   const handleOrderComplete = async (order: OrderConfirmation) => {
     setOrders((prev) => [order, ...prev]);
     setCart([]);
+    setAppliedPromo(null);
 
     if (currentUser) {
       await saveUserOrderToDb(currentUser.uid, order);
@@ -818,6 +849,8 @@ export default function App() {
           items={cart}
           userDistrict={userProfile?.district}
           deliveryZone={userProfile?.deliveryZone}
+          appliedPromo={appliedPromo}
+          onApplyPromo={setAppliedPromo}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -828,6 +861,8 @@ export default function App() {
           items={cart}
           currentUser={currentUser}
           userProfile={userProfile}
+          appliedPromo={appliedPromo}
+          onApplyPromo={setAppliedPromo}
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOrderComplete={handleOrderComplete}
         />
@@ -893,6 +928,8 @@ export default function App() {
           items={cart}
           userDistrict={userProfile?.district}
           deliveryZone={userProfile?.deliveryZone}
+          appliedPromo={appliedPromo}
+          onApplyPromo={setAppliedPromo}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -953,6 +990,8 @@ export default function App() {
           items={cart}
           userDistrict={userProfile?.district}
           deliveryZone={userProfile?.deliveryZone}
+          appliedPromo={appliedPromo}
+          onApplyPromo={setAppliedPromo}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -1560,6 +1599,8 @@ export default function App() {
         items={cart}
         userDistrict={userProfile?.district}
         deliveryZone={userProfile?.deliveryZone}
+        appliedPromo={appliedPromo}
+        onApplyPromo={setAppliedPromo}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onProceedToCheckout={() => setIsCheckoutOpen(true)}
@@ -1572,6 +1613,8 @@ export default function App() {
         items={cart}
         currentUser={currentUser}
         userProfile={userProfile}
+        appliedPromo={appliedPromo}
+        onApplyPromo={setAppliedPromo}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOrderComplete={handleOrderComplete}
       />

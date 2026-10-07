@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Check } from 'lucide-react';
-import { CartItem } from '../types';
+import { CartItem, PromoCode } from '../types';
 import { formatBDT } from '../utils/format';
+import { subscribePromoCodes } from '../services/storeService';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -9,6 +10,8 @@ interface CartDrawerProps {
   items: CartItem[];
   userDistrict?: string;
   deliveryZone?: string;
+  appliedPromo?: PromoCode | null;
+  onApplyPromo?: (promo: PromoCode | null) => void;
   onUpdateQuantity: (productId: string, quantity: number, selectedColour?: string, selectedSize?: string) => void;
   onRemoveItem: (productId: string, selectedColour?: string, selectedSize?: string) => void;
   onProceedToCheckout: () => void;
@@ -20,13 +23,41 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   items,
   userDistrict,
   deliveryZone,
+  appliedPromo: appliedPromoProp,
+  onApplyPromo,
   onUpdateQuantity,
   onRemoveItem,
   onProceedToCheckout
 }) => {
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
+  const [localAppliedPromo, setLocalAppliedPromo] = useState<PromoCode | null>(null);
   const [promoError, setPromoError] = useState('');
+
+  const appliedPromo = appliedPromoProp !== undefined ? appliedPromoProp : localAppliedPromo;
+
+  const handleSetAppliedPromo = (promo: PromoCode | null) => {
+    if (onApplyPromo) {
+      onApplyPromo(promo);
+    } else {
+      setLocalAppliedPromo(promo);
+    }
+  };
+
+  useEffect(() => {
+    const unsub = subscribePromoCodes((list) => {
+      setPromoCodes(list.filter((p) => p.active));
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (appliedPromo) {
+      setPromoInput(appliedPromo.code);
+    } else {
+      setPromoInput('');
+    }
+  }, [appliedPromo]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -46,21 +77,46 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   const totalItemsCount = items.reduce((acc, it) => acc + it.quantity, 0);
   const subtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const discountAmount = appliedPromo === 'WELCOME10' ? Math.round(subtotal * 0.1) : 0;
   const defaultDelivery = deliveryZone === 'Outside Dhaka City' || (userDistrict && userDistrict !== 'Dhaka') ? 150 : 80;
-  const shippingCost = subtotal === 0 ? 0 : defaultDelivery;
-  const total = Math.max(0, subtotal - discountAmount + shippingCost);
+  let shippingCost = subtotal === 0 ? 0 : defaultDelivery;
+  let discountAmount = 0;
+
+  if (appliedPromo) {
+    if (appliedPromo.discountType === 'percentage') {
+      discountAmount = Math.round(subtotal * ((appliedPromo.discountValue || 0) / 100));
+    } else if (appliedPromo.discountType === 'delivery') {
+      if (!appliedPromo.discountValue || appliedPromo.discountValue >= defaultDelivery) {
+        discountAmount = defaultDelivery;
+        shippingCost = 0;
+      } else {
+        discountAmount = appliedPromo.discountValue;
+        shippingCost = Math.max(0, defaultDelivery - appliedPromo.discountValue);
+      }
+    } else {
+      discountAmount = Math.min(subtotal, appliedPromo.discountValue || 0);
+    }
+  }
+
+  const total = Math.max(0, subtotal - (appliedPromo?.discountType === 'delivery' ? 0 : discountAmount) + shippingCost);
 
   const handleApplyPromo = (e: React.FormEvent) => {
     e.preventDefault();
     setPromoError('');
     const code = promoInput.trim().toUpperCase();
-    if (code === 'WELCOME10') {
-      setAppliedPromo('WELCOME10');
-      setPromoInput('');
-    } else {
-      setPromoError('Invalid promo code. Use code WELCOME10 for 10% off.');
+    if (!code) return;
+
+    const matched = promoCodes.find((p) => p.code.toUpperCase() === code);
+    if (!matched) {
+      setPromoError('Invalid promo code');
+      return;
     }
+    if (matched.hasMinOrder && matched.minOrderAmount && subtotal < matched.minOrderAmount) {
+      setPromoError(`Minimum order of ${formatBDT(matched.minOrderAmount)} required for this code`);
+      return;
+    }
+
+    handleSetAppliedPromo(matched);
+    setPromoInput('');
   };
 
   return (
@@ -216,10 +272,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <div className="mt-2 flex items-center justify-between text-xs text-emerald-800">
                     <span className="flex items-center gap-1 font-medium">
                       <Check className="h-3 w-3" />
-                      Promo WELCOME10 applied (10% off)
+                      Promo {appliedPromo.code} applied (
+                      {appliedPromo.discountType === 'percentage'
+                        ? `${appliedPromo.discountValue}% off`
+                        : appliedPromo.discountType === 'delivery'
+                        ? 'Free Delivery'
+                        : `${formatBDT(appliedPromo.discountValue)} off`}
+                      )
                     </span>
                     <button
-                      onClick={() => setAppliedPromo(null)}
+                      onClick={() => handleSetAppliedPromo(null)}
                       className="text-stone-500 hover:text-neutral-900 underline cursor-pointer text-[11px]"
                     >
                       Remove

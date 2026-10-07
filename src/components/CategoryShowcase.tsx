@@ -14,15 +14,17 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
 
   if (!categories || categories.length === 0) return null;
 
-  const getCategoryLogo = (categoryName: string, index: number): string => {
-    const lower = categoryName.toLowerCase();
-    if (lower.includes('women') || lower.includes('wear') || lower.includes('dress') || lower.includes('pret')) {
+  const getCategoryLogo = (cat: CategoryData): string => {
+    if (cat.logo && cat.logo.trim()) {
+      return cat.logo.trim();
+    }
+    if (cat.id === 'cat-womens-wear') {
       return '/images/aniq-1.png';
     }
-    if (lower.includes('home') || lower.includes('decor') || lower.includes('living') || lower.includes('bed')) {
+    if (cat.id === 'cat-home-decor') {
       return '/images/aniq-2.png';
     }
-    return index === 0 ? '/images/aniq-1.png' : '/images/aniq-2.png';
+    return '/images/aniq-logo.png';
   };
 
   const handleImageError = (catId: string) => {
@@ -32,8 +34,8 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
   return (
     <section aria-label="Collections" className="pt-1 pb-1">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        {categories.slice(0, 4).map((cat, idx) => {
-          const logoSrc = getCategoryLogo(cat.name, idx);
+        {categories.slice(0, 4).map((cat) => {
+          const logoSrc = getCategoryLogo(cat);
           const hasError = imageErrors[cat.id];
 
           return (

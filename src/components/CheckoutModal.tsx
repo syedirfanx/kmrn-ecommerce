@@ -12,6 +12,8 @@ interface CheckoutModalProps {
   items: CartItem[];
   currentUser?: User | null;
   userProfile?: UserProfile | null;
+  appliedPromo?: PromoCode | null;
+  onApplyPromo?: (promo: PromoCode | null) => void;
   onOpenAuth?: () => void;
   onOrderComplete: (order: OrderConfirmation) => void;
 }
@@ -22,6 +24,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   currentUser,
   userProfile,
+  appliedPromo: appliedPromoProp,
+  onApplyPromo,
   onOpenAuth,
   onOrderComplete
 }) => {
@@ -46,9 +50,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Promo Code States
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
+  const [localAppliedPromo, setLocalAppliedPromo] = useState<PromoCode | null>(null);
   const [promoError, setPromoError] = useState('');
   const [promoSuccess, setPromoSuccess] = useState('');
+
+  const appliedPromo = appliedPromoProp !== undefined ? appliedPromoProp : localAppliedPromo;
+
+  const handleSetAppliedPromo = (promo: PromoCode | null) => {
+    if (onApplyPromo) {
+      onApplyPromo(promo);
+    } else {
+      setLocalAppliedPromo(promo);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen && appliedPromo) {
+      setPromoInput(appliedPromo.code);
+      if (appliedPromo.discountType === 'percentage') {
+        setPromoSuccess(`Applied! ${appliedPromo.discountValue}% discount added`);
+      } else if (appliedPromo.discountType === 'delivery') {
+        setPromoSuccess('Applied! Delivery charge discount added');
+      } else {
+        setPromoSuccess(`Applied! ${formatBDT(appliedPromo.discountValue)} discount added`);
+      }
+    } else if (isOpen && !appliedPromo) {
+      setPromoSuccess('');
+      setPromoInput('');
+    }
+  }, [isOpen, appliedPromo]);
 
   useEffect(() => {
     const unsub = subscribePromoCodes((list) => {
@@ -146,7 +176,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return;
     }
 
-    setAppliedPromo(matched);
+    handleSetAppliedPromo(matched);
     if (matched.discountType === 'percentage') {
       setPromoSuccess(`Applied! ${matched.discountValue}% discount added`);
     } else if (matched.discountType === 'delivery') {
@@ -157,7 +187,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const handleRemovePromo = () => {
-    setAppliedPromo(null);
+    handleSetAppliedPromo(null);
     setPromoInput('');
     setPromoError('');
     setPromoSuccess('');
@@ -376,8 +406,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <span className="font-semibold text-xs uppercase tracking-wider text-neutral-400 block mb-2">
                 Order Items ({completedOrder.items.length})
               </span>
-              {completedOrder.items.map((it) => (
-                <div key={it.product.id} className="py-2 flex items-center justify-between text-sm bg-white p-2.5 rounded-xl shadow-xs border border-stone-100">
+              {completedOrder.items.map((it, itIdx) => (
+                <div key={`${it.product.id}-${it.selectedColour || ''}-${it.selectedSize || ''}-${itIdx}`} className="py-2 flex items-center justify-between text-sm bg-white p-2.5 rounded-xl shadow-xs border border-stone-100">
                   <div className="flex items-center gap-3">
                     <img
                       src={it.product.image}
@@ -387,6 +417,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div>
                       <p className="font-heading font-bold text-neutral-900 text-xs sm:text-sm">{it.product.name}</p>
                       <p className="text-xs text-neutral-500">Qty: {it.quantity}</p>
+                      {(it.selectedColour || it.selectedSize) && (
+                        <p className="text-[11px] text-stone-500">
+                          {[it.selectedColour, it.selectedSize].filter(Boolean).join(' • ')}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <span className="font-heading font-bold text-neutral-900 text-xs sm:text-sm">{formatBDT(it.product.price * it.quantity)}</span>

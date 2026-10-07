@@ -21,6 +21,11 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
   User,
   Clock,
   BookOpen,
@@ -155,10 +160,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
 
-  // Image Cropper State (3:4 portrait for products/catalogues, 16:9 for banner)
+  // Image Cropper State (3:4 portrait for products/catalogues, 16:9 for banner, 1:1 for category logo)
   const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [cropperTarget, setCropperTarget] = useState<{
-    type: 'product' | 'banner' | 'catalogue';
+    type: 'product' | 'banner' | 'catalogue' | 'category' | 'category-edit';
     index?: number;
   }>({ type: 'product' });
   const [selectedCatalogueCategoryFilter, setSelectedCatalogueCategoryFilter] = useState<string>('All');
@@ -210,6 +215,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Category Form State
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [editingCategory, setEditingCategory] = useState<CategoryData | null>(null);
 
   // Banner Slides State
   const [localBannerSlides, setLocalBannerSlides] = useState<BannerSlide[]>(() => {
@@ -383,6 +389,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       });
     } else if (cropperTarget.type === 'catalogue') {
       setCatalogueFormData((prev) => ({ ...prev, image: croppedDataUrl }));
+    } else if (cropperTarget.type === 'category' || cropperTarget.type === 'category-edit') {
+      setEditingCategory((prev) => (prev ? { ...prev, logo: croppedDataUrl } : null));
     } else if (cropperTarget.type === 'banner' && typeof cropperTarget.index === 'number') {
       const idx = cropperTarget.index;
       setLocalBannerSlides((prev) => {
@@ -660,6 +668,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
+  const handleMoveFeaturedProduct = async (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= localFeaturedIds.length) return;
+    const nextIds = [...localFeaturedIds];
+    const [moved] = nextIds.splice(fromIndex, 1);
+    nextIds.splice(toIndex, 0, moved);
+
+    setLocalFeaturedIds(nextIds);
+    onFeaturedProductIdsChange?.(nextIds);
+
+    setIsSavingFeatured(true);
+    const res = await saveFeaturedProductIds(nextIds);
+    setIsSavingFeatured(false);
+
+    if (res.success) {
+      setStatusNotice('Featured sequence updated');
+      setTimeout(() => setStatusNotice(''), 2000);
+    } else {
+      setErrorMessage(res.error || 'Failed to update sequence');
+    }
+  };
+
   // Category Actions
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -679,7 +708,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     const newCat: CategoryData = {
       id: `cat-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
-      name
+      name,
+      logo: '/images/aniq-logo.png'
     };
 
     onCategorySavedLocally(newCat);
@@ -688,6 +718,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const res = await saveCategoryToDb(newCat);
     if (res.success) {
       setStatusNotice('Category added to navigation and database');
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else if (res.error) {
+      setErrorMessage(res.error);
+    }
+  };
+
+  const handleSaveEditCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCategory) return;
+    setErrorMessage('');
+    const name = editingCategory.name.trim();
+    if (!name) return;
+
+    if (categories.some((c) => c.id !== editingCategory.id && c.name.toLowerCase() === name.toLowerCase())) {
+      setErrorMessage('A category with this name already exists.');
+      return;
+    }
+
+    const defaultLogoForCat =
+      editingCategory.id === 'cat-womens-wear'
+        ? '/images/aniq-1.png'
+        : editingCategory.id === 'cat-home-decor'
+        ? '/images/aniq-2.png'
+        : '/images/aniq-logo.png';
+
+    const updatedCat: CategoryData = {
+      ...editingCategory,
+      name,
+      logo: editingCategory.logo?.trim() || defaultLogoForCat
+    };
+
+    onCategorySavedLocally(updatedCat);
+    setEditingCategory(null);
+
+    const res = await saveCategoryToDb(updatedCat);
+    if (res.success) {
+      setStatusNotice(`Category "${updatedCat.name}" updated successfully`);
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
@@ -723,6 +790,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       hideButton: false
     };
     setLocalBannerSlides([...localBannerSlides, newSlide]);
+  };
+
+  const handleMoveBannerSlide = (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= localBannerSlides.length) return;
+    const nextSlides = [...localBannerSlides];
+    const [moved] = nextSlides.splice(fromIndex, 1);
+    nextSlides.splice(toIndex, 0, moved);
+    setLocalBannerSlides(nextSlides);
+    setStatusNotice(`Slide moved to position ${toIndex + 1}. Click 'Save Banner' to confirm.`);
+    setTimeout(() => setStatusNotice(''), 3000);
   };
 
   const executeRemoveBanner = (index: number) => {
@@ -1761,13 +1838,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             Category *
                           </label>
                           <select
-                            value={formData.category || ''}
+                            value={formData.category || (categories[0]?.name || "Elegant Women's Wear")}
                             onChange={(e) => {
                               const catName = e.target.value;
-                              const found = categories.find((c) => c.name === catName);
+                              const currentCategoryCatalogues = catalogues.filter((c) => c.category === catName);
+                              const isCurrentStillValid = currentCategoryCatalogues.some((c) => c.id === formData.catalogueId);
                               setFormData({
                                 ...formData,
-                                category: catName
+                                category: catName,
+                                catalogueId: isCurrentStillValid ? formData.catalogueId : '',
+                                catalogueName: isCurrentStillValid ? formData.catalogueName : ''
                               });
                               if (!editingProduct) {
                                 setProductSpecs(getInitialSpecsForCategory(catName));
@@ -1785,7 +1865,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                         <div>
                           <label className="block text-xs font-bold text-neutral-800 mb-1">
-                            Catalogue
+                            Catalogue / Collection
                           </label>
                           <select
                             value={formData.catalogueId || ''}
@@ -1801,11 +1881,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
                           >
                             <option value="">None / Custom</option>
-                            {catalogues.map((catg) => (
-                              <option key={catg.id} value={catg.id}>
-                                {catg.name}
-                              </option>
-                            ))}
+                            {catalogues
+                              .filter((catg) => catg.category === (formData.category || categories[0]?.name))
+                              .map((catg) => (
+                                <option key={catg.id} value={catg.id}>
+                                  {catg.name}
+                                </option>
+                              ))}
                           </select>
                         </div>
 
@@ -2120,6 +2202,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   {categories.map((cat) => {
                     const catProductsCount = products.filter((p) => p.category === cat.name).length;
                     const catCataloguesCount = catalogues.filter((c) => c.category === cat.name).length;
+                    const catLogo =
+                      cat.logo ||
+                      (cat.id === 'cat-womens-wear'
+                        ? '/images/aniq-1.png'
+                        : cat.id === 'cat-home-decor'
+                        ? '/images/aniq-2.png'
+                        : '/images/aniq-logo.png');
 
                     return (
                       <div
@@ -2127,15 +2216,65 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         className="bg-stone-50 rounded-2xl p-5 border border-stone-200 flex flex-col justify-between shadow-xs hover:border-neutral-400 transition-colors"
                       >
                         <div>
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h4 className="font-heading font-bold text-base text-neutral-900">
-                              {cat.name}
-                            </h4>
-                            {cat.locked && (
-                              <span className="text-[10px] font-bold uppercase tracking-wider bg-stone-200 text-stone-700 px-2 py-0.5 rounded">
-                                Default
-                              </span>
-                            )}
+                          <div className="flex items-start justify-between gap-3 mb-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              {catLogo ? (
+                                <div
+                                  onClick={() =>
+                                    setEditingCategory({
+                                      ...cat,
+                                      logo: catLogo || ''
+                                    })
+                                  }
+                                  className="w-10 h-10 rounded-xl bg-white border border-stone-200 flex items-center justify-center p-1 shrink-0 overflow-hidden shadow-xs cursor-pointer hover:border-neutral-900 transition-colors"
+                                  title="Click to edit/change logo"
+                                >
+                                  <img
+                                    src={catLogo}
+                                    alt={cat.name}
+                                    className="max-h-full max-w-full object-contain mix-blend-multiply"
+                                  />
+                                </div>
+                              ) : (
+                                <div
+                                  onClick={() =>
+                                    setEditingCategory({
+                                      ...cat,
+                                      logo: catLogo || ''
+                                    })
+                                  }
+                                  className="w-10 h-10 rounded-xl bg-stone-200 flex items-center justify-center text-stone-500 shrink-0 cursor-pointer hover:bg-stone-300 transition-colors"
+                                  title="Click to upload logo"
+                                >
+                                  <Layers className="h-5 w-5" />
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h4 className="font-heading font-bold text-sm sm:text-base text-neutral-900 truncate">
+                                  {cat.name}
+                                </h4>
+                                {cat.locked && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded">
+                                    Default
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEditingCategory({
+                                  ...cat,
+                                  logo: catLogo || ''
+                                })
+                              }
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:text-neutral-900 bg-white hover:bg-stone-100 border border-stone-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                              title="Edit Category & Logo"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                              <span>Manage / Edit</span>
+                            </button>
                           </div>
 
                           <div className="space-y-1 text-xs text-stone-600 mb-4">
@@ -2500,9 +2639,54 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       className="bg-stone-50 rounded-xl p-3 border border-stone-200 flex flex-col justify-between"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase text-stone-500 bg-white px-2 py-0.5 rounded border border-stone-200">
-                          Slot {idx + 1}
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold uppercase text-stone-500 bg-white px-2 py-0.5 rounded border border-stone-200">
+                            Slot {idx + 1}
+                          </span>
+                          <div className="flex items-center bg-white rounded-lg border border-stone-200 p-0.5 gap-0.5">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveFeaturedProduct(idx, idx - 1)}
+                              className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Move Left / Earlier"
+                              aria-label="Move slot left"
+                            >
+                              <ArrowLeft className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveFeaturedProduct(idx, idx - 1)}
+                              className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Move Up / Earlier"
+                              aria-label="Move slot up"
+                            >
+                              <ArrowUp className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === currentFeaturedProducts.length - 1}
+                              onClick={() => handleMoveFeaturedProduct(idx, idx + 1)}
+                              className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Move Down / Later"
+                              aria-label="Move slot down"
+                            >
+                              <ArrowDown className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === currentFeaturedProducts.length - 1}
+                              onClick={() => handleMoveFeaturedProduct(idx, idx + 1)}
+                              className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                              title="Move Right / Later"
+                              aria-label="Move slot right"
+                            >
+                              <ArrowRight className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+
                         <button
                           type="button"
                           onClick={() => handleRemoveProductFromFeatured(prod.id)}
@@ -2640,12 +2824,57 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         key={slide.id || idx}
                         className="p-5 bg-stone-50 rounded-2xl border border-stone-200 space-y-4 shadow-xs"
                       >
-                        {/* Slide Header: Index + Type Switcher + Remove */}
+                        {/* Slide Header: Index + Re-order + Type Switcher + Remove */}
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-stone-200 gap-2">
-                          <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-center gap-3">
                             <span className="font-heading font-extrabold text-sm text-neutral-900">
                               Slide {idx + 1}
                             </span>
+
+                            {/* Move Up/Down/Left/Right Controls */}
+                            <div className="flex items-center bg-stone-200/80 rounded-lg p-0.5 gap-0.5">
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveBannerSlide(idx, idx - 1)}
+                                className="p-1 text-stone-600 hover:text-neutral-900 disabled:opacity-25 disabled:cursor-not-allowed rounded hover:bg-white transition-colors cursor-pointer"
+                                title="Move Slide Up (Earlier)"
+                                aria-label="Move slide up"
+                              >
+                                <ArrowUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === 0}
+                                onClick={() => handleMoveBannerSlide(idx, idx - 1)}
+                                className="p-1 text-stone-600 hover:text-neutral-900 disabled:opacity-25 disabled:cursor-not-allowed rounded hover:bg-white transition-colors cursor-pointer"
+                                title="Move Slide Left (Earlier)"
+                                aria-label="Move slide left"
+                              >
+                                <ArrowLeft className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === localBannerSlides.length - 1}
+                                onClick={() => handleMoveBannerSlide(idx, idx + 1)}
+                                className="p-1 text-stone-600 hover:text-neutral-900 disabled:opacity-25 disabled:cursor-not-allowed rounded hover:bg-white transition-colors cursor-pointer"
+                                title="Move Slide Right (Later)"
+                                aria-label="Move slide right"
+                              >
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={idx === localBannerSlides.length - 1}
+                                onClick={() => handleMoveBannerSlide(idx, idx + 1)}
+                                className="p-1 text-stone-600 hover:text-neutral-900 disabled:opacity-25 disabled:cursor-not-allowed rounded hover:bg-white transition-colors cursor-pointer"
+                                title="Move Slide Down (Later)"
+                                aria-label="Move slide down"
+                              >
+                                <ArrowDown className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
                             <div className="flex rounded-lg bg-stone-200/80 p-0.5 text-xs font-bold">
                               <button
                                 type="button"
@@ -3565,8 +3794,125 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         isOpen={isCropperOpen}
         onClose={() => setIsCropperOpen(false)}
         onCropComplete={handleCropComplete}
-        aspectRatio={cropperTarget.type === 'banner' || cropperTarget.type === 'catalogue' ? 16 / 9 : 3 / 4}
+        aspectRatio={
+          cropperTarget.type === 'banner' || cropperTarget.type === 'catalogue'
+            ? 16 / 9
+            : cropperTarget.type === 'category' || cropperTarget.type === 'category-edit'
+            ? 1
+            : 3 / 4
+        }
       />
+
+      {/* Edit Category Modal */}
+      {editingCategory && (
+        <div className="fixed inset-0 z-50 bg-neutral-900/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+              <h3 className="font-heading font-extrabold text-lg text-neutral-900">
+                Edit Category
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingCategory(null)}
+                className="p-1.5 text-stone-400 hover:text-neutral-900 rounded-lg cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditCategory} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-neutral-800 mb-1">
+                  Category Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingCategory.name}
+                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                  className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-800 mb-1">
+                  Category Logo
+                </label>
+                <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
+                  {editingCategory.logo ? (
+                    <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-white border border-stone-200 shrink-0 flex items-center justify-center p-1">
+                      <img
+                        src={editingCategory.logo}
+                        alt="Logo"
+                        className="max-h-full max-w-full object-contain mix-blend-multiply"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory({ ...editingCategory, logo: '' })}
+                        className="absolute -top-1 -right-1 bg-neutral-900 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
+                        title="Remove custom logo (reverts to default ANIQ logo)"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-white border border-dashed border-stone-300 shrink-0 flex items-center justify-center p-1" title="Default ANIQ Logo">
+                      <img
+                        src={
+                          editingCategory.id === 'cat-womens-wear'
+                            ? '/images/aniq-1.png'
+                            : editingCategory.id === 'cat-home-decor'
+                            ? '/images/aniq-2.png'
+                            : '/images/aniq-logo.png'
+                        }
+                        alt="Default ANIQ Logo"
+                        className="max-h-full max-w-full object-contain opacity-60 mix-blend-multiply"
+                      />
+                    </div>
+                  )}
+
+                  <div className="flex-1 space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCropperTarget({ type: 'category-edit' });
+                        setIsCropperOpen(true);
+                      }}
+                      className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{editingCategory.logo ? 'Change Photo' : 'Upload Photo'}</span>
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="Or paste image URL..."
+                      value={editingCategory.logo || ''}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, logo: e.target.value })}
+                      className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-neutral-900 focus:outline-none focus:border-neutral-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 pt-3 border-t border-stone-100 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setEditingCategory(null)}
+                  className="px-4 py-2 bg-stone-100 text-stone-700 font-semibold rounded-xl text-xs hover:bg-stone-200 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-neutral-900 text-white font-bold rounded-xl text-xs hover:bg-neutral-800 cursor-pointer shadow-md"
+                >
+                  Save Category
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmModal && (
