@@ -38,6 +38,7 @@ interface ProductPageProps {
   onSelectProduct: (product: Product) => void;
   onOpenQuickView: (product: Product) => void;
   onOpenAuth: () => void;
+  onGoBack?: () => void;
 }
 
 const PREBUILT_COMMENTS = [
@@ -59,7 +60,8 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   onNavigateToCategory,
   onSelectProduct,
   onOpenQuickView,
-  onOpenAuth
+  onOpenAuth,
+  onGoBack
 }) => {
   const [selectedImage, setSelectedImage] = useState<string>(product.image);
   const [quantity, setQuantity] = useState<number>(1);
@@ -205,7 +207,22 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   const averageRating = averageRatingNumber > 0 ? averageRatingNumber.toFixed(1) : '0.0';
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-12 animate-in fade-in duration-300">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 sm:space-y-12 animate-in fade-in duration-300">
+      {/* Go Back Button Navigation */}
+      {onGoBack && (
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={onGoBack}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-stone-100 text-neutral-900 border border-stone-200/90 rounded-xl text-xs font-category font-bold tracking-wider uppercase transition-all shadow-2xs hover:shadow-xs cursor-pointer group"
+            aria-label="Go back to previous page"
+          >
+            <ArrowLeft className="h-4 w-4 text-stone-500 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-transform" />
+            <span>Go Back</span>
+          </button>
+        </div>
+      )}
+
       {/* Main Product Showcase Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
         {/* Left Column: Gallery */}
@@ -267,6 +284,13 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             <h1 className="font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 leading-tight mb-3">
               {product.name}
             </h1>
+
+            {/* Out of Stock Notice */}
+            {product.inStock === false && (
+              <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 bg-red-100 border border-red-200 text-red-800 rounded-lg text-xs font-category font-bold uppercase tracking-wider">
+                <span>Out of Stock</span>
+              </div>
+            )}
 
             {/* Price & Rating Row */}
             <div className="flex items-center justify-between pb-4 border-b border-stone-200/80">
@@ -435,10 +459,13 @@ export const ProductPage: React.FC<ProductPageProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <button
                 type="button"
+                disabled={product.inStock === false}
                 onClick={handleAdd}
-                className="w-full py-3.5 px-6 rounded-2xl bg-neutral-900 hover:bg-neutral-800 text-white font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-2xl bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer"
               >
-                {justAdded ? (
+                {product.inStock === false ? (
+                  <span>Out of Stock</span>
+                ) : justAdded ? (
                   <>
                     <Check className="h-4 w-4 text-emerald-400" />
                     <span>Added to Bag</span>
@@ -453,8 +480,9 @@ export const ProductPage: React.FC<ProductPageProps> = ({
 
               <button
                 type="button"
+                disabled={product.inStock === false}
                 onClick={handleBuyNow}
-                className="w-full py-3.5 px-6 rounded-2xl bg-stone-200 hover:bg-stone-300 text-neutral-900 font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
+                className="w-full py-3.5 px-6 rounded-2xl bg-stone-200 hover:bg-stone-300 disabled:bg-stone-100 disabled:text-stone-400 disabled:cursor-not-allowed text-neutral-900 font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-98 cursor-pointer"
               >
                 <span>Buy Now</span>
               </button>

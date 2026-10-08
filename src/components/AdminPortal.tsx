@@ -30,7 +30,8 @@ import {
   Clock,
   BookOpen,
   Menu,
-  Tag
+  Tag,
+  Archive
 } from 'lucide-react';
 import {
   Product,
@@ -160,10 +161,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
 
-  // Image Cropper State (3:4 portrait for products/catalogues, 16:9 for banner, 1:1 for category logo)
+  // Image Cropper State (3:4 portrait for products/catalogues, 16:9 for banner/hero, 1:1 for category logo)
   const [isCropperOpen, setIsCropperOpen] = useState(false);
   const [cropperTarget, setCropperTarget] = useState<{
-    type: 'product' | 'banner' | 'catalogue' | 'category' | 'category-edit';
+    type: 'product' | 'banner' | 'catalogue' | 'category' | 'category-edit' | 'category-hero';
     index?: number;
   }>({ type: 'product' });
   const [selectedCatalogueCategoryFilter, setSelectedCatalogueCategoryFilter] = useState<string>('All');
@@ -391,6 +392,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setCatalogueFormData((prev) => ({ ...prev, image: croppedDataUrl }));
     } else if (cropperTarget.type === 'category' || cropperTarget.type === 'category-edit') {
       setEditingCategory((prev) => (prev ? { ...prev, logo: croppedDataUrl } : null));
+    } else if (cropperTarget.type === 'category-hero') {
+      setEditingCategory((prev) => (prev ? { ...prev, heroImage: croppedDataUrl } : null));
     } else if (cropperTarget.type === 'banner' && typeof cropperTarget.index === 'number') {
       const idx = cropperTarget.index;
       setLocalBannerSlides((prev) => {
@@ -512,6 +515,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       image: primaryImage,
       additionalImages: additionalImgs,
       inStock: formData.inStock !== false,
+      archived: Boolean(formData.archived),
       featured: isFeatured,
       specs: validSpecs,
       rating: formData.rating || 0,
@@ -546,6 +550,44 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const res = await deleteProductFromDb(productId);
     if (res.success) {
       setStatusNotice('Product deleted from live database');
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else if (res.error) {
+      setErrorMessage(res.error);
+    }
+  };
+
+  const handleToggleProductStock = async (product: Product) => {
+    setErrorMessage('');
+    const newStock = !product.inStock;
+    const updated: Product = {
+      ...product,
+      inStock: newStock,
+      updatedAt: new Date().toISOString()
+    };
+
+    onProductSavedLocally(updated);
+    const res = await saveProductToDb(updated);
+    if (res.success) {
+      setStatusNotice(`"${product.name}" is now marked as ${newStock ? 'In Stock' : 'Out of Stock'}`);
+      setTimeout(() => setStatusNotice(''), 3000);
+    } else if (res.error) {
+      setErrorMessage(res.error);
+    }
+  };
+
+  const handleToggleProductArchive = async (product: Product) => {
+    setErrorMessage('');
+    const newArchived = !product.archived;
+    const updated: Product = {
+      ...product,
+      archived: newArchived,
+      updatedAt: new Date().toISOString()
+    };
+
+    onProductSavedLocally(updated);
+    const res = await saveProductToDb(updated);
+    if (res.success) {
+      setStatusNotice(`"${product.name}" has been ${newArchived ? 'archived' : 'unarchived'}`);
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
@@ -746,6 +788,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const updatedCat: CategoryData = {
       ...editingCategory,
       name,
+      description: editingCategory.description !== undefined ? editingCategory.description.trim() : '',
       logo: editingCategory.logo?.trim() || defaultLogoForCat
     };
 
@@ -758,6 +801,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
+    }
+  };
+
+  const handleMoveCategory = async (fromIndex: number, toIndex: number) => {
+    if (toIndex < 0 || toIndex >= categories.length) return;
+    const reordered = [...categories];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    // Update order indices
+    const updated = reordered.map((cat, idx) => ({ ...cat, order: idx }));
+    updated.forEach((cat) => onCategorySavedLocally(cat));
+
+    setStatusNotice('Category order updated');
+    setTimeout(() => setStatusNotice(''), 3000);
+
+    // Save to Firestore
+    try {
+      await Promise.all(updated.map((cat) => saveCategoryToDb(cat)));
+    } catch {
+      // offline fallback
     }
   };
 
@@ -1760,18 +1824,52 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               {formatBDT(p.price)}
                             </td>
                             <td className="py-3 px-4">
-                              <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                  p.inStock
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-red-100 text-red-800'
-                                }`}
-                              >
-                                {p.inStock ? 'In Stock' : 'Out of Stock'}
-                              </span>
+                              <div className="flex flex-col gap-1 items-start">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleProductStock(p)}
+                                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all border ${
+                                    p.inStock
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                                      : 'bg-red-50 text-red-800 border-red-200 hover:bg-red-100'
+                                  }`}
+                                  title="Click to toggle In Stock / Out of Stock"
+                                >
+                                  {p.inStock ? '● In Stock' : '○ Out of Stock'}
+                                </button>
+                                {p.archived && (
+                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                                    Archived
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleProductStock(p)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer text-xs font-semibold ${
+                                    p.inStock
+                                      ? 'text-stone-600 hover:bg-stone-100 hover:text-neutral-900'
+                                      : 'text-emerald-700 hover:bg-emerald-50'
+                                  }`}
+                                  title={p.inStock ? 'Mark as Out of Stock' : 'Mark as In Stock'}
+                                >
+                                  <span className="text-[11px] font-bold">{p.inStock ? 'Out' : 'In'}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleProductArchive(p)}
+                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                    p.archived
+                                      ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
+                                      : 'text-stone-500 hover:bg-stone-100 hover:text-neutral-900'
+                                  }`}
+                                  title={p.archived ? 'Unarchive Product' : 'Archive Product'}
+                                >
+                                  <Archive className="h-4 w-4" />
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => openEditProductForm(p)}
@@ -2143,6 +2241,34 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         />
                       </div>
 
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-stone-50 rounded-2xl border border-stone-200">
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.inStock !== false}
+                            onChange={(e) => setFormData({ ...formData, inStock: e.target.checked })}
+                            className="w-4 h-4 rounded text-neutral-900 focus:ring-neutral-900 accent-neutral-900"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-neutral-900 block">In Stock</span>
+                            <span className="text-[11px] text-stone-500">Uncheck to mark as Out of Stock in store</span>
+                          </div>
+                        </label>
+
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(formData.archived)}
+                            onChange={(e) => setFormData({ ...formData, archived: e.target.checked })}
+                            className="w-4 h-4 rounded text-neutral-900 focus:ring-neutral-900 accent-neutral-900"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-neutral-900 block">Archive Product</span>
+                            <span className="text-[11px] text-stone-500">Hides product from customer catalogs without deleting</span>
+                          </div>
+                        </label>
+                      </div>
+
                       <div className="flex items-center justify-end gap-3 pt-4 border-t border-stone-100">
                         <button
                           type="button"
@@ -2199,7 +2325,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </form>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {categories.map((cat) => {
+                  {categories.map((cat, cIdx) => {
                     const catProductsCount = products.filter((p) => p.category === cat.name).length;
                     const catCataloguesCount = catalogues.filter((c) => c.category === cat.name).length;
                     const catLogo =
@@ -2261,21 +2387,53 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEditingCategory({
-                                  ...cat,
-                                  logo: catLogo || ''
-                                })
-                              }
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-700 hover:text-neutral-900 bg-white hover:bg-stone-100 border border-stone-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
-                              title="Edit Category & Logo"
-                            >
-                              <Edit2 className="h-3 w-3" />
-                              <span>Manage / Edit</span>
-                            </button>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Sequence Move Controls */}
+                              <div className="flex items-center bg-white rounded-lg border border-stone-200 p-0.5 gap-0.5 shadow-2xs">
+                                <button
+                                  type="button"
+                                  disabled={cIdx === 0}
+                                  onClick={() => handleMoveCategory(cIdx, cIdx - 1)}
+                                  className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                                  title="Move Left / Earlier"
+                                  aria-label="Move category left"
+                                >
+                                  <ArrowLeft className="h-3 w-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={cIdx === categories.length - 1}
+                                  onClick={() => handleMoveCategory(cIdx, cIdx + 1)}
+                                  className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
+                                  title="Move Right / Later"
+                                  aria-label="Move category right"
+                                >
+                                  <ArrowRight className="h-3 w-3" />
+                                </button>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingCategory({
+                                    ...cat,
+                                    logo: catLogo || ''
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-stone-700 hover:text-neutral-900 bg-white hover:bg-stone-100 border border-stone-200 rounded-lg cursor-pointer transition-colors shadow-2xs"
+                                title="Edit Category & Logo"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </button>
+                            </div>
                           </div>
+
+                          {cat.description && (
+                            <p className="text-[11px] text-stone-500 line-clamp-2 italic mb-3 leading-relaxed">
+                              "{cat.description}"
+                            </p>
+                          )}
 
                           <div className="space-y-1 text-xs text-stone-600 mb-4">
                             <div className="flex items-center justify-between">
@@ -2656,26 +2814,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             </button>
                             <button
                               type="button"
-                              disabled={idx === 0}
-                              onClick={() => handleMoveFeaturedProduct(idx, idx - 1)}
-                              className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
-                              title="Move Up / Earlier"
-                              aria-label="Move slot up"
-                            >
-                              <ArrowUp className="h-3 w-3" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={idx === currentFeaturedProducts.length - 1}
-                              onClick={() => handleMoveFeaturedProduct(idx, idx + 1)}
-                              className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
-                              title="Move Down / Later"
-                              aria-label="Move slot down"
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </button>
-                            <button
-                              type="button"
                               disabled={idx === currentFeaturedProducts.length - 1}
                               onClick={() => handleMoveFeaturedProduct(idx, idx + 1)}
                               className="p-1 text-stone-500 hover:text-neutral-900 disabled:opacity-20 disabled:cursor-not-allowed rounded hover:bg-stone-100 transition-colors cursor-pointer"
@@ -2831,7 +2969,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               Slide {idx + 1}
                             </span>
 
-                            {/* Move Up/Down/Left/Right Controls */}
+                            {/* Move Up/Down Controls Only */}
                             <div className="flex items-center bg-stone-200/80 rounded-lg p-0.5 gap-0.5">
                               <button
                                 type="button"
@@ -2842,26 +2980,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 aria-label="Move slide up"
                               >
                                 <ArrowUp className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={idx === 0}
-                                onClick={() => handleMoveBannerSlide(idx, idx - 1)}
-                                className="p-1 text-stone-600 hover:text-neutral-900 disabled:opacity-25 disabled:cursor-not-allowed rounded hover:bg-white transition-colors cursor-pointer"
-                                title="Move Slide Left (Earlier)"
-                                aria-label="Move slide left"
-                              >
-                                <ArrowLeft className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={idx === localBannerSlides.length - 1}
-                                onClick={() => handleMoveBannerSlide(idx, idx + 1)}
-                                className="p-1 text-stone-600 hover:text-neutral-900 disabled:opacity-25 disabled:cursor-not-allowed rounded hover:bg-white transition-colors cursor-pointer"
-                                title="Move Slide Right (Later)"
-                                aria-label="Move slide right"
-                              >
-                                <ArrowRight className="h-3.5 w-3.5" />
                               </button>
                               <button
                                 type="button"
@@ -3795,7 +3913,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         onClose={() => setIsCropperOpen(false)}
         onCropComplete={handleCropComplete}
         aspectRatio={
-          cropperTarget.type === 'banner' || cropperTarget.type === 'catalogue'
+          cropperTarget.type === 'banner' || cropperTarget.type === 'catalogue' || cropperTarget.type === 'category-hero'
             ? 16 / 9
             : cropperTarget.type === 'category' || cropperTarget.type === 'category-edit'
             ? 1
@@ -3831,6 +3949,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   value={editingCategory.name}
                   onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
                   className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-neutral-800">
+                    Category Page Description
+                  </label>
+                  <span className="text-[10px] text-stone-500">
+                    Shown under heading on category page
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  placeholder="Enter a descriptive subtitle/introduction for this category page..."
+                  value={editingCategory.description || ''}
+                  onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                  className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 leading-relaxed"
                 />
               </div>
 
@@ -3891,6 +4027,57 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-neutral-900 focus:outline-none focus:border-neutral-900"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-neutral-800 mb-1">
+                  Category Page Hero Cover Photo (16:9)
+                </label>
+                <div className="space-y-2 p-3 bg-stone-50 rounded-xl border border-stone-200">
+                  {editingCategory.heroImage ? (
+                    <div className="relative aspect-video rounded-lg overflow-hidden bg-white border border-stone-200">
+                      <img
+                        src={editingCategory.heroImage}
+                        alt="Hero Cover"
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEditingCategory({ ...editingCategory, heroImage: '' })}
+                        className="absolute top-1.5 right-1.5 bg-neutral-900/80 hover:bg-red-600 text-white rounded-full p-1 transition-colors cursor-pointer"
+                        title="Remove custom cover photo"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="aspect-video rounded-lg border border-dashed border-stone-300 flex flex-col items-center justify-center text-stone-400 p-2 text-center bg-white">
+                      <ImageIcon className="h-6 w-6 mb-1 text-stone-300" />
+                      <span className="text-[11px]">Using default cover photo</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCropperTarget({ type: 'category-hero' });
+                        setIsCropperOpen(true);
+                      }}
+                      className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>{editingCategory.heroImage ? 'Change Cover' : 'Upload Cover'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Or paste cover image URL..."
+                    value={editingCategory.heroImage || ''}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, heroImage: e.target.value })}
+                    className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-neutral-900 focus:outline-none focus:border-neutral-900"
+                  />
                 </div>
               </div>
 

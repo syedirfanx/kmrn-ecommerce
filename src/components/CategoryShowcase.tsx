@@ -31,18 +31,50 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
     setImageErrors((prev) => ({ ...prev, [catId]: true }));
   };
 
+  const count = categories.length;
+
+  // Layout Grid Calculation according to requirements:
+  // - 1 category: full width
+  // - 2 categories: 2 in one line (grid-cols-1 sm:grid-cols-2)
+  // - 3 categories: all 3 adjust in one line (grid-cols-1 sm:grid-cols-3)
+  // - 4 categories: 3-column grid where first 3 take 1 col each, and 4th takes col-span-3 (covering whole next line)
+  // - 5 categories: 3-column grid where first 3 take 1 col each, and next 2 share the line (e.g. col-span-3 or responsive)
+  const getCardColSpanClass = (index: number, total: number) => {
+    if (total === 1) return 'col-span-full';
+    if (total === 2) return 'col-span-1';
+    if (total === 3) return 'col-span-1';
+    if (total === 4) {
+      if (index === 3) return 'sm:col-span-3'; // 4th covers the whole next line
+      return 'sm:col-span-1';
+    }
+    if (total >= 5) {
+      if (index < 3) return 'sm:col-span-2'; // on 6-col grid: 2 + 2 + 2 = 6 (3 in line 1)
+      return 'sm:col-span-3'; // 3 + 3 = 6 (2 in line 2)
+    }
+    return '';
+  };
+
+  const getGridContainerClass = (total: number) => {
+    if (total === 1) return 'grid grid-cols-1 gap-3 sm:gap-4';
+    if (total === 2) return 'grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4';
+    if (total === 3) return 'grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4';
+    if (total === 4) return 'grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4';
+    return 'grid grid-cols-1 sm:grid-cols-6 gap-3 sm:gap-4'; // 5 categories: 3 in line 1 (span-2 each), 2 in line 2 (span-3 each)
+  };
+
   return (
     <section aria-label="Collections" className="pt-1 pb-1">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-        {categories.slice(0, 4).map((cat) => {
+      <div className={getGridContainerClass(count)}>
+        {categories.slice(0, 5).map((cat, index) => {
           const logoSrc = getCategoryLogo(cat);
           const hasError = imageErrors[cat.id];
+          const colSpanClass = getCardColSpanClass(index, count);
 
           return (
             <div
               key={cat.id}
               onClick={() => onSelectCategory(cat.name)}
-              className="group relative bg-white border border-stone-200/90 hover:border-neutral-900 rounded-3xl px-5 py-5 sm:px-8 sm:py-6 h-52 sm:h-64 md:h-72 flex flex-col items-center justify-between transition-all duration-300 shadow-xs hover:shadow-xl cursor-pointer overflow-hidden"
+              className={`group relative bg-white border border-stone-200/90 hover:border-neutral-900 rounded-3xl px-5 py-5 sm:px-8 sm:py-6 h-52 sm:h-64 md:h-72 flex flex-col items-center justify-between transition-all duration-300 shadow-xs hover:shadow-xl cursor-pointer overflow-hidden ${colSpanClass}`}
             >
               {/* Logo Area: Backgroundless and Maximized Bigger */}
               <div className="w-full flex-1 flex items-center justify-center min-h-0 py-3 sm:py-4">

@@ -57,9 +57,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img
           src={product.image}
           alt={product.name}
-          className="w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
+          className={`w-full h-full object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out ${
+            product.inStock === false ? 'grayscale opacity-75' : ''
+          }`}
           loading="lazy"
         />
+
+        {/* Out of Stock Overlay Badge */}
+        {product.inStock === false && (
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none z-10">
+            <span className="bg-red-600 text-white font-category text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-md shadow-lg border border-red-500">
+              Out of Stock
+            </span>
+          </div>
+        )}
 
         {/* Visible Rating Badge on Thumbnail */}
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-md shadow-xs border border-stone-200/70 z-10 text-[11px] font-bold text-neutral-900 tabular-nums">
@@ -142,47 +153,55 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
 
           {/* Single Unified Stepper + Add Button */}
-          <div className="flex items-center w-full bg-neutral-900 text-white rounded-lg p-0.5 shadow-xs overflow-hidden">
-            <button
-              type="button"
-              onClick={handleDecrease}
-              className="w-7 h-7 flex items-center justify-center text-stone-300 hover:text-white hover:bg-neutral-800 rounded transition-colors cursor-pointer shrink-0"
-              aria-label="Decrease quantity"
-            >
-              <Minus className="h-3 w-3" />
-            </button>
+          {product.inStock === false ? (
+            <div className="w-full bg-stone-100 text-stone-500 rounded-lg p-2 shadow-xs text-center border border-stone-200">
+              <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                Out of Stock
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center w-full bg-neutral-900 text-white rounded-lg p-0.5 shadow-xs overflow-hidden">
+              <button
+                type="button"
+                onClick={handleDecrease}
+                className="w-7 h-7 flex items-center justify-center text-stone-300 hover:text-white hover:bg-neutral-800 rounded transition-colors cursor-pointer shrink-0"
+                aria-label="Decrease quantity"
+              >
+                <Minus className="h-3 w-3" />
+              </button>
 
-            <span className="w-5 text-center text-xs font-semibold text-white tabular-nums select-none shrink-0">
-              {qty}
-            </span>
+              <span className="w-5 text-center text-xs font-semibold text-white tabular-nums select-none shrink-0">
+                {qty}
+              </span>
 
-            <button
-              type="button"
-              onClick={handleIncrease}
-              className="w-7 h-7 flex items-center justify-center text-stone-300 hover:text-white hover:bg-neutral-800 rounded transition-colors cursor-pointer shrink-0"
-              aria-label="Increase quantity"
-            >
-              <Plus className="h-3 w-3" />
-            </button>
+              <button
+                type="button"
+                onClick={handleIncrease}
+                className="w-7 h-7 flex items-center justify-center text-stone-300 hover:text-white hover:bg-neutral-800 rounded transition-colors cursor-pointer shrink-0"
+                aria-label="Increase quantity"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
 
-            <div className="w-px h-4 bg-neutral-700 mx-1 shrink-0" />
+              <div className="w-px h-4 bg-neutral-700 mx-1 shrink-0" />
 
-            <button
-              type="button"
-              onClick={handleAdd}
-              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-white hover:bg-neutral-800 rounded transition-all cursor-pointer active:scale-95 truncate"
-              aria-label={`Add ${qty} ${product.name} to cart`}
-            >
-              {justAdded ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                  <span className="truncate">Added</span>
-                </>
-              ) : (
-                <span className="truncate">Add to Bag</span>
-              )}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 text-xs font-semibold uppercase tracking-wider text-white hover:bg-neutral-800 rounded transition-all cursor-pointer active:scale-95 truncate"
+                aria-label={`Add ${qty} ${product.name} to cart`}
+              >
+                {justAdded ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                    <span className="truncate">Added</span>
+                  </>
+                ) : (
+                  <span className="truncate">Add to Bag</span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </article>

@@ -3,6 +3,7 @@ export interface CategoryData {
   name: string;
   description?: string;
   logo?: string;
+  heroImage?: string;
   order?: number;
   locked?: boolean;
 }

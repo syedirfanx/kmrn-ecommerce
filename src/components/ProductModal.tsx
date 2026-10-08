@@ -307,6 +307,12 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 {product.name}
               </h1>
 
+              {product.inStock === false && (
+                <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 bg-red-100 border border-red-200 text-red-800 rounded-lg text-xs font-category font-bold uppercase tracking-wider">
+                  <span>Out of Stock</span>
+                </div>
+              )}
+
               {/* Price Tag Badge */}
               <div className="mb-5 pb-3 border-b border-stone-200/80">
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-xl text-neutral-900 shadow-xs">
@@ -445,7 +451,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 <div className="flex items-center justify-between rounded-lg px-3 py-2 bg-stone-100 border border-stone-200/80 sm:w-32">
                   <button
                     onClick={handleDecrease}
-                    disabled={quantity <= 1}
+                    disabled={quantity <= 1 || product.inStock === false}
                     aria-label="Decrease quantity"
                     className="p-1 rounded text-stone-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
                   >
@@ -456,7 +462,7 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                   </span>
                   <button
                     onClick={handleIncrease}
-                    disabled={quantity >= 10}
+                    disabled={quantity >= 10 || product.inStock === false}
                     aria-label="Increase quantity"
                     className="p-1 rounded text-stone-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
                   >
@@ -467,10 +473,17 @@ export const ProductModal: React.FC<ProductModalProps> = ({
                 {/* Add Button */}
                 <button
                   onClick={handleAdd}
-                  className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs tracking-wider uppercase py-3 px-6 rounded-lg transition-all cursor-pointer active:scale-98 shadow-xs"
+                  disabled={product.inStock === false}
+                  className="flex-1 flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-semibold text-xs tracking-wider uppercase py-3 px-6 rounded-lg transition-all cursor-pointer active:scale-98 shadow-xs"
                 >
-                  <Plus className="h-4 w-4 text-stone-300" />
-                  <span>Add to Bag ({quantity})</span>
+                  {product.inStock === false ? (
+                    <span>Out of Stock</span>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 text-stone-300" />
+                      <span>Add to Bag ({quantity})</span>
+                    </>
+                  )}
                 </button>
 
                 {/* Wishlist Button */}

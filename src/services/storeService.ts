@@ -83,7 +83,6 @@ export const DEFAULT_CATEGORIES: CategoryData[] = [
   {
     id: 'cat-womens-wear',
     name: "Elegant Women's Wear",
-    description: 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.',
     logo: '/images/aniq-1.png',
     order: 0,
     locked: true
@@ -91,7 +90,6 @@ export const DEFAULT_CATEGORIES: CategoryData[] = [
   {
     id: 'cat-home-decor',
     name: 'Home Decor',
-    description: 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.',
     logo: '/images/aniq-2.png',
     order: 1,
     locked: true
@@ -348,6 +346,7 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
           name: data.name || '',
           description: data.description || '',
           logo: data.logo || '',
+          heroImage: data.heroImage || '',
           order: typeof data.order === 'number' ? data.order : 0,
           locked: d.id === 'cat-womens-wear' || d.id === 'cat-home-decor' || Boolean(data.locked)
         });

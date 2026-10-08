@@ -39,6 +39,7 @@ import {
   subscribeAnnouncements,
   subscribeStoreSettings,
   subscribeFeaturedProductIds,
+  DEFAULT_CATEGORIES,
   DEFAULT_BANNER_SLIDES,
   DEFAULT_ANNOUNCEMENTS,
   DEFAULT_CATALOGUES
@@ -140,8 +141,13 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState<AppPage>(initialRoute.page);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [accountInitialTab, setAccountInitialTab] = useState<'profile' | 'cart' | 'wishlist' | 'orders'>('profile');
+  const [accountInitialTab, setAccountInitialTab] = useState<'profile' | 'addresses' | 'cart' | 'wishlist' | 'orders'>('profile');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [previousPage, setPreviousPage] = useState<{
+    page: AppPage;
+    category?: string;
+    subcategory?: string;
+  }>({ page: 'home' });
 
   const [products, setProducts] = useState<Product[]>(() => {
     try {
@@ -159,18 +165,7 @@ export default function App() {
     } catch {
       // storage fallback
     }
-    return [
-      {
-        id: 'cat-womens-wear',
-        name: "Elegant Women's Wear",
-        subcategories: ['Original Pakistani Lawn', 'Luxury Chiffon', 'Festive Embroidered', 'Ready to Wear']
-      },
-      {
-        id: 'cat-home-decor',
-        name: 'Home Decor',
-        subcategories: ['Bedsheets', 'Comforters', 'Duvet Sets', 'Quilt Sets']
-      }
-    ];
+    return DEFAULT_CATEGORIES;
   });
   const [bannerSlides, setBannerSlides] = useState<BannerSlide[]>(() => {
     try {
@@ -340,6 +335,12 @@ export default function App() {
   };
 
   const navigateToProduct = (product: Product) => {
+    // Record where we came from so Go Back returns to the exact page
+    setPreviousPage({
+      page: currentPage,
+      category: selectedCategory,
+      subcategory: selectedSubcategory
+    });
     setActiveProduct(product);
     setCurrentPage('product');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -347,6 +348,47 @@ export default function App() {
       window.history.pushState(null, '', `/product/${product.id}`);
     } catch {
       // fallback
+    }
+  };
+
+  const handleGoBackFromProduct = () => {
+    setActiveProduct(null);
+    setQuickViewProduct(null);
+
+    // If there is browser history state or previous page recorded
+    if (window.history.length > 1 && window.location.pathname.startsWith('/product/')) {
+      window.history.back();
+      return;
+    }
+
+    if (previousPage.page === 'category' && previousPage.category) {
+      setSelectedCategory(previousPage.category);
+      setSelectedSubcategory(previousPage.subcategory || 'All');
+      setCurrentPage('category');
+      try {
+        const slug = previousPage.category.toLowerCase().includes('women')
+          ? 'womens-wear'
+          : previousPage.category.toLowerCase().includes('decor') || previousPage.category.toLowerCase().includes('home')
+          ? 'home-decor'
+          : previousPage.category.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        window.history.pushState(null, '', `/category/${slug}`);
+      } catch {
+        // fallback
+      }
+    } else if (previousPage.page && previousPage.page !== 'product') {
+      setCurrentPage(previousPage.page);
+      try {
+        window.history.pushState(null, '', previousPage.page === 'home' ? '/' : `/${previousPage.page}`);
+      } catch {
+        // fallback
+      }
+    } else {
+      // Fallback: return to product's category or home
+      if (activeProduct?.category) {
+        navigateToCategory(activeProduct.category);
+      } else {
+        navigateTo('home');
+      }
     }
   };
 
@@ -706,15 +748,15 @@ export default function App() {
   const featuredProducts = useMemo(() => {
     if (featuredProductIds && featuredProductIds.length > 0) {
       return featuredProductIds
-        .map((id) => products.find((p) => p.id === id))
+        .map((id) => products.find((p) => p.id === id && !p.archived))
         .filter((p): p is Product => p !== undefined);
     }
-    return products.filter((p) => p.featured);
+    return products.filter((p) => p.featured && !p.archived);
   }, [products, featuredProductIds]);
 
   // Category products
   const categoryProducts = useMemo(() => {
-    return products.filter((p) => p.category === selectedCategory);
+    return products.filter((p) => p.category === selectedCategory && !p.archived);
   }, [products, selectedCategory]);
 
   // Current category data
@@ -1060,14 +1102,15 @@ export default function App() {
               onOpenCart={() => setIsCartOpen(true)}
             />
           ) : (
-            /* Full Bleed Category Hero Section (fit till top navbar, left and right full fit) */
-            <div className="relative w-full min-h-[380px] sm:min-h-[440px] md:min-h-[490px] flex items-end pb-10 sm:pb-14 pt-32 sm:pt-40 overflow-hidden bg-neutral-950">
+            /* Full Bleed Category Hero Section (fit till top navbar, left and right full fit, reduced height) */
+            <div className="relative w-full min-h-[240px] sm:min-h-[280px] md:min-h-[310px] flex items-end pb-6 sm:pb-8 pt-24 sm:pt-28 overflow-hidden bg-neutral-950">
               {/* Category Background Image */}
               <img
                 src={
-                  selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
+                  currentCategoryData?.heroImage ||
+                  (selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
                     ? 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=2560&q=95'
-                    : 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=2560&q=95'
+                    : 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=2560&q=95')
                 }
                 alt={selectedCategory}
                 className="absolute inset-0 w-full h-full object-cover object-center scale-102"
@@ -1076,41 +1119,39 @@ export default function App() {
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/55 to-black/40" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
 
-              {/* Hero Content text & logo */}
-              <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="max-w-2xl text-white">
-                  <h1 className="font-heading font-bold text-3xl sm:text-4xl md:text-5xl text-white mb-3 tracking-tight drop-shadow-md">
+              {/* Hero Content: Logo on same line with heading & description */}
+              <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-row items-center justify-between gap-4 sm:gap-8">
+                <div className="flex-1 min-w-0 text-white">
+                  <h1 className="font-heading font-bold text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 tracking-tight drop-shadow-md truncate sm:whitespace-normal">
                     {selectedCategory}
                   </h1>
-                  <p className="text-xs sm:text-sm md:text-base text-stone-200 leading-relaxed font-light drop-shadow-xs max-w-xl">
-                    {selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')
-                      ? 'Authentic Pakistani stitched and unstitched collections. Crafted with premium lawn, luxury chiffon, and intricate festive embellishments.'
-                      : selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')
-                        ? 'Elevated living and bedroom comfort. 1000 thread count Egyptian cotton bedsheets, quilted velvet comforters, and timeless essentials.'
-                        : `Explore our collection of authentic ${selectedCategory} products.`}
-                  </p>
+                  {currentCategoryData?.description && (
+                    <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-light drop-shadow-xs max-w-xl line-clamp-2">
+                      {currentCategoryData.description}
+                    </p>
+                  )}
                 </div>
 
-                {/* Category Logo - Backgroundless and Bigger */}
-                {(selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('lawn') || selectedCategory.toLowerCase().includes('wear')) && (
-                  <div className="shrink-0 flex items-center justify-start md:justify-end">
-                    <img
-                      src="/images/aniq-1.png"
-                      alt="ANIQ Women's Wear"
-                      className="w-auto h-auto max-h-44 sm:max-h-56 md:max-h-68 max-w-[320px] sm:max-w-[420px] md:max-w-[500px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
-                    />
-                  </div>
-                )}
+                {/* Category Logo - On Same Line with Heading & Description (Larger Size) */}
+                {(() => {
+                  const logoUrl =
+                    currentCategoryData?.logo?.trim() ||
+                    (selectedCategory.toLowerCase().includes('women') || selectedCategory.toLowerCase().includes('wear')
+                      ? '/images/aniq-1.png'
+                      : selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home')
+                      ? '/images/aniq-2.png'
+                      : '/images/aniq-logo.png');
 
-                {(selectedCategory.toLowerCase().includes('decor') || selectedCategory.toLowerCase().includes('home') || selectedCategory.toLowerCase().includes('bed')) && (
-                  <div className="shrink-0 flex items-center justify-start md:justify-end">
-                    <img
-                      src="/images/aniq-2.png"
-                      alt="ANIQ Home Decor"
-                      className="w-auto h-auto max-h-44 sm:max-h-56 md:max-h-68 max-w-[320px] sm:max-w-[420px] md:max-w-[500px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
-                    />
-                  </div>
-                )}
+                  return logoUrl ? (
+                    <div className="shrink-0 flex items-center justify-end">
+                      <img
+                        src={logoUrl}
+                        alt={selectedCategory}
+                        className="w-auto h-auto max-h-24 sm:max-h-36 md:max-h-44 max-w-[180px] sm:max-w-[280px] md:max-w-[380px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
+                      />
+                    </div>
+                  ) : null;
+                })()}
               </div>
             </div>
           )}
@@ -1209,22 +1250,25 @@ export default function App() {
                         <div
                           key={catg.id}
                           onClick={() => setSelectedSubcategory(catg.name)}
-                          className="group relative bg-white rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md"
+                          className="group relative aspect-video rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-xl"
                         >
-                          <div className="aspect-video bg-stone-100 overflow-hidden relative">
-                            <img
-                              src={catg.image}
-                              alt={catg.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                            />
-                          </div>
+                          {/* Image fits whole thumbnail */}
+                          <img
+                            src={catg.image}
+                            alt={catg.name}
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
 
-                          <div className="p-3">
-                            <h3 className="font-heading font-extrabold text-sm sm:text-base text-neutral-900 truncate group-hover:text-stone-700 transition-colors">
-                              {catg.name}
+                          {/* Dark translucent vintage scrim overlay */}
+                          <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-300 backdrop-blur-[0.5px]" />
+
+                          {/* Centered White Heading with Vintage styling & All Capital Letters */}
+                          <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-3 text-center">
+                            <h3 className="font-heading font-extrabold text-sm sm:text-base md:text-lg text-white uppercase tracking-widest drop-shadow-md">
+                              {catg.name.toUpperCase()}
                             </h3>
                             {catg.description && (
-                              <p className="text-[11px] text-stone-500 line-clamp-1 mt-0.5">
+                              <p className="font-subheading text-[10px] sm:text-xs text-stone-200 uppercase tracking-wider line-clamp-1 mt-1 opacity-90 drop-shadow-xs">
                                 {catg.description}
                               </p>
                             )}
@@ -1355,19 +1399,22 @@ export default function App() {
                       <div
                         key={subName}
                         onClick={() => setSelectedSubcategory(subName)}
-                        className="group relative bg-white rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-md"
+                        className="group relative aspect-video rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-xl"
                       >
-                        <div className="aspect-video bg-stone-100 overflow-hidden relative">
-                          <img
-                            src={coverImage}
-                            alt={subName}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                          />
-                        </div>
+                        {/* Image fits whole thumbnail */}
+                        <img
+                          src={coverImage}
+                          alt={subName}
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
 
-                        <div className="p-3">
-                          <h3 className="font-heading font-extrabold text-sm sm:text-base text-neutral-900 truncate group-hover:text-stone-700 transition-colors">
-                            {subName}
+                        {/* Dark translucent vintage scrim overlay */}
+                        <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-300 backdrop-blur-[0.5px]" />
+
+                        {/* Centered White Heading with Vintage styling & All Capital Letters */}
+                        <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-3 text-center">
+                          <h3 className="font-heading font-extrabold text-sm sm:text-base md:text-lg text-white uppercase tracking-widest drop-shadow-md">
+                            {subName.toUpperCase()}
                           </h3>
                         </div>
                       </div>
@@ -1579,6 +1626,7 @@ export default function App() {
             onSelectProduct={(p) => navigateToProduct(p)}
             onOpenQuickView={(p) => setQuickViewProduct(p)}
             onOpenAuth={() => setIsAuthModalOpen(true)}
+            onGoBack={handleGoBackFromProduct}
           />
         )}
       </main>

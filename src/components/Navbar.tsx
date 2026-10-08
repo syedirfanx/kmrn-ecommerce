@@ -9,7 +9,9 @@ import {
   Package,
   Search,
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  MapPin,
+  ShoppingCart
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { CategoryData, Product } from '../types';
@@ -23,7 +25,7 @@ interface NavbarProps {
   products?: Product[];
   onSelectProduct?: (product: Product) => void;
   onOpenCart: () => void;
-  onOpenAccount: (tab?: 'profile' | 'wishlist' | 'orders') => void;
+  onOpenAccount: (tab?: 'profile' | 'addresses' | 'cart' | 'wishlist' | 'orders') => void;
   onNavigateToHome: () => void;
   onNavigateToCategory: (categoryName: string) => void;
   onNavigateToAbout: () => void;
@@ -230,6 +232,37 @@ export const Navbar: React.FC<NavbarProps> = ({
                       >
                         <UserIcon className="h-3.5 w-3.5 text-stone-500" />
                         <span>Profile</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onOpenAccount('addresses');
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center gap-2.5 transition-colors cursor-pointer"
+                      >
+                        <MapPin className="h-3.5 w-3.5 text-stone-500" />
+                        <span>Saved Addresses</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          onOpenAccount('cart');
+                        }}
+                        className="w-full px-4 py-2 text-left text-xs font-medium text-stone-700 hover:bg-stone-50 hover:text-neutral-900 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <ShoppingCart className="h-3.5 w-3.5 text-stone-500" />
+                          <span>My Cart</span>
+                        </div>
+                        {cartCount > 0 && (
+                          <span className="text-[11px] font-bold text-stone-500 tabular-nums">
+                            {cartCount}
+                          </span>
+                        )}
                       </button>
 
                       <button
