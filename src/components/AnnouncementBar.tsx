@@ -37,12 +37,12 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({
   return (
     <aside
       aria-label="Announcements"
-      className="w-full bg-neutral-950 text-stone-200 h-9 sm:h-10 flex items-center overflow-hidden border-0 border-none outline-none shadow-none m-0 p-0 select-none cursor-pointer"
+      className="w-full bg-neutral-950 text-stone-200 h-7 sm:h-8 flex items-center overflow-hidden border-0 border-none outline-none shadow-none m-0 p-0 select-none cursor-pointer"
       onClick={onNavigateToShop}
     >
       <div className="w-full overflow-hidden flex items-center">
         {/* Continuous Marquee Track with identical uniform gap between all items */}
-        <div className="animate-marquee shrink-0 flex items-center gap-8 sm:gap-10 text-[10.5px] sm:text-[11px] font-heading font-medium tracking-[0.2em] uppercase text-stone-200">
+        <div className="animate-marquee shrink-0 flex items-center gap-8 sm:gap-10 text-[9.5px] sm:text-[10px] font-heading font-medium tracking-[0.2em] uppercase text-stone-200">
           {repeatedItems.map((ann, idx) => (
             <React.Fragment key={`${ann.id}-${idx}`}>
               <span className="whitespace-nowrap">

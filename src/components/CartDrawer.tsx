@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Check } from 'lucide-react';
+import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Check, AlertTriangle } from 'lucide-react';
 import { CartItem, PromoCode } from '../types';
 import { formatBDT } from '../utils/format';
 import { subscribePromoCodes } from '../services/storeService';
@@ -153,6 +153,21 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {/* Cart Items List */}
           <div className="flex-1 overflow-y-auto px-6 py-4 divide-y divide-stone-100">
+            {/* Out of Stock Warning Banner in Cart */}
+            {items.some((item) => item.product.inStock === false) && (
+              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-red-900">
+                    Out of Stock Item(s) in Cart
+                  </p>
+                  <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">
+                    Some items in your bag are currently out of stock. Please remove them before proceeding to checkout.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center py-16 px-4">
                 <div className="h-12 w-12 rounded-full bg-stone-100 flex items-center justify-center text-stone-400 mb-3">
@@ -173,16 +188,24 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               items.map((item, idx) => {
                 const itemColour = item.selectedColour || item.product.selectedColour;
                 const itemSize = item.selectedSize || item.product.selectedSize;
+                const isOutOfStock = item.product.inStock === false;
                 const uniqueKey = `${item.product.id}-${itemColour || ''}-${itemSize || ''}-${idx}`;
 
                 return (
-                <div key={uniqueKey} className="py-4 flex gap-4 first:pt-0 last:pb-0">
+                <div key={uniqueKey} className={`py-4 flex gap-4 first:pt-0 last:pb-0 ${isOutOfStock ? 'bg-red-50/40 p-2.5 rounded-xl border border-red-200/80 mb-2' : ''}`}>
                   {/* Portrait Thumbnail */}
-                  <img
-                    src={item.product.image}
-                    alt={item.product.name}
-                    className="w-18 h-24 object-cover rounded-md shrink-0 bg-[#f8f7f5] border border-stone-200/60"
-                  />
+                  <div className="relative shrink-0">
+                    <img
+                      src={item.product.image}
+                      alt={item.product.name}
+                      className={`w-18 h-24 object-cover rounded-md bg-[#f8f7f5] border border-stone-200/60 ${isOutOfStock ? 'grayscale opacity-75' : ''}`}
+                    />
+                    {isOutOfStock && (
+                      <span className="absolute inset-x-0 bottom-1 bg-red-600 text-white text-[9px] font-bold uppercase tracking-wider text-center py-0.5 shadow-xs">
+                        Out of Stock
+                      </span>
+                    )}
+                  </div>
 
                   {/* Details */}
                   <div className="flex-1 flex flex-col justify-between min-w-0">
@@ -192,6 +215,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           {item.product.name}
                         </h4>
                       </div>
+
+                      {isOutOfStock && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600">
+                            <AlertTriangle className="h-3 w-3" />
+                            Please remove this out-of-stock item
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex flex-wrap items-center gap-2 mt-1">
                         <span className="text-xs font-semibold text-neutral-900">
                           {formatBDT(item.product.price)}
@@ -225,7 +258,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <button
                           onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1, itemColour, itemSize)}
                           aria-label="Increase item quantity"
-                          className="w-5 h-5 flex items-center justify-center text-stone-600 hover:text-neutral-900 hover:bg-white rounded transition-colors cursor-pointer"
+                          disabled={isOutOfStock}
+                          className="w-5 h-5 flex items-center justify-center text-stone-600 hover:text-neutral-900 hover:bg-white disabled:opacity-40 rounded transition-colors cursor-pointer"
                         >
                           <Plus className="h-2.5 w-2.5" />
                         </button>
@@ -233,7 +267,9 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                       <button
                         onClick={() => onRemoveItem(item.product.id, itemColour, itemSize)}
-                        className="text-stone-400 hover:text-red-600 transition-colors p-1 flex items-center gap-1 text-[11px] cursor-pointer"
+                        className={`transition-colors p-1 flex items-center gap-1 text-[11px] font-semibold cursor-pointer ${
+                          isOutOfStock ? 'text-red-600 hover:text-red-800 bg-red-100 px-2 py-1 rounded-lg' : 'text-stone-400 hover:text-red-600'
+                        }`}
                         aria-label={`Remove ${item.product.name}`}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -332,13 +368,18 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {/* Checkout Button: Simple, Elegant, Premium */}
               <button
+                disabled={items.some((item) => item.product.inStock === false)}
                 onClick={() => {
                   onClose();
                   onProceedToCheckout();
                 }}
-                className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-semibold text-xs tracking-wider uppercase py-3.5 px-6 rounded-lg transition-all cursor-pointer flex items-center justify-between shadow-xs active:scale-98"
+                className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-semibold text-xs tracking-wider uppercase py-3.5 px-6 rounded-lg transition-all cursor-pointer flex items-center justify-between shadow-xs active:scale-98"
               >
-                <span>Proceed to Checkout</span>
+                <span>
+                  {items.some((item) => item.product.inStock === false)
+                    ? 'Remove Out-of-Stock Items'
+                    : 'Proceed to Checkout'}
+                </span>
                 <span className="tabular-nums font-semibold">{formatBDT(total)}</span>
               </button>
             </div>

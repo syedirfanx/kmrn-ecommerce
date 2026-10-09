@@ -348,7 +348,9 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
           logo: data.logo || '',
           heroImage: data.heroImage || '',
           order: typeof data.order === 'number' ? data.order : 0,
-          locked: d.id === 'cat-womens-wear' || d.id === 'cat-home-decor' || Boolean(data.locked)
+          locked: d.id === 'cat-womens-wear' || d.id === 'cat-home-decor' || Boolean(data.locked),
+          hideFromHome: Boolean(data.hideFromHome),
+          tag: data.tag || ''
         });
       });
       list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));

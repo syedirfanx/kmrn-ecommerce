@@ -789,7 +789,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       ...editingCategory,
       name,
       description: editingCategory.description !== undefined ? editingCategory.description.trim() : '',
-      logo: editingCategory.logo?.trim() || defaultLogoForCat
+      logo: editingCategory.logo?.trim() || defaultLogoForCat,
+      heroImage: editingCategory.heroImage?.trim() || '',
+      hideFromHome: Boolean(editingCategory.hideFromHome),
+      tag: editingCategory.tag?.trim() || ''
     };
 
     onCategorySavedLocally(updatedCat);
@@ -2376,14 +2379,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 </div>
                               )}
                               <div className="min-w-0">
-                                <h4 className="font-heading font-bold text-sm sm:text-base text-neutral-900 truncate">
-                                  {cat.name}
-                                </h4>
-                                {cat.locked && (
-                                  <span className="text-[9px] font-bold uppercase tracking-wider bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded">
-                                    Default
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 className="font-heading font-bold text-sm sm:text-base text-neutral-900 truncate">
+                                    {cat.name}
+                                  </h4>
+                                  {cat.tag && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200">
+                                      {cat.tag}
+                                    </span>
+                                  )}
+                                  {cat.hideFromHome && (
+                                    <span className="text-[9px] font-medium bg-stone-100 text-stone-600 px-1.5 py-0.5 rounded border border-stone-200">
+                                      Hidden on Home
+                                    </span>
+                                  )}
+                                  {cat.locked && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider bg-stone-200 text-stone-700 px-1.5 py-0.5 rounded">
+                                      Default
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 
@@ -4079,6 +4094,51 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-neutral-900 focus:outline-none focus:border-neutral-900"
                   />
                 </div>
+              </div>
+
+              {/* Tag option & Hide from Homepage Thumbnail toggle */}
+              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-800 mb-1">
+                    Badge / Tag (e.g. 'NEW', 'SALE', 'TRENDING')
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. NEW (leave blank for none)"
+                    value={editingCategory.tag || ''}
+                    onChange={(e) => setEditingCategory({ ...editingCategory, tag: e.target.value })}
+                    className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                  />
+                  <p className="text-[11px] text-stone-500 mt-1">
+                    Displays an eye-catching tag badge on this category in the navigation menu and cards.
+                  </p>
+                </div>
+
+                {!editingCategory.locked && (
+                  <div className="pt-2 border-t border-stone-200/80">
+                    <label className="flex items-center gap-2.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(editingCategory.hideFromHome)}
+                        onChange={(e) =>
+                          setEditingCategory({
+                            ...editingCategory,
+                            hideFromHome: e.target.checked
+                          })
+                        }
+                        className="h-4 w-4 rounded border-stone-300 text-neutral-900 focus:ring-neutral-900 cursor-pointer"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-neutral-900 block">
+                          Hide only from homepage thumbnails
+                        </span>
+                        <span className="text-[11px] text-stone-500 block">
+                          Category will remain active and fully visible in the navigation and left menu, but hidden from the homepage grid.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2.5 pt-3 border-t border-stone-100 justify-end">

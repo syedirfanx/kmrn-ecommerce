@@ -6,6 +6,8 @@ export interface CategoryData {
   heroImage?: string;
   order?: number;
   locked?: boolean;
+  hideFromHome?: boolean;
+  tag?: string;
 }
 
 export interface Catalogue {

@@ -12,7 +12,10 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
 }) => {
   const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
 
-  if (!categories || categories.length === 0) return null;
+  // Filter categories to only those visible on the homepage thumbnail grid
+  const visibleCategories = (categories || []).filter((c) => !c.hideFromHome);
+
+  if (visibleCategories.length === 0) return null;
 
   const getCategoryLogo = (cat: CategoryData): string => {
     if (cat.logo && cat.logo.trim()) {
@@ -31,7 +34,7 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
     setImageErrors((prev) => ({ ...prev, [catId]: true }));
   };
 
-  const count = categories.length;
+  const count = visibleCategories.length;
 
   // Layout Grid Calculation according to requirements:
   // - 1 category: full width
@@ -65,7 +68,7 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
   return (
     <section aria-label="Collections" className="pt-1 pb-1">
       <div className={getGridContainerClass(count)}>
-        {categories.slice(0, 5).map((cat, index) => {
+        {visibleCategories.slice(0, 5).map((cat, index) => {
           const logoSrc = getCategoryLogo(cat);
           const hasError = imageErrors[cat.id];
           const colSpanClass = getCardColSpanClass(index, count);
@@ -76,6 +79,15 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
               onClick={() => onSelectCategory(cat.name)}
               className={`group relative bg-white border border-stone-200/90 hover:border-neutral-900 rounded-3xl px-5 py-5 sm:px-8 sm:py-6 h-52 sm:h-64 md:h-72 flex flex-col items-center justify-between transition-all duration-300 shadow-xs hover:shadow-xl cursor-pointer overflow-hidden ${colSpanClass}`}
             >
+              {/* Optional Category Tag Badge (e.g. 'NEW') */}
+              {cat.tag && (
+                <div className="absolute top-3.5 right-3.5 z-20">
+                  <span className="bg-neutral-900 text-white text-[10px] sm:text-[11px] font-heading font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs">
+                    {cat.tag}
+                  </span>
+                </div>
+              )}
+
               {/* Logo Area: Backgroundless and Maximized Bigger */}
               <div className="w-full flex-1 flex items-center justify-center min-h-0 py-3 sm:py-4">
                 {!hasError ? (

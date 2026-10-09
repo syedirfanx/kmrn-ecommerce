@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone, Tag } from 'lucide-react';
+import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone, Tag, AlertTriangle } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { CartItem, OrderConfirmation, UserProfile, PromoCode } from '../types';
 import { formatBDT } from '../utils/format';
@@ -210,6 +210,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
+
+    // Check if any items in cart are out of stock
+    const outOfStockItems = items.filter((item) => item.product.inStock === false);
+    if (outOfStockItems.length > 0) {
+      setErrorMsg(`Please remove out-of-stock item(s) from your cart (${outOfStockItems.map((i) => i.product.name).join(', ')}) before completing checkout.`);
+      return;
+    }
 
     // Strict validation for mandatory fields
     if (!formData.fullName.trim()) {
@@ -476,6 +483,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             {errorMsg && (
               <div className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl">
                 {errorMsg}
+              </div>
+            )}
+
+            {/* Out-of-stock items warning banner */}
+            {items.some((i) => i.product.inStock === false) && (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="font-heading font-bold text-xs text-red-900 uppercase tracking-wider">
+                    Out-of-Stock Item(s) in Cart
+                  </h4>
+                  <p className="text-xs text-red-700 mt-0.5 leading-relaxed">
+                    Some items in your cart went out of stock. You cannot proceed to place an order without removing them first.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="mt-2 text-xs font-bold text-red-900 underline cursor-pointer hover:text-red-950"
+                  >
+                    Return to Cart to remove out-of-stock items
+                  </button>
+                </div>
               </div>
             )}
 
@@ -851,12 +880,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-400 text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-98"
+              disabled={isSubmitting || items.some((i) => i.product.inStock === false)}
+              className="w-full bg-neutral-900 hover:bg-neutral-800 disabled:bg-neutral-300 disabled:cursor-not-allowed text-white font-bold text-base py-3.5 px-6 rounded-xl transition-all shadow-md cursor-pointer flex items-center justify-center gap-2 active:scale-98"
             >
               <ShieldCheck className="h-5 w-5 text-stone-200" />
               <span>
-                {isSubmitting ? 'Confirming Order...' : 'Place Order'}
+                {isSubmitting
+                  ? 'Confirming Order...'
+                  : items.some((i) => i.product.inStock === false)
+                  ? 'Remove Out-of-Stock Items to Proceed'
+                  : 'Place Order'}
               </span>
             </button>
           </form>

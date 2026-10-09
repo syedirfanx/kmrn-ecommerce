@@ -1122,11 +1122,11 @@ export default function App() {
               {/* Hero Content: Logo on same line with heading & description */}
               <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-row items-center justify-between gap-4 sm:gap-8">
                 <div className="flex-1 min-w-0 text-white">
-                  <h1 className="font-heading font-bold text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 tracking-tight drop-shadow-md truncate sm:whitespace-normal">
+                  <h1 className="font-heading font-bold text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 tracking-tight drop-shadow-md break-words">
                     {selectedCategory}
                   </h1>
                   {currentCategoryData?.description && (
-                    <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-light drop-shadow-xs max-w-xl line-clamp-2">
+                    <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-light drop-shadow-xs max-w-2xl break-words">
                       {currentCategoryData.description}
                     </p>
                   )}
@@ -1147,7 +1147,7 @@ export default function App() {
                       <img
                         src={logoUrl}
                         alt={selectedCategory}
-                        className="w-auto h-auto max-h-24 sm:max-h-36 md:max-h-44 max-w-[180px] sm:max-w-[280px] md:max-w-[380px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
+                        className="w-auto h-auto max-h-28 sm:max-h-40 md:max-h-48 max-w-[200px] sm:max-w-[320px] md:max-w-[420px] object-contain drop-shadow-2xl filter brightness-0 invert transition-transform duration-300 hover:scale-105 select-none"
                       />
                     </div>
                   ) : null;

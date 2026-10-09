@@ -392,10 +392,143 @@ export const AccountPage: React.FC<AccountPageProps> = ({
       </header>
 
       {/* Main Account View */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-8">
+        {/* Mobile & Tablet Header & Horizontal Segmented Tab Bar */}
+        <div className="lg:hidden mb-4 space-y-3">
+          {/* User Bio Card for Mobile/Tablet */}
+          <div className="bg-white rounded-2xl p-4 shadow-2xs border border-stone-200/70 flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-11 w-11 rounded-full bg-neutral-900 text-white font-heading font-extrabold text-base flex items-center justify-center shrink-0 shadow-2xs">
+                {(displayName || currentUser?.email || 'G')[0].toUpperCase()}
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-heading font-bold text-sm sm:text-base text-neutral-900 truncate">
+                  {displayName || currentUser?.displayName || 'Guest Customer'}
+                </h2>
+                <p className="text-[11px] text-stone-500 truncate">
+                  {currentUser?.email || 'Guest Account'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={onLogout}
+              className="p-2 text-stone-500 hover:text-red-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer shrink-0"
+              title="Sign Out"
+              aria-label="Sign Out"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Smooth Horizontal Scrollable Tab Bar for Mobile & Tablet */}
+          <div className="bg-white rounded-2xl p-1.5 shadow-2xs border border-stone-200/70 overflow-x-auto scrollbar-none flex gap-1 items-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-category font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                activeTab === 'profile'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-50'
+              }`}
+            >
+              <UserIcon className="h-3.5 w-3.5" />
+              <span>Details</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('addresses')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-category font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                activeTab === 'addresses'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-50'
+              }`}
+            >
+              <MapPin className="h-3.5 w-3.5" />
+              <span>Addresses</span>
+              {userAddresses.length > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeTab === 'addresses' ? 'bg-white text-neutral-900' : 'bg-stone-200 text-stone-700'
+                  }`}
+                >
+                  {userAddresses.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('cart')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-category font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                activeTab === 'cart'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-50'
+              }`}
+            >
+              <ShoppingBag className="h-3.5 w-3.5" />
+              <span>Cart</span>
+              {cartItemCount > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeTab === 'cart' ? 'bg-white text-neutral-900' : 'bg-stone-200 text-stone-700'
+                  }`}
+                >
+                  {cartItemCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('wishlist')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-category font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                activeTab === 'wishlist'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-50'
+              }`}
+            >
+              <Heart className="h-3.5 w-3.5" />
+              <span>Wishlist</span>
+              {wishlistProductIds.length > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeTab === 'wishlist' ? 'bg-white text-neutral-900' : 'bg-stone-200 text-stone-700'
+                  }`}
+                >
+                  {wishlistProductIds.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('orders')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-category font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+                activeTab === 'orders'
+                  ? 'bg-neutral-900 text-white shadow-xs'
+                  : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-50'
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span>Orders</span>
+              {orders.length > 0 && (
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    activeTab === 'orders' ? 'bg-white text-neutral-900' : 'bg-stone-200 text-stone-700'
+                  }`}
+                >
+                  {orders.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Sidebar Navigation */}
-          <aside className="lg:col-span-3">
+          {/* Sidebar Navigation (Desktop only) */}
+          <aside className="hidden lg:block lg:col-span-3">
             <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col justify-between">
               <div>
                 {/* User Bio Header */}

@@ -13,7 +13,11 @@ import {
   Sparkles,
   Trash2,
   AlertCircle,
-  Tag
+  Tag,
+  Share2,
+  Copy,
+  Send,
+  MessageCircle
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Product, ProductReview } from '../types';
@@ -100,6 +104,49 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   const [isSubmittingReview, setIsSubmittingReview] = useState<boolean>(false);
   const [reviewNotice, setReviewNotice] = useState<string>('');
   const [reviewError, setReviewError] = useState<string>('');
+
+  // Share state
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const productUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/product/${product.id}`
+    : `https://aniq.com/product/${product.id}`;
+
+  const shareText = `${product.name} - ${product.description ? product.description.slice(0, 100) + '...' : ''}`;
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(productUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleShareFacebook = () => {
+    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(productUrl)}`;
+    window.open(url, '_blank', 'width=600,height=500');
+  };
+
+  const handleShareMessenger = () => {
+    // Facebook Messenger send dialog
+    const url = `https://www.facebook.com/dialog/send?link=${encodeURIComponent(productUrl)}&app_id=291494419107518&redirect_uri=${encodeURIComponent(productUrl)}`;
+    window.open(url, '_blank', 'width=600,height=500');
+  };
+
+  const handleShareWhatsApp = () => {
+    const text = `${product.name}\n${formatBDT(product.price)}\n${productUrl}`;
+    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareInstagram = () => {
+    // Instagram Direct / profile link - copy link with instruction
+    handleCopyLink();
+    window.open('https://www.instagram.com/direct/inbox/', '_blank');
+  };
 
   const allImages = React.useMemo(() => {
     const list = [product.image];
@@ -207,21 +254,132 @@ export const ProductPage: React.FC<ProductPageProps> = ({
   const averageRating = averageRatingNumber > 0 ? averageRatingNumber.toFixed(1) : '0.0';
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8 sm:space-y-12 animate-in fade-in duration-300">
-      {/* Go Back Button Navigation */}
-      {onGoBack && (
-        <div className="flex items-center">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 sm:py-4 space-y-5 sm:space-y-8 animate-in fade-in duration-300">
+      {/* Go Back & Quick Share Row */}
+      <div className="flex items-center justify-between gap-3">
+        {onGoBack ? (
           <button
             type="button"
             onClick={onGoBack}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-stone-100 text-neutral-900 border border-stone-200/90 rounded-xl text-xs font-category font-bold tracking-wider uppercase transition-all shadow-2xs hover:shadow-xs cursor-pointer group"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white hover:bg-stone-100 text-neutral-900 border border-stone-200/90 rounded-xl text-xs font-category font-bold tracking-wider uppercase transition-all shadow-2xs hover:shadow-xs cursor-pointer group"
             aria-label="Go back to previous page"
           >
-            <ArrowLeft className="h-4 w-4 text-stone-500 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-transform" />
+            <ArrowLeft className="h-3.5 w-3.5 text-stone-500 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-transform" />
             <span>Go Back</span>
           </button>
+        ) : <div />}
+
+        {/* Share Button & Popover */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setIsShareOpen(!isShareOpen)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-100 text-neutral-800 border border-stone-200/90 rounded-xl text-xs font-category font-semibold transition-all shadow-2xs hover:shadow-xs cursor-pointer"
+            aria-label="Share this product"
+            aria-expanded={isShareOpen}
+          >
+            <Share2 className="h-3.5 w-3.5 text-stone-600" />
+            <span>Share</span>
+          </button>
+
+          {isShareOpen && (
+            <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-stone-200 p-4 z-40 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 mb-3">
+                <span className="font-heading font-bold text-xs text-neutral-900">Share Product</span>
+                <button
+                  type="button"
+                  onClick={() => setIsShareOpen(false)}
+                  className="p-1 text-stone-400 hover:text-neutral-900 rounded-lg"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Preview card with image, title, and description snippet */}
+              <div className="flex gap-2.5 p-2 bg-stone-50 rounded-xl border border-stone-200/70 mb-3">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-12 h-16 object-cover rounded-lg bg-stone-200 shrink-0 border border-stone-200"
+                />
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-bold text-neutral-900 truncate">
+                    {product.name}
+                  </h4>
+                  <p className="text-[11px] font-semibold text-neutral-800 tabular-nums">
+                    {formatBDT(product.price)}
+                  </p>
+                  <p className="text-[10px] text-stone-500 line-clamp-2 mt-0.5 leading-snug">
+                    {product.description || 'Authentic collection at Aniq Lifestyle'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Share Channels */}
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                {/* Facebook */}
+                <button
+                  type="button"
+                  onClick={handleShareFacebook}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-[#1877F2]/10 hover:bg-[#1877F2]/20 text-[#1877F2] font-semibold text-xs cursor-pointer transition-colors"
+                >
+                  <span className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-[10px] font-extrabold">f</span>
+                  <span>Facebook</span>
+                </button>
+
+                {/* Messenger */}
+                <button
+                  type="button"
+                  onClick={handleShareMessenger}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-[#00B2FF]/10 hover:bg-[#00B2FF]/20 text-[#0084FF] font-semibold text-xs cursor-pointer transition-colors"
+                >
+                  <MessageCircle className="h-4 w-4 text-[#0084FF]" />
+                  <span>Messenger</span>
+                </button>
+
+                {/* WhatsApp */}
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold text-xs cursor-pointer transition-colors"
+                >
+                  <Send className="h-4 w-4 text-emerald-600" />
+                  <span>WhatsApp</span>
+                </button>
+
+                {/* Instagram Message */}
+                <button
+                  type="button"
+                  onClick={handleShareInstagram}
+                  className="flex items-center gap-2 p-2 rounded-xl bg-[#E1306C]/10 hover:bg-[#E1306C]/20 text-[#E1306C] font-semibold text-xs cursor-pointer transition-colors"
+                >
+                  <span className="w-4 h-4 rounded-full bg-gradient-to-tr from-amber-400 via-[#E1306C] to-purple-600 flex items-center justify-center text-[9px] text-white font-bold">ig</span>
+                  <span>Instagram</span>
+                </button>
+              </div>
+
+              {/* Copy Link Button */}
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-neutral-900 hover:bg-neutral-800 text-white font-category font-bold text-xs rounded-xl transition-all cursor-pointer shadow-2xs"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Link Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span>Copy Product Link</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Main Product Showcase Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
