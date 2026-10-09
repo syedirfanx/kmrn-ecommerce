@@ -6,13 +6,17 @@ interface ImageCropperModalProps {
   onClose: () => void;
   onCropComplete: (dataUrl: string) => void;
   aspectRatio?: number; // width / height, vertical 3/4 = 0.75 for product thumbnail
+  title?: string;
+  description?: string;
 }
 
 export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
   isOpen,
   onClose,
   onCropComplete,
-  aspectRatio = 3 / 4 // Vertical 3:4 portrait matching product cards
+  aspectRatio = 3 / 4, // Vertical 3:4 portrait matching product cards
+  title,
+  description
 }) => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(1);
@@ -101,8 +105,9 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     // Banners (16:9 landscape): Crisp 1280x720 HD widescreen
     // Product thumbnails (3:4 portrait): 600x800 high-density portrait
     // Category logos (1:1): 300x300
+    const isSquareLogo = aspectRatio === 1;
     let outputWidth = aspectRatio >= 1 ? 1280 : 600;
-    if (aspectRatio === 1) {
+    if (isSquareLogo) {
       outputWidth = 320;
     }
     const outputHeight = Math.round(outputWidth / aspectRatio);
@@ -110,15 +115,17 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     const canvas = document.createElement('canvas');
     canvas.width = outputWidth;
     canvas.height = outputHeight;
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d', { alpha: isSquareLogo });
     if (!ctx) return;
 
     // High quality bicubic resampling and anti-aliasing
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, outputWidth, outputHeight);
+    if (!isSquareLogo) {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, outputWidth, outputHeight);
+    }
 
     const previewWidth = viewportRef.current?.clientWidth || (aspectRatio >= 1 ? 380 : 240);
     const scaleFactor = outputWidth / previewWidth;
@@ -147,13 +154,22 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
     );
     ctx.restore();
 
-    // Adaptive compression: guarantees sharp quality while strictly keeping file size under 52KB
-    // so all 15 product images (15 * ~52KB = ~780KB) never exceed the Firestore 1,048,576 bytes document limit.
-    let quality = 0.76;
-    let croppedDataUrl = canvas.toDataURL('image/jpeg', quality);
-    while (croppedDataUrl.length > 55000 && quality > 0.35) {
-      quality -= 0.05;
+    let croppedDataUrl: string;
+    if (isSquareLogo) {
+      croppedDataUrl = canvas.toDataURL('image/png');
+      if (croppedDataUrl.length > 60000) {
+        ctx.globalCompositeOperation = 'destination-over';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, outputWidth, outputHeight);
+        croppedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      }
+    } else {
+      let quality = 0.76;
       croppedDataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (croppedDataUrl.length > 55000 && quality > 0.35) {
+        quality -= 0.05;
+        croppedDataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
     }
 
     onCropComplete(croppedDataUrl);
@@ -174,7 +190,13 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
           <div className="flex items-center gap-2">
             <ImageIcon className="h-5 w-5 text-neutral-800" />
             <h3 className="font-heading font-bold text-lg text-neutral-900">
-              {aspectRatio < 1 ? 'Crop Thumbnail Photo (Vertical)' : 'Crop Banner Photo'}
+              {title || (
+                aspectRatio === 1
+                  ? 'Crop Category Logo (1:1 Square)'
+                  : aspectRatio < 1
+                  ? 'Crop Thumbnail Photo (Vertical)'
+                  : 'Crop Banner Photo (16:9 Landscape)'
+              )}
             </h3>
           </div>
           <button
@@ -191,10 +213,16 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
             <div className="border-2 border-dashed border-neutral-300 rounded-2xl p-8 text-center flex flex-col items-center justify-center bg-neutral-50/50 hover:bg-neutral-50 transition-colors">
               <Upload className="h-10 w-10 text-neutral-400 mb-3" />
               <p className="font-heading font-bold text-base text-neutral-900 mb-1">
-                Upload Product Photo
+                {title ? `Upload Image` : aspectRatio === 1 ? 'Upload Category Logo' : aspectRatio < 1 ? 'Upload Product Photo' : 'Upload Banner Cover'}
               </p>
               <p className="text-xs text-neutral-500 mb-4">
-                Vertical shape matching product thumbnails (3:4 portrait)
+                {description || (
+                  aspectRatio === 1
+                    ? 'Square format (1:1) matching category icons and badges'
+                    : aspectRatio < 1
+                    ? 'Vertical shape matching product thumbnails (3:4 portrait)'
+                    : 'Widescreen landscape (16:9) matching hero covers and banners'
+                )}
               </p>
               <input
                 ref={fileInputRef}
@@ -213,12 +241,12 @@ export const ImageCropperModal: React.FC<ImageCropperModalProps> = ({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* Cropping Viewport in vertical portrait or banner ratio */}
+              {/* Cropping Viewport in vertical portrait, square, or banner ratio */}
               <div
                 ref={viewportRef}
                 className="relative mx-auto rounded-xl overflow-hidden bg-neutral-950 border border-neutral-800 cursor-grab active:cursor-grabbing select-none"
                 style={{
-                  width: aspectRatio >= 1 ? '100%' : '240px',
+                  width: aspectRatio === 1 ? '240px' : aspectRatio > 1 ? '100%' : '240px',
                   aspectRatio: `${aspectRatio}`
                 }}
                 onMouseDown={handleMouseDown}

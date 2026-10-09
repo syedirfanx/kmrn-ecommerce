@@ -1122,9 +1122,16 @@ export default function App() {
               {/* Hero Content: Logo on same line with heading & description */}
               <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-row items-center justify-between gap-4 sm:gap-8">
                 <div className="flex-1 min-w-0 text-white">
-                  <h1 className="font-heading font-bold text-2xl sm:text-3xl md:text-4xl text-white mb-1.5 tracking-tight drop-shadow-md break-words">
-                    {selectedCategory}
-                  </h1>
+                  <div className="flex items-center gap-2.5 flex-wrap mb-1.5">
+                    <h1 className="font-heading font-bold text-2xl sm:text-3xl md:text-4xl text-white tracking-tight drop-shadow-md break-words">
+                      {selectedCategory}
+                    </h1>
+                    {currentCategoryData?.tag?.trim() && (
+                      <span className="bg-white/20 backdrop-blur-xs text-white border border-white/30 text-[10px] sm:text-xs font-heading font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-xs">
+                        {currentCategoryData.tag.trim()}
+                      </span>
+                    )}
+                  </div>
                   {currentCategoryData?.description && (
                     <p className="text-xs sm:text-sm text-stone-200 leading-relaxed font-light drop-shadow-xs max-w-2xl break-words">
                       {currentCategoryData.description}

@@ -500,22 +500,40 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ChevronRight className="h-4 w-4 opacity-60" />
                 </button>
 
-                {/* Clean Category Links without subcategories or Collections header */}
+                {/* Clean Category Links with optional Tag badge */}
                 {categories.map((cat) => {
                   const isActive = currentPage === 'category' && selectedCategory === cat.name;
+                  const tagText = cat.tag?.trim();
                   return (
                     <button
                       key={cat.id}
                       type="button"
                       onClick={() => handleCategoryClick(cat.name)}
-                      className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                      className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between gap-2 transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-stone-100 text-neutral-900 font-extrabold'
+                          ? 'bg-neutral-900 text-white font-extrabold shadow-xs'
                           : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
                       }`}
                     >
-                      <span>{cat.name}</span>
-                      <ChevronRight className="h-3.5 w-3.5 text-stone-400" />
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="truncate">{cat.name}</span>
+                        {tagText && (
+                          <span
+                            className={`px-2 py-0.5 text-[9px] font-heading font-extrabold uppercase tracking-wider rounded-full shadow-2xs shrink-0 transition-colors ${
+                              isActive
+                                ? 'bg-white text-neutral-900'
+                                : 'bg-neutral-900 text-white'
+                            }`}
+                          >
+                            {tagText}
+                          </span>
+                        )}
+                      </div>
+                      <ChevronRight
+                        className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                          isActive ? 'text-white/80' : 'text-stone-400'
+                        }`}
+                      />
                     </button>
                   );
                 })}

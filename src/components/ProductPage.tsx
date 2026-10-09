@@ -17,7 +17,8 @@ import {
   Share2,
   Copy,
   Send,
-  MessageCircle
+  MessageCircle,
+  X
 } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { Product, ProductReview } from '../types';

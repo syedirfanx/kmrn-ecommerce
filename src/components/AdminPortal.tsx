@@ -3934,226 +3934,311 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             ? 1
             : 3 / 4
         }
+        title={
+          cropperTarget.type === 'category' || cropperTarget.type === 'category-edit'
+            ? 'Crop Category Logo (1:1 Square)'
+            : cropperTarget.type === 'category-hero'
+            ? 'Crop Category Cover (16:9 Landscape)'
+            : cropperTarget.type === 'banner'
+            ? 'Crop Homepage Banner (16:9 Landscape)'
+            : cropperTarget.type === 'catalogue'
+            ? 'Crop Catalogue Cover Photo'
+            : 'Crop Product Photo (3:4 Portrait)'
+        }
+        description={
+          cropperTarget.type === 'category' || cropperTarget.type === 'category-edit'
+            ? 'Square 1:1 image displayed on navigation badges and category cards.'
+            : cropperTarget.type === 'category-hero'
+            ? 'Widescreen 16:9 image displayed as hero cover banner on category page.'
+            : cropperTarget.type === 'banner'
+            ? 'Widescreen 16:9 image displayed in homepage carousel.'
+            : 'Portrait 3:4 ratio for crisp high-density display.'
+        }
       />
 
       {/* Edit Category Modal */}
       {editingCategory && (
-        <div className="fixed inset-0 z-50 bg-neutral-900/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-              <h3 className="font-heading font-extrabold text-lg text-neutral-900">
-                Edit Category
-              </h3>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-neutral-900/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingCategory(null);
+          }}
+        >
+          <div className="relative bg-white rounded-3xl max-w-lg sm:max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl my-auto border border-stone-200/60 overflow-hidden">
+            {/* Pinned Modal Header */}
+            <div className="px-6 py-4.5 border-b border-stone-100 flex items-center justify-between shrink-0 bg-stone-50/70">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-neutral-900 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+                  <Edit2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="font-heading font-extrabold text-lg text-neutral-900 leading-tight">
+                    Edit Category
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Update name, description, branding logo, hero cover, and display settings.
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingCategory(null)}
-                className="p-1.5 text-stone-400 hover:text-neutral-900 rounded-lg cursor-pointer"
+                className="p-2 text-stone-400 hover:text-neutral-900 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer"
+                aria-label="Close dialog"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4.5 w-4.5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditCategory} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-neutral-800 mb-1">
-                  Category Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editingCategory.name}
-                  onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
-                  className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
-                />
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-neutral-800">
-                    Category Page Description
-                  </label>
-                  <span className="text-[10px] text-stone-500">
-                    Shown under heading on category page
-                  </span>
-                </div>
-                <textarea
-                  rows={3}
-                  placeholder="Enter a descriptive subtitle/introduction for this category page..."
-                  value={editingCategory.description || ''}
-                  onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
-                  className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 leading-relaxed"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-800 mb-1">
-                  Category Logo
-                </label>
-                <div className="flex items-center gap-3 p-3 bg-stone-50 rounded-xl border border-stone-200">
-                  {editingCategory.logo ? (
-                    <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-white border border-stone-200 shrink-0 flex items-center justify-center p-1">
-                      <img
-                        src={editingCategory.logo}
-                        alt="Logo"
-                        className="max-h-full max-w-full object-contain mix-blend-multiply"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setEditingCategory({ ...editingCategory, logo: '' })}
-                        className="absolute -top-1 -right-1 bg-neutral-900 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors"
-                        title="Remove custom logo (reverts to default ANIQ logo)"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-white border border-dashed border-stone-300 shrink-0 flex items-center justify-center p-1" title="Default ANIQ Logo">
-                      <img
-                        src={
-                          editingCategory.id === 'cat-womens-wear'
-                            ? '/images/aniq-1.png'
-                            : editingCategory.id === 'cat-home-decor'
-                            ? '/images/aniq-2.png'
-                            : '/images/aniq-logo.png'
-                        }
-                        alt="Default ANIQ Logo"
-                        className="max-h-full max-w-full object-contain opacity-60 mix-blend-multiply"
-                      />
-                    </div>
-                  )}
-
-                  <div className="flex-1 space-y-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCropperTarget({ type: 'category-edit' });
-                        setIsCropperOpen(true);
-                      }}
-                      className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-3 py-1.5 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{editingCategory.logo ? 'Change Photo' : 'Upload Photo'}</span>
-                    </button>
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSaveEditCategory} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 overflow-y-auto flex-1 space-y-5">
+                {/* 1. Basic Information */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-800 mb-1.5">
+                      Category Name <span className="text-red-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="Or paste image URL..."
-                      value={editingCategory.logo || ''}
-                      onChange={(e) => setEditingCategory({ ...editingCategory, logo: e.target.value })}
-                      className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-neutral-900 focus:outline-none focus:border-neutral-900"
+                      required
+                      value={editingCategory.name}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, name: e.target.value })}
+                      placeholder="e.g. Women's Wear, Fine Jewels, Home Décor"
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-xs sm:text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 transition-colors shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-neutral-800">
+                        Category Page Description
+                      </label>
+                      <span className="text-[11px] text-stone-500">
+                        Shown under heading on category page
+                      </span>
+                    </div>
+                    <textarea
+                      rows={3}
+                      placeholder="Enter a descriptive subtitle/introduction for this category page..."
+                      value={editingCategory.description || ''}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, description: e.target.value })}
+                      className="w-full bg-white border border-stone-300 rounded-xl px-4 py-2.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 leading-relaxed shadow-2xs resize-y"
                     />
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-bold text-neutral-800 mb-1">
-                  Category Page Hero Cover Photo (16:9)
-                </label>
-                <div className="space-y-2 p-3 bg-stone-50 rounded-xl border border-stone-200">
-                  {editingCategory.heroImage ? (
-                    <div className="relative aspect-video rounded-lg overflow-hidden bg-white border border-stone-200">
+                {/* 2. Category Logo Branding (1:1) */}
+                <div className="pt-2 border-t border-stone-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-neutral-800">
+                      Category Logo (1:1 Square)
+                    </label>
+                    <span className="text-[11px] text-stone-500">
+                      Used in navigation, header tabs & badges
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200 flex flex-col sm:flex-row gap-3.5 items-start sm:items-center">
+                    {/* Logo Preview */}
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-white border border-stone-200 shrink-0 flex items-center justify-center p-1.5 shadow-2xs">
                       <img
-                        src={editingCategory.heroImage}
-                        alt="Hero Cover"
-                        className="w-full h-full object-cover"
+                        src={
+                          editingCategory.logo ||
+                          (editingCategory.id === 'cat-womens-wear'
+                            ? '/images/aniq-1.png'
+                            : editingCategory.id === 'cat-home-decor'
+                            ? '/images/aniq-2.png'
+                            : '/images/aniq-logo.png')
+                        }
+                        alt="Logo Preview"
+                        className="max-h-full max-w-full object-contain mix-blend-multiply"
                       />
+                      {editingCategory.logo && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory({ ...editingCategory, logo: '' })}
+                          className="absolute -top-1 -right-1 bg-neutral-900 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-xs"
+                          title="Revert to default logo"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Logo Actions */}
+                    <div className="flex-1 w-full space-y-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCropperTarget({ type: 'category-edit' });
+                            setIsCropperOpen(true);
+                          }}
+                          className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs py-2 px-3.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          <span>{editingCategory.logo ? 'Change / Crop Logo' : 'Upload & Crop Logo'}</span>
+                        </button>
+                        {editingCategory.logo && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingCategory({ ...editingCategory, logo: '' })}
+                            className="px-3 py-2 text-xs font-semibold text-stone-600 hover:text-red-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Or paste image URL (https://...)..."
+                        value={editingCategory.logo || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, logo: e.target.value })}
+                        className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Hero Cover Photo (16:9 Landscape) */}
+                <div className="pt-2 border-t border-stone-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-bold text-neutral-800">
+                      Category Page Hero Cover Photo (16:9 Landscape)
+                    </label>
+                    <span className="text-[11px] text-stone-500">
+                      Featured at top of the category page
+                    </span>
+                  </div>
+
+                  <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                    {editingCategory.heroImage ? (
+                      <div className="relative aspect-video max-h-48 rounded-xl overflow-hidden bg-neutral-900 border border-stone-200 shadow-2xs">
+                        <img
+                          src={editingCategory.heroImage}
+                          alt="Hero Cover"
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory({ ...editingCategory, heroImage: '' })}
+                          className="absolute top-2 right-2 bg-neutral-900/80 hover:bg-red-600 text-white rounded-full p-1.5 transition-colors cursor-pointer shadow-xs"
+                          title="Remove cover photo"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="aspect-video max-h-36 rounded-xl border border-dashed border-stone-300 flex flex-col items-center justify-center text-stone-400 p-4 text-center bg-white">
+                        <ImageIcon className="h-7 w-7 mb-1.5 text-stone-300" />
+                        <span className="text-xs font-medium text-stone-600">No custom cover banner</span>
+                        <span className="text-[11px] text-stone-400">Default brand styling will be displayed</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => setEditingCategory({ ...editingCategory, heroImage: '' })}
-                        className="absolute top-1.5 right-1.5 bg-neutral-900/80 hover:bg-red-600 text-white rounded-full p-1 transition-colors cursor-pointer"
-                        title="Remove custom cover photo"
+                        onClick={() => {
+                          setCropperTarget({ type: 'category-hero' });
+                          setIsCropperOpen(true);
+                        }}
+                        className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs py-2 px-3.5 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
                       >
-                        <X className="h-3 w-3" />
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>{editingCategory.heroImage ? 'Change / Crop Cover' : 'Upload Cover Banner'}</span>
                       </button>
+                      {editingCategory.heroImage && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingCategory({ ...editingCategory, heroImage: '' })}
+                          className="px-3 py-2 text-xs font-semibold text-stone-600 hover:text-red-600 bg-white border border-stone-200 rounded-xl hover:bg-stone-50 transition-colors cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <div className="aspect-video rounded-lg border border-dashed border-stone-300 flex flex-col items-center justify-center text-stone-400 p-2 text-center bg-white">
-                      <ImageIcon className="h-6 w-6 mb-1 text-stone-300" />
-                      <span className="text-[11px]">Using default cover photo</span>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCropperTarget({ type: 'category-hero' });
-                        setIsCropperOpen(true);
-                      }}
-                      className="flex-1 bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      <span>{editingCategory.heroImage ? 'Change Cover' : 'Upload Cover'}</span>
-                    </button>
+                    <input
+                      type="text"
+                      placeholder="Or paste banner image URL (https://...)..."
+                      value={editingCategory.heroImage || ''}
+                      onChange={(e) => setEditingCategory({ ...editingCategory, heroImage: e.target.value })}
+                      className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Or paste cover image URL..."
-                    value={editingCategory.heroImage || ''}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, heroImage: e.target.value })}
-                    className="w-full bg-white border border-stone-300 rounded-lg px-2.5 py-1 text-[11px] text-neutral-900 focus:outline-none focus:border-neutral-900"
-                  />
-                </div>
-              </div>
-
-              {/* Tag option & Hide from Homepage Thumbnail toggle */}
-              <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-800 mb-1">
-                    Badge / Tag (e.g. 'NEW', 'SALE', 'TRENDING')
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. NEW (leave blank for none)"
-                    value={editingCategory.tag || ''}
-                    onChange={(e) => setEditingCategory({ ...editingCategory, tag: e.target.value })}
-                    className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
-                  />
-                  <p className="text-[11px] text-stone-500 mt-1">
-                    Displays an eye-catching tag badge on this category in the navigation menu and cards.
-                  </p>
                 </div>
 
-                {!editingCategory.locked && (
-                  <div className="pt-2 border-t border-stone-200/80">
-                    <label className="flex items-center gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(editingCategory.hideFromHome)}
-                        onChange={(e) =>
-                          setEditingCategory({
-                            ...editingCategory,
-                            hideFromHome: e.target.checked
-                          })
-                        }
-                        className="h-4 w-4 rounded border-stone-300 text-neutral-900 focus:ring-neutral-900 cursor-pointer"
-                      />
-                      <div>
-                        <span className="text-xs font-bold text-neutral-900 block">
-                          Hide only from homepage thumbnails
-                        </span>
-                        <span className="text-[11px] text-stone-500 block">
-                          Category will remain active and fully visible in the navigation and left menu, but hidden from the homepage grid.
-                        </span>
+                {/* 4. Display Badges & Visibility */}
+                <div className="pt-2 border-t border-stone-100 space-y-3">
+                  <div className="p-3.5 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-xs font-bold text-neutral-800">
+                          Badge / Tag (e.g. 'NEW', 'SALE', 'TRENDING')
+                        </label>
+                        {editingCategory.tag?.trim() && (
+                          <span className="inline-block px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-neutral-900 text-white rounded-full">
+                            Preview: {editingCategory.tag.trim()}
+                          </span>
+                        )}
                       </div>
-                    </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. NEW, FESTIVE, TRENDING (leave blank for none)"
+                        value={editingCategory.tag || ''}
+                        onChange={(e) => setEditingCategory({ ...editingCategory, tag: e.target.value })}
+                        className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 shadow-2xs"
+                      />
+                      <p className="text-[11px] text-stone-500 mt-1">
+                        Displays an eye-catching tag badge next to this category in navigation and menus.
+                      </p>
+                    </div>
+
+                    {!editingCategory.locked && (
+                      <div className="pt-3 border-t border-stone-200/80">
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(editingCategory.hideFromHome)}
+                            onChange={(e) =>
+                              setEditingCategory({
+                                ...editingCategory,
+                                hideFromHome: e.target.checked
+                              })
+                            }
+                            className="mt-0.5 h-4 w-4 rounded border-stone-300 text-neutral-900 focus:ring-neutral-900 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-neutral-900 block">
+                              Hide only from homepage thumbnails
+                            </span>
+                            <span className="text-[11px] text-stone-500 block leading-relaxed mt-0.5">
+                              Category will remain active and fully visible in navigation and menus, but hidden from the homepage thumbnail grid.
+                            </span>
+                          </div>
+                        </label>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
 
-              <div className="flex gap-2.5 pt-3 border-t border-stone-100 justify-end">
+              {/* Pinned Modal Footer */}
+              <div className="px-6 py-4 border-t border-stone-100 bg-stone-50/80 flex items-center justify-end gap-3 shrink-0 rounded-b-3xl">
                 <button
                   type="button"
                   onClick={() => setEditingCategory(null)}
-                  className="px-4 py-2 bg-stone-100 text-stone-700 font-semibold rounded-xl text-xs hover:bg-stone-200 cursor-pointer"
+                  className="px-4 py-2 bg-white border border-stone-200 text-stone-700 font-semibold rounded-xl text-xs hover:bg-stone-100 hover:text-neutral-900 transition-colors cursor-pointer shadow-2xs"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-neutral-900 text-white font-bold rounded-xl text-xs hover:bg-neutral-800 cursor-pointer shadow-md"
+                  className="px-6 py-2 bg-neutral-900 text-white font-bold rounded-xl text-xs hover:bg-neutral-800 transition-colors cursor-pointer shadow-md flex items-center gap-1.5"
                 >
-                  Save Category
+                  <Check className="h-3.5 w-3.5" />
+                  <span>Save Category</span>
                 </button>
               </div>
             </form>
