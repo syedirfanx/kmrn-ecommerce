@@ -137,6 +137,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
   const [orderToCancel, setOrderToCancel] = useState<OrderConfirmation | null>(null);
   const [isCancellingOrder, setIsCancellingOrder] = useState(false);
   const [cancelFeedback, setCancelFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   const handleCancelOrder = async () => {
     if (!orderToCancel) return;
@@ -413,7 +414,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
             </div>
 
             <button
-              onClick={onLogout}
+              onClick={() => setIsLogoutModalOpen(true)}
               className="p-2 text-stone-500 hover:text-red-600 rounded-xl hover:bg-stone-100 transition-colors cursor-pointer shrink-0"
               title="Sign Out"
               aria-label="Sign Out"
@@ -660,7 +661,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
               {/* Logout Button */}
               <div className="pt-6 mt-6">
                 <button
-                  onClick={onLogout}
+                  onClick={() => setIsLogoutModalOpen(true)}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-neutral-100 text-red-600 hover:bg-red-50 text-sm font-bold transition-colors cursor-pointer"
                 >
                   <LogOut className="h-4 w-4" />
@@ -970,15 +971,6 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     </p>
                   </div>
 
-                  {cart.length > 0 && (
-                    <button
-                      disabled={cart.some((item) => item.product.inStock === false)}
-                      onClick={onProceedToCheckout}
-                      className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
-                    >
-                      {cart.some((item) => item.product.inStock === false) ? 'Remove Out-of-Stock Items' : 'Proceed to Checkout'}
-                    </button>
-                  )}
                 </div>
 
                 {/* Out of Stock Warning Banner in Cart */}
@@ -1673,6 +1665,41 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                 className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-5 py-2 rounded-xl transition-colors shadow-xs cursor-pointer"
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Logout Confirmation Modal */}
+      {isLogoutModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <LogOut className="h-6 w-6" />
+            </div>
+            <h3 className="font-heading font-bold text-lg text-neutral-900 mb-1.5">
+              Confirm Sign Out
+            </h3>
+            <p className="text-xs text-stone-500 mb-6 leading-relaxed">
+              Are you sure you want to sign out of your account?
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(false)}
+                className="w-full py-2.5 px-4 rounded-xl border border-stone-200 hover:bg-stone-50 text-xs font-semibold text-neutral-700 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogoutModalOpen(false);
+                  onLogout();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+              >
+                Sign Out
               </button>
             </div>
           </div>

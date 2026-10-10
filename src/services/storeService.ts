@@ -7,7 +7,8 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  writeBatch
+  writeBatch,
+  collectionGroup
 } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import {
@@ -1822,3 +1823,28 @@ export const deletePromoCodeFromDb = async (promoId: string): Promise<DbResult> 
   }
 };
 
+
+export const subscribeAllUsers = (onUpdate: (users: UserProfile[]) => void) => {
+  const path = 'profile';
+  return onSnapshot(
+    collectionGroup(db, path),
+    (snapshot) => {
+      const users: UserProfile[] = [];
+      snapshot.forEach((d) => {
+        // The profile document is in profile/main
+        if (d.id === 'main') {
+          users.push({
+            uid: d.ref.parent.parent?.id || 'unknown',
+            displayName: d.data()?.displayName || 'Unknown User',
+            email: d.data()?.email || 'No Email',
+            ...d.data()
+          } as UserProfile);
+        }
+      });
+      onUpdate(users);
+    },
+    (error) => {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  );
+};

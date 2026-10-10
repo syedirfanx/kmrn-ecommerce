@@ -62,6 +62,7 @@ import {
   deleteContactMessage,
   markContactMessageRead,
   subscribeAllOrders,
+  subscribeAllUsers,
   updateOrderStatusInDb,
   deleteOrderInDb,
   subscribePromoCodes,
@@ -117,7 +118,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Navigation options on the left side
   const [activeTab, setActiveTab] = useState<
-    'products' | 'catalogues' | 'categories' | 'featured' | 'banner' | 'announcements' | 'promocodes' | 'messages' | 'orders'
+    'products' | 'catalogues' | 'categories' | 'featured' | 'banner' | 'announcements' | 'promocodes' | 'messages' | 'orders' | 'users'
   >('products');
 
   // Promo Codes State
@@ -160,6 +161,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [ordersFilter, setOrdersFilter] = useState<'all' | 'active' | 'history'>('all');
   const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
 
   // Image Cropper State (3:4 portrait for products/catalogues, 16:9 for banner/hero, 1:1 for category logo)
   const [isCropperOpen, setIsCropperOpen] = useState(false);
@@ -260,11 +262,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const unsubPromos = subscribePromoCodes((livePromos) => {
       setPromoCodesList(livePromos);
     });
+    const unsubUsers = subscribeAllUsers((liveUsers) => {
+      setAllUsers(liveUsers);
+    });
     return () => {
       unsubMsgs();
       unsubOrders();
       unsubCatg();
       unsubPromos();
+      unsubUsers();
     };
   }, []);
 
@@ -1375,6 +1381,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-400" />
               )}
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('users')}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
+                activeTab === 'users'
+                  ? 'bg-white text-neutral-950 shadow-md font-bold'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+              }`}
+              title="Users"
+            >
+              <User className="h-4.5 w-4.5" />
+            </button>
           </nav>
         </div>
 
@@ -1640,6 +1659,29 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   {orders.length}
                 </span>
               )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('users');
+                setIsAdminMenuOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'users'
+                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
+                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <User className="h-4 w-4" />
+                <span>Users</span>
+              </div>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                activeTab === 'users' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
+              }`}>
+                {allUsers.length}
+              </span>
             </button>
           </nav>
         </div>
@@ -3743,6 +3785,35 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </div>
                     ))
                   )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 9: Users */}
+          {activeTab === 'users' && (
+            <div className="space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-xs">
+                <h3 className="font-heading font-bold text-lg text-neutral-900 mb-6">
+                  Customer Details ({allUsers.length})
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-stone-50 text-[11px] uppercase text-stone-500 font-semibold border-b border-stone-200">
+                      <tr>
+                        <th className="py-3 px-4">User</th>
+                        <th className="py-3 px-4">Email</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {allUsers.map((user) => (
+                        <tr key={user.uid} className="hover:bg-stone-50/70 transition-colors">
+                          <td className="py-3 px-4 font-bold text-neutral-900">{user.displayName}</td>
+                          <td className="py-3 px-4">{user.email}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

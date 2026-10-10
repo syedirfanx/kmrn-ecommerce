@@ -1407,7 +1407,7 @@ export default function App() {
 
                   {/* Products Grid for this selected catalogue */}
                   {filteredProducts.length > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
                       {filteredProducts.map((product) => (
                         <ProductCard
                           key={product.id}
@@ -1537,7 +1537,7 @@ export default function App() {
 
                 {/* Products Grid for this selected collection */}
                 {filteredProducts.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
                     {filteredProducts.map((product) => (
                       <ProductCard
                         key={product.id}

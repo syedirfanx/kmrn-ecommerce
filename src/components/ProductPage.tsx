@@ -620,7 +620,7 @@ export const ProductPage: React.FC<ProductPageProps> = ({
                 type="button"
                 disabled={product.inStock === false}
                 onClick={handleAdd}
-                className="w-full py-3.5 px-6 rounded-2xl bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-category font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer"
+                className="w-full py-3 px-4 md:py-3.5 md:px-6 rounded-2xl bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-category font-bold text-xs uppercase flex items-center justify-center gap-2 transition-all shadow-md active:scale-98 cursor-pointer"
               >
                 {product.inStock === false ? (
                   <span>Out of Stock</span>
