@@ -216,6 +216,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // Category Form State
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryHasCatalogues, setNewCategoryHasCatalogues] = useState(true);
   const [editingCategory, setEditingCategory] = useState<CategoryData | null>(null);
 
   // Banner Slides State
@@ -751,11 +752,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     const newCat: CategoryData = {
       id: `cat-${name.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
       name,
-      logo: '/images/aniq-logo.png'
+      logo: '/images/aniq-logo.png',
+      hasCatalogues: newCategoryHasCatalogues
     };
 
     onCategorySavedLocally(newCat);
     setNewCategoryName('');
+    setNewCategoryHasCatalogues(true);
 
     const res = await saveCategoryToDb(newCat);
     if (res.success) {
@@ -792,7 +795,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       logo: editingCategory.logo?.trim() || defaultLogoForCat,
       heroImage: editingCategory.heroImage?.trim() || '',
       hideFromHome: Boolean(editingCategory.hideFromHome),
-      tag: editingCategory.tag?.trim() || ''
+      tag: editingCategory.tag?.trim() || '',
+      hasCatalogues: editingCategory.hasCatalogues !== false
     };
 
     onCategorySavedLocally(updatedCat);
@@ -1713,21 +1717,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
         {/* MAIN CONTENT SCROLL AREA */}
         <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
-        {/* Top feedback notifications */}
-        {statusNotice && (
-          <div className="m-4 sm:m-6 mb-0 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-xs">
-            <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span>{statusNotice}</span>
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="m-4 sm:m-6 mb-0 p-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-xs">
-            <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
-            <span>{errorMessage}</span>
-          </div>
-        )}
-
         <div className="p-4 sm:p-6 lg:p-8 flex-1">
           {/* TAB 1: Products */}
           {activeTab === 'products' && (
@@ -1942,8 +1931,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             value={formData.category || (categories[0]?.name || "Elegant Women's Wear")}
                             onChange={(e) => {
                               const catName = e.target.value;
+                              const targetCatObj = categories.find((c) => c.name === catName);
+                              const isTargetDirect = targetCatObj?.hasCatalogues === false;
                               const currentCategoryCatalogues = catalogues.filter((c) => c.category === catName);
-                              const isCurrentStillValid = currentCategoryCatalogues.some((c) => c.id === formData.catalogueId);
+                              const isCurrentStillValid = !isTargetDirect && currentCategoryCatalogues.some((c) => c.id === formData.catalogueId);
                               setFormData({
                                 ...formData,
                                 category: catName,
@@ -1954,43 +1945,70 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                 setProductSpecs(getInitialSpecsForCategory(catName));
                               }
                             }}
-                            className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                            className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900 cursor-pointer"
                           >
                             {categories.map((cat) => (
                               <option key={cat.id} value={cat.name}>
-                                {cat.name}
+                                {cat.name} {cat.hasCatalogues === false ? '(Direct - No Collections)' : ''}
                               </option>
                             ))}
                           </select>
                         </div>
 
-                        <div>
-                          <label className="block text-xs font-bold text-neutral-800 mb-1">
-                            Catalogue / Collection
-                          </label>
-                          <select
-                            value={formData.catalogueId || ''}
-                            onChange={(e) => {
-                              const catgId = e.target.value;
-                              const catgObj = catalogues.find((c) => c.id === catgId);
-                              setFormData({
-                                ...formData,
-                                catalogueId: catgId,
-                                catalogueName: catgObj ? catgObj.name : ''
-                              });
-                            }}
-                            className="w-full bg-white border border-stone-300 rounded-xl px-3 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
-                          >
-                            <option value="">None / Custom</option>
-                            {catalogues
-                              .filter((catg) => catg.category === (formData.category || categories[0]?.name))
-                              .map((catg) => (
-                                <option key={catg.id} value={catg.id}>
-                                  {catg.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
+                        {(() => {
+                          const activeCategoryName = formData.category || (categories[0]?.name || "Elegant Women's Wear");
+                          const activeCatObj = categories.find((c) => c.name === activeCategoryName);
+                          const isDirectCategory = activeCatObj?.hasCatalogues === false;
+
+                          return (
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-xs font-bold text-neutral-800">
+                                  Catalogue / Collection
+                                </label>
+                                {isDirectCategory && (
+                                  <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 font-bold">
+                                    Locked: None
+                                  </span>
+                                )}
+                              </div>
+                              <select
+                                disabled={isDirectCategory}
+                                value={isDirectCategory ? '' : (formData.catalogueId || '')}
+                                onChange={(e) => {
+                                  if (isDirectCategory) return;
+                                  const catgId = e.target.value;
+                                  const catgObj = catalogues.find((c) => c.id === catgId);
+                                  setFormData({
+                                    ...formData,
+                                    catalogueId: catgId,
+                                    catalogueName: catgObj ? catgObj.name : ''
+                                  });
+                                }}
+                                className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                                  isDirectCategory
+                                    ? 'bg-stone-100 text-stone-500 border-stone-200 cursor-not-allowed'
+                                    : 'bg-white text-neutral-900 border-stone-300 focus:border-neutral-900 cursor-pointer'
+                                }`}
+                              >
+                                {isDirectCategory ? (
+                                  <option value="">None (Locked: Direct Category)</option>
+                                ) : (
+                                  <>
+                                    <option value="">None / Custom</option>
+                                    {catalogues
+                                      .filter((catg) => catg.category === activeCategoryName)
+                                      .map((catg) => (
+                                        <option key={catg.id} value={catg.id}>
+                                          {catg.name}
+                                        </option>
+                                      ))}
+                                  </>
+                                )}
+                              </select>
+                            </div>
+                          );
+                        })()}
 
                         <div>
                           <label className="block text-xs font-bold text-neutral-800 mb-1">
@@ -2309,22 +2327,48 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 </div>
 
-                <form onSubmit={handleAddCategory} className="flex gap-3 max-w-lg mb-6">
-                  <input
-                    type="text"
-                    placeholder="New category name (e.g. Pret Collection, Formal Wear)..."
-                    value={newCategoryName}
-                    disabled={categories.length >= 5}
-                    onChange={(e) => setNewCategoryName(e.target.value)}
-                    className="flex-1 bg-white border border-stone-300 rounded-xl px-4 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
-                  />
-                  <button
-                    type="submit"
-                    disabled={categories.length >= 5 || !newCategoryName.trim()}
-                    className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 text-white font-bold text-xs px-5 py-2 rounded-xl cursor-pointer shadow-xs whitespace-nowrap"
-                  >
-                    Add Category
-                  </button>
+                <form onSubmit={handleAddCategory} className="max-w-xl mb-6 p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      placeholder="New category name (e.g. Pret Collection, Formal Wear)..."
+                      value={newCategoryName}
+                      disabled={categories.length >= 5}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      className="flex-1 bg-white border border-stone-300 rounded-xl px-4 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"
+                    />
+                    <button
+                      type="submit"
+                      disabled={categories.length >= 5 || !newCategoryName.trim()}
+                      className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 text-white font-bold text-xs px-5 py-2 rounded-xl cursor-pointer shadow-xs whitespace-nowrap"
+                    >
+                      Add Category
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-stone-200/80 text-xs">
+                    <span className="font-bold text-neutral-900 text-[11px] uppercase tracking-wider">Page Structure:</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-stone-700 hover:text-neutral-900">
+                      <input
+                        type="radio"
+                        name="newCategoryHasCatalogues"
+                        checked={newCategoryHasCatalogues}
+                        onChange={() => setNewCategoryHasCatalogues(true)}
+                        className="text-neutral-900 cursor-pointer"
+                      />
+                      <span>Has Catalogues / Collections</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-stone-700 hover:text-neutral-900">
+                      <input
+                        type="radio"
+                        name="newCategoryHasCatalogues"
+                        checked={!newCategoryHasCatalogues}
+                        onChange={() => setNewCategoryHasCatalogues(false)}
+                        className="text-neutral-900 cursor-pointer"
+                      />
+                      <span>Direct Products (No Catalogues)</span>
+                    </label>
+                  </div>
                 </form>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -2386,6 +2430,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                                   {cat.tag && (
                                     <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded border border-amber-200">
                                       {cat.tag}
+                                    </span>
+                                  )}
+                                  {cat.hasCatalogues === false && (
+                                    <span className="text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded border border-purple-200" title="Products show directly without collections">
+                                      Direct Products
                                     </span>
                                   )}
                                   {cat.hideFromHome && (
@@ -4195,6 +4244,53 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       </p>
                     </div>
 
+                    <div className="pt-3 border-t border-stone-200/80">
+                      <label className="block text-xs font-bold text-neutral-800 mb-1.5">
+                        Category Page Structure
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                          editingCategory.hasCatalogues !== false
+                            ? 'border-neutral-900 bg-white ring-1 ring-neutral-900 shadow-2xs'
+                            : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}>
+                          <input
+                            type="radio"
+                            name="editCategoryHasCatalogues"
+                            checked={editingCategory.hasCatalogues !== false}
+                            onChange={() => setEditingCategory({ ...editingCategory, hasCatalogues: true })}
+                            className="mt-0.5 text-neutral-900 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-neutral-900 block">Has Catalogues / Collections</span>
+                            <span className="text-[11px] text-stone-500 block leading-tight mt-0.5">
+                              Organize products into catalogue collections on the category page.
+                            </span>
+                          </div>
+                        </label>
+
+                        <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                          editingCategory.hasCatalogues === false
+                            ? 'border-neutral-900 bg-white ring-1 ring-neutral-900 shadow-2xs'
+                            : 'border-stone-200 bg-white hover:bg-stone-50'
+                        }`}>
+                          <input
+                            type="radio"
+                            name="editCategoryHasCatalogues"
+                            checked={editingCategory.hasCatalogues === false}
+                            onChange={() => setEditingCategory({ ...editingCategory, hasCatalogues: false })}
+                            className="mt-0.5 text-neutral-900 cursor-pointer"
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-neutral-900 block">Direct Products (No Catalogues)</span>
+                            <span className="text-[11px] text-stone-500 block leading-tight mt-0.5">
+                              Products display directly on the category page without catalogue groupings.
+                            </span>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
                     {!editingCategory.locked && (
                       <div className="pt-3 border-t border-stone-200/80">
                         <label className="flex items-start gap-3 cursor-pointer select-none">
@@ -4329,6 +4425,46 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Floating Bottom Right Notification Popups */}
+      {statusNotice && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-neutral-900 text-white p-4 rounded-2xl shadow-2xl border border-neutral-700/80 flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+            <Check className="h-4 w-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white">Success</p>
+            <p className="text-[11px] text-stone-300 truncate">{statusNotice}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusNotice('')}
+            className="p-1 text-stone-400 hover:text-white rounded-lg cursor-pointer transition-colors"
+            aria-label="Dismiss notification"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-red-950 text-white p-4 rounded-2xl shadow-2xl border border-red-800/80 flex items-center gap-3 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="w-8 h-8 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center shrink-0">
+            <AlertCircle className="h-4 w-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-white">Notice</p>
+            <p className="text-[11px] text-red-200 truncate">{errorMessage}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setErrorMessage('')}
+            className="p-1 text-red-300 hover:text-white rounded-lg cursor-pointer transition-colors"
+            aria-label="Dismiss error"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>

@@ -61,7 +61,7 @@ import { AboutPage } from './components/AboutPage';
 import { ContactPage } from './components/ContactPage';
 import { Footer } from './components/Footer';
 
-type SortOption = 'featured' | 'price-asc' | 'price-desc' | 'rating-desc';
+type SortOption = 'featured' | 'newest' | 'price-asc' | 'price-desc' | 'rating-desc';
 type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact' | 'product';
 
 const CART_STORAGE_KEY = 'maison_ecommerce_cart_v1';
@@ -800,6 +800,11 @@ export default function App() {
         return matchesSubcategory && matchesSearch;
       })
       .sort((a, b) => {
+        if (sortBy === 'newest') {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateB - dateA;
+        }
         if (sortBy === 'price-asc') return a.price - b.price;
         if (sortBy === 'price-desc') return b.price - a.price;
         if (sortBy === 'rating-desc') return b.rating - a.rating;

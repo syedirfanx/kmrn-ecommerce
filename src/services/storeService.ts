@@ -350,7 +350,8 @@ export const subscribeCategories = (onUpdate: (categories: CategoryData[]) => vo
           order: typeof data.order === 'number' ? data.order : 0,
           locked: d.id === 'cat-womens-wear' || d.id === 'cat-home-decor' || Boolean(data.locked),
           hideFromHome: Boolean(data.hideFromHome),
-          tag: data.tag || ''
+          tag: data.tag || '',
+          hasCatalogues: data.hasCatalogues !== undefined ? Boolean(data.hasCatalogues) : true
         });
       });
       list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));

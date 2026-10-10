@@ -8,6 +8,7 @@ export interface CategoryData {
   locked?: boolean;
   hideFromHome?: boolean;
   tag?: string;
+  hasCatalogues?: boolean;
 }
 
 export interface Catalogue {
