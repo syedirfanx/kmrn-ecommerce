@@ -495,6 +495,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
     const isFeatured = localFeaturedIds.includes(formData.id || '');
 
+    const catObj = categories.find((c) => c.name === (formData.category || "Elegant Women's Wear"));
+    const isDirectCategory = catObj?.hasCatalogues === false;
+
     const selectedCatgObj = catalogues.find((c) => c.id === formData.catalogueId);
     const catalogueName = selectedCatgObj ? selectedCatgObj.name : (formData.catalogueName || '');
 
@@ -506,8 +509,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       name: formData.name || 'Untitled Product',
       category: formData.category || (categories[0]?.name || "Elegant Women's Wear"),
       subcategory: formData.subcategory || '',
-      catalogueId: formData.catalogueId || '',
-      catalogueName: catalogueName,
+      catalogueId: isDirectCategory ? '' : (formData.catalogueId || ''),
+      catalogueName: isDirectCategory ? '' : catalogueName,
       availableColours: availableColours.length > 0 ? availableColours : ['Classic Original'],
       availableSizes: availableSizes.length > 0 ? availableSizes : ['Standard'],
       price: Number(formData.price) || 1000,
@@ -1741,7 +1744,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <Plus className="h-4 w-4" />
                   <span>Add New Product</span>
                 </button>
-              </div>
+                </div>
 
               {/* Products Table */}
               <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs">
@@ -1780,16 +1783,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <p className="text-[11px] text-stone-500 truncate">{p.description}</p>
                             </td>
                             <td className="py-3 px-4">
-                              <p className="font-medium text-neutral-800">{p.category}</p>
-                              {p.catalogueName ? (
+                              <p className="font-medium text-neutral-800">{(p.category && p.category.toLowerCase().includes('original pakistani lawn')) ? 'None' : p.category}</p>
+                              {p.catalogueName && categories.find(c => c.name === p.category)?.hasCatalogues !== false ? (
                                 <span className="inline-block mt-0.5 text-[10px] font-semibold bg-stone-100 text-stone-700 px-2 py-0.5 rounded">
-                                  {p.catalogueName}
+                                  {(!p.catalogueName || p.catalogueName.toLowerCase().includes('original pakistani lawn')) ? 'None' : p.catalogueName}
                                 </span>
                               ) : p.subcategory ? (
                                 <span className="inline-block mt-0.5 text-[10px] text-stone-500">
-                                  {p.subcategory}
+                                  {(p.subcategory && p.subcategory.toLowerCase().includes('original pakistani lawn')) ? 'None' : p.subcategory}
                                 </span>
-                              ) : null}
+                              ) : (
+                                <span className="inline-block mt-0.5 text-[10px] font-semibold bg-stone-100 text-stone-700 px-2 py-0.5 rounded">
+                                  None
+                                </span>
+                              )}
                             </td>
                             <td className="py-3 px-4">
                               <div className="space-y-1">
@@ -2556,6 +2563,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </p>
                 </div>
 
+                {selectedCatalogueCategoryFilter !== 'All' && 
+                 categories.find(c => c.name === selectedCatalogueCategoryFilter)?.hasCatalogues === false ? null : (
                 <button
                   type="button"
                   onClick={() => {
@@ -2574,6 +2583,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <Plus className="h-4 w-4" />
                   <span>Add Catalogue</span>
                 </button>
+                )}
               </div>
 
               {/* Category Filter Pills */}
@@ -2589,7 +2599,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 >
                   All Categories ({catalogues.length})
                 </button>
-                {categories.map((cat) => {
+                {categories.filter(c => c.hasCatalogues !== false).map((cat) => {
                   const count = catalogues.filter((c) => c.category === cat.name).length;
                   const isSelected = selectedCatalogueCategoryFilter === cat.name;
                   return (
@@ -2744,7 +2754,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <input
                           type="text"
                           required
-                          placeholder="e.g. Original Pakistani Lawn, Luxury Chiffon, Summer Khadi..."
+                          placeholder="e.g. Luxury Lawn, Luxury Chiffon, Summer Khadi..."
                           value={catalogueFormData.name || ''}
                           onChange={(e) => setCatalogueFormData({ ...catalogueFormData, name: e.target.value })}
                           className="w-full bg-white border border-stone-300 rounded-xl px-3.5 py-2 text-xs text-neutral-900 focus:outline-none focus:border-neutral-900"

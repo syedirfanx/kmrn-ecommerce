@@ -17,7 +17,8 @@ import {
   MapPin,
   Edit2,
   Star,
-  Home
+  Home,
+  AlertTriangle
 } from 'lucide-react';
 import { User, updateProfile } from 'firebase/auth';
 import { Product, CartItem, UserProfile, OrderConfirmation, UserAddress } from '../types';
@@ -971,13 +972,26 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
                   {cart.length > 0 && (
                     <button
+                      disabled={cart.some((item) => item.product.inStock === false)}
                       onClick={onProceedToCheckout}
-                      className="bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
+                      className="bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-md cursor-pointer"
                     >
-                      Proceed to Checkout
+                      {cart.some((item) => item.product.inStock === false) ? 'Remove Out-of-Stock Items' : 'Proceed to Checkout'}
                     </button>
                   )}
                 </div>
+
+                {/* Out of Stock Warning Banner in Cart */}
+                {cart.some((item) => item.product.inStock === false) && (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs text-red-700 leading-relaxed">
+                        Some items in your bag are currently out of stock. Please remove them before proceeding to checkout.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {cart.length === 0 ? (
                   <div className="text-center py-16 bg-neutral-50 rounded-2xl">
@@ -996,23 +1010,38 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                     {cart.map((item, idx) => {
                       const itemColour = item.selectedColour || item.product.selectedColour;
                       const itemSize = item.selectedSize || item.product.selectedSize;
+                      const currentProduct = products.find(p => p.id === item.product.id);
+                      const isOutOfStock = currentProduct ? currentProduct.inStock === false : item.product.inStock === false;
                       const uniqueKey = `${item.product.id}-${itemColour || ''}-${itemSize || ''}-${idx}`;
 
                       return (
                       <div
                         key={uniqueKey}
-                        className="p-4 bg-neutral-50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs"
+                        className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs ${isOutOfStock ? 'bg-red-50/60 border border-red-200' : 'bg-neutral-50'}`}
                       >
                         <div className="flex items-center gap-4">
-                          <img
-                            src={item.product.image}
-                            alt={item.product.name}
-                            className="w-16 h-16 rounded-xl object-cover bg-white shrink-0 shadow-xs"
-                          />
+                          <div className="relative shrink-0">
+                            <img
+                              src={item.product.image}
+                              alt={item.product.name}
+                              className={`w-16 h-16 rounded-xl object-cover bg-white shadow-xs ${isOutOfStock ? 'grayscale opacity-75' : ''}`}
+                            />
+                            {isOutOfStock && (
+                              <span className="absolute inset-x-0 bottom-0 bg-red-600 text-white text-[8px] font-bold uppercase tracking-wider text-center py-0.5 rounded-b-xl">
+                                Out of Stock
+                              </span>
+                            )}
+                          </div>
                           <div>
                             <h4 className="font-heading font-bold text-base text-neutral-900">
                               {item.product.name}
                             </h4>
+                            {isOutOfStock && (
+                              <p className="text-xs font-bold text-red-600 mt-0.5 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                Out of stock
+                              </p>
+                            )}
                             <div className="flex flex-wrap items-center gap-2 mt-0.5">
                               <span className="text-xs text-neutral-500 font-semibold">
                                 {formatBDT(item.product.price)} each
@@ -1041,8 +1070,9 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                             </button>
                             <span className="px-3 text-xs font-bold text-neutral-900">{item.quantity}</span>
                             <button
+                              disabled={isOutOfStock}
                               onClick={() => onUpdateCartQuantity(item.product.id, item.quantity + 1, itemColour, itemSize)}
-                              className="p-1 text-neutral-600 hover:text-neutral-900 cursor-pointer"
+                              className="p-1 text-neutral-600 hover:text-neutral-900 disabled:opacity-30 cursor-pointer"
                             >
                               <Plus className="h-3.5 w-3.5" />
                             </button>
@@ -1054,7 +1084,7 @@ export const AccountPage: React.FC<AccountPageProps> = ({
 
                           <button
                             onClick={() => onRemoveFromCart(item.product.id, itemColour, itemSize)}
-                            className="p-2 text-neutral-400 hover:text-red-600 cursor-pointer"
+                            className={`p-2 rounded-lg cursor-pointer transition-colors ${isOutOfStock ? 'text-red-600 bg-red-100 hover:bg-red-200' : 'text-neutral-400 hover:text-red-600'}`}
                             aria-label="Remove item"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -1073,10 +1103,19 @@ export const AccountPage: React.FC<AccountPageProps> = ({
                       </div>
 
                       <button
+                        disabled={cart.some((item) => {
+                          const p = products.find(prod => prod.id === item.product.id);
+                          return (p ? p.inStock === false : item.product.inStock === false);
+                        })}
                         onClick={onProceedToCheckout}
-                        className="w-full sm:w-auto bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm px-8 py-3.5 rounded-xl shadow-lg cursor-pointer"
+                        className="w-full sm:w-auto bg-neutral-900 hover:bg-neutral-800 disabled:bg-stone-300 disabled:cursor-not-allowed text-white font-bold text-sm px-8 py-3.5 rounded-xl shadow-lg cursor-pointer"
                       >
-                        Checkout Now ({formatBDT(cartSubtotal)})
+                        {cart.some((item) => {
+                          const p = products.find(prod => prod.id === item.product.id);
+                          return (p ? p.inStock === false : item.product.inStock === false);
+                        })
+                          ? 'Remove Out-of-Stock Items'
+                          : `Checkout Now (${formatBDT(cartSubtotal)})`}
                       </button>
                     </div>
                   </div>

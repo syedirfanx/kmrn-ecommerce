@@ -464,6 +464,21 @@ export default function App() {
   useEffect(() => {
     const unsubProducts = subscribeProducts((liveProducts) => {
       setProducts(liveProducts);
+      setCart((prevCart) =>
+        prevCart.map((cartItem) => {
+          const freshProd = liveProducts.find((p) => p.id === cartItem.product.id);
+          return freshProd
+            ? {
+                ...cartItem,
+                product: {
+                  ...freshProd,
+                  selectedColour: cartItem.selectedColour || freshProd.selectedColour,
+                  selectedSize: cartItem.selectedSize || freshProd.selectedSize
+                }
+              }
+            : cartItem;
+        })
+      );
       try {
         localStorage.setItem('aniq_cached_products', JSON.stringify(liveProducts));
       } catch {
@@ -759,15 +774,22 @@ export default function App() {
     return products.filter((p) => p.category === selectedCategory && !p.archived);
   }, [products, selectedCategory]);
 
-  // Current category data
+  // Current category data (case-insensitive)
   const currentCategoryData = useMemo(() => {
-    return categories.find((c) => c.name === selectedCategory);
+    return categories.find((c) => c.name.toLowerCase() === (selectedCategory || '').toLowerCase());
   }, [categories, selectedCategory]);
 
-  // Catalogues matching current category
+  // Catalogues matching current category (case-insensitive & respects hasCatalogues === false)
   const currentCategoryCatalogues = useMemo(() => {
-    return catalogues.filter((c) => c.category === selectedCategory);
-  }, [catalogues, selectedCategory]);
+    if (currentCategoryData?.hasCatalogues === false) return [];
+    return catalogues.filter((c) => c.category.toLowerCase() === (selectedCategory || '').toLowerCase());
+  }, [catalogues, selectedCategory, currentCategoryData]);
+
+  const activeCatg = useMemo(() => {
+    return currentCategoryCatalogues.find(
+      (c) => c.name === selectedSubcategory || c.id === selectedSubcategory
+    );
+  }, [currentCategoryCatalogues, selectedSubcategory]);
 
   // Subcategories / collections present in this category's products
   const categorySubcategories = useMemo(() => {
@@ -878,7 +900,12 @@ export default function App() {
           onLogout={handleLogout}
           onUpdateCartQuantity={handleUpdateQuantity}
           onRemoveFromCart={handleRemoveItem}
-          onProceedToCheckout={() => setIsCheckoutOpen(true)}
+          onProceedToCheckout={() => {
+            if (cart.some((item) => item.product.inStock === false)) {
+              return;
+            }
+            setIsCheckoutOpen(true);
+          }}
           onToggleWishlist={handleToggleWishlist}
           onAddToCart={handleAddToCart}
           onViewProductDetails={(p) => navigateToProduct(p)}
@@ -900,7 +927,16 @@ export default function App() {
           onApplyPromo={setAppliedPromo}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
-          onProceedToCheckout={() => setIsCheckoutOpen(true)}
+          products={products}
+          onProceedToCheckout={() => {
+            if (cart.some((item) => {
+              const p = products.find(prod => prod.id === item.product.id);
+              return (p ? p.inStock === false : item.product.inStock === false);
+            })) {
+              return;
+            }
+            setIsCheckoutOpen(true);
+          }}
         />
         <CheckoutModal
           isOpen={isCheckoutOpen}
@@ -979,6 +1015,7 @@ export default function App() {
           onApplyPromo={setAppliedPromo}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
+          products={products}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
         />
         <AuthModal
@@ -1041,6 +1078,7 @@ export default function App() {
           onApplyPromo={setAppliedPromo}
           onUpdateQuantity={handleUpdateQuantity}
           onRemoveItem={handleRemoveItem}
+          products={products}
           onProceedToCheckout={() => setIsCheckoutOpen(true)}
         />
         <AuthModal
@@ -1225,7 +1263,7 @@ export default function App() {
                   </h2>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
                   {featuredProducts.map((product) => (
                     <ProductCard
                       key={product.id}
@@ -1247,12 +1285,12 @@ export default function App() {
         {currentPage === 'category' && (
           <div className="space-y-8">
             {/* Case A: Category with Catalogues */}
-            {currentCategoryCatalogues.length > 0 && !searchQuery.trim() ? (
-              selectedSubcategory === 'All' ? (
+            {currentCategoryCatalogues.length > 0 ? (
+              selectedSubcategory === 'All' && !searchQuery.trim() ? (
                 /* 1. All Catalogues View (Catalogues first, search and sort hidden until selection) */
                 <div className="space-y-8">
                   {/* Catalogue Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {currentCategoryCatalogues.map((catg) => {
                       const catgCount = categoryProducts.filter(
                         (p) => p.catalogueId === catg.id || p.catalogueName === catg.name || p.subcategory === catg.name
@@ -1369,7 +1407,7 @@ export default function App() {
 
                   {/* Products Grid for this selected catalogue */}
                   {filteredProducts.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
                       {filteredProducts.map((product) => (
                         <ProductCard
                           key={product.id}
@@ -1397,10 +1435,10 @@ export default function App() {
                   )}
                 </div>
               )
-            ) : categorySubcategories.length > 0 && selectedSubcategory === 'All' && !searchQuery.trim() ? (
+            ) : currentCategoryData?.hasCatalogues !== false && categorySubcategories.length > 0 && selectedSubcategory === 'All' && !searchQuery.trim() ? (
               /* Case B: Category without Catalogues but with Subcategories/Collections - Grid view before selection (Search & Sort hidden) */
               <div className="space-y-8">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {categorySubcategories.map((subName) => {
                     const subProducts = categoryProducts.filter(
                       (p) => p.subcategory === subName || p.catalogueName === subName
@@ -1434,7 +1472,7 @@ export default function App() {
                   })}
                 </div>
               </div>
-            ) : selectedSubcategory !== 'All' && !searchQuery.trim() ? (
+            ) : currentCategoryData?.hasCatalogues !== false && selectedSubcategory !== 'All' && !searchQuery.trim() ? (
               /* Case C: Single Selected Collection view (Header, then Search & Sort, then Products) */
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 bg-white rounded-2xl border border-stone-200/80 shadow-xs">
@@ -1499,7 +1537,7 @@ export default function App() {
 
                 {/* Products Grid for this selected collection */}
                 {filteredProducts.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
                     {filteredProducts.map((product) => (
                       <ProductCard
                         key={product.id}
@@ -1663,6 +1701,7 @@ export default function App() {
         onApplyPromo={setAppliedPromo}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
+        products={products}
         onProceedToCheckout={() => setIsCheckoutOpen(true)}
       />
 

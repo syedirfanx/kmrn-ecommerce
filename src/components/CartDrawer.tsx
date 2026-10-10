@@ -8,6 +8,7 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
+  products: Product[];
   userDistrict?: string;
   deliveryZone?: string;
   appliedPromo?: PromoCode | null;
@@ -21,6 +22,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   isOpen,
   onClose,
   items,
+  products,
   userDistrict,
   deliveryZone,
   appliedPromo: appliedPromoProp,
@@ -154,14 +156,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           {/* Cart Items List */}
           <div className="flex-1 overflow-y-auto px-6 py-4 divide-y divide-stone-100">
             {/* Out of Stock Warning Banner in Cart */}
-            {items.some((item) => item.product.inStock === false) && (
+            {items.some((item) => {
+              const p = products.find(prod => prod.id === item.product.id);
+              return (p ? p.inStock === false : item.product.inStock === false);
+            }) && (
               <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <p className="text-xs font-bold text-red-900">
-                    Out of Stock Item(s) in Cart
-                  </p>
-                  <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">
+                  <p className="text-[11px] text-red-700 leading-relaxed">
                     Some items in your bag are currently out of stock. Please remove them before proceeding to checkout.
                   </p>
                 </div>
@@ -188,7 +190,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               items.map((item, idx) => {
                 const itemColour = item.selectedColour || item.product.selectedColour;
                 const itemSize = item.selectedSize || item.product.selectedSize;
-                const isOutOfStock = item.product.inStock === false;
+                const currentProduct = products.find(p => p.id === item.product.id);
+                const isOutOfStock = currentProduct ? currentProduct.inStock === false : item.product.inStock === false;
                 const uniqueKey = `${item.product.id}-${itemColour || ''}-${itemSize || ''}-${idx}`;
 
                 return (
@@ -220,7 +223,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <div className="mt-1">
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600">
                             <AlertTriangle className="h-3 w-3" />
-                            Please remove this out-of-stock item
+                            Out of stock
                           </span>
                         </div>
                       )}
@@ -368,7 +371,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
               {/* Checkout Button: Simple, Elegant, Premium */}
               <button
-                disabled={items.some((item) => item.product.inStock === false)}
+                disabled={items.some((item) => {
+                  const p = products.find(prod => prod.id === item.product.id);
+                  return (p ? p.inStock === false : item.product.inStock === false);
+                })}
                 onClick={() => {
                   onClose();
                   onProceedToCheckout();

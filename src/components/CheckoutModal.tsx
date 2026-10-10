@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone, Tag, AlertTriangle } from 'lucide-react';
 import { User } from 'firebase/auth';
 import { CartItem, OrderConfirmation, UserProfile, PromoCode } from '../types';
@@ -39,7 +39,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     country: 'Bangladesh'
   });
 
-  const [deliveryZone, setDeliveryZone] = useState<DeliveryZoneOption>('Inside Dhaka City');
+  const deliveryZone: DeliveryZoneOption = useMemo(() => {
+    const found = BANGLADESH_DISTRICTS.find((d) => d.name === formData.district);
+    return found ? found.defaultZone : (formData.district === 'Dhaka' ? 'Inside Dhaka City' : 'Outside Dhaka City');
+  }, [formData.district]);
+
   const [paymentMethod, setPaymentMethod] = useState<'Cash on Delivery' | 'bKash'>('Cash on Delivery');
   const [bkashNumber, setBkashNumber] = useState('');
 
@@ -109,7 +113,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         street: defaultAddr?.street || userProfile?.street || userProfile?.address || '',
         country: userProfile?.country || 'Bangladesh'
       });
-      setDeliveryZone(initialZone);
       setPaymentMethod((userProfile?.preferredPaymentMethod as 'Cash on Delivery' | 'bKash') || 'Cash on Delivery');
       setBkashNumber(userProfile?.preferredBkashNumber || '');
       setErrorMsg('');
@@ -196,15 +199,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    // When district changes, automatically adjust the delivery zone
-    if (name === 'district') {
-      if (value === 'Dhaka') {
-        setDeliveryZone('Inside Dhaka City');
-      } else {
-        setDeliveryZone('Outside Dhaka City');
-      }
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -540,9 +534,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                             key={addr.id}
                             type="button"
                             onClick={() => {
-                              const zone: DeliveryZoneOption =
-                                (addr.deliveryZone as DeliveryZoneOption) ||
-                                (addr.district === 'Dhaka' ? 'Inside Dhaka City' : 'Outside Dhaka City');
                               setFormData((prev) => ({
                                 ...prev,
                                 fullName: addr.recipientName || prev.fullName,
@@ -551,7 +542,6 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                                 subDistrict: addr.subDistrict,
                                 street: addr.street
                               }));
-                              setDeliveryZone(zone);
                             }}
                             className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                               isSelected
@@ -683,7 +673,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
 
-            {/* Delivery Option Selection (Inside Dhaka City 80 taka / Outside Dhaka City 150 taka) */}
+            {/* Delivery Option Selection (Locked according to selected district) */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-xs font-bold text-neutral-900 uppercase tracking-wider">
@@ -691,39 +681,20 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </label>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {DELIVERY_OPTIONS.map((opt) => {
-                  const isSelected = deliveryZone === opt.id;
-                  return (
-                    <div
-                      key={opt.id}
-                      onClick={() => setDeliveryZone(opt.id)}
-                      className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between ${
-                        isSelected
-                          ? 'border-neutral-900 bg-stone-50 shadow-xs ring-1 ring-neutral-900/10'
-                          : 'border-stone-200 bg-white hover:border-stone-300 opacity-75'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="font-heading font-bold text-xs sm:text-sm text-neutral-900">
-                          {opt.label}
-                        </span>
-                        <div
-                          className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                            isSelected ? 'border-neutral-900' : 'border-stone-300'
-                          }`}
-                        >
-                          {isSelected && <div className="h-2 w-2 rounded-full bg-neutral-900" />}
-                        </div>
-                      </div>
-                      <div className="flex items-baseline justify-end mt-1">
-                        <span className="font-heading font-extrabold text-sm text-neutral-900 shrink-0 ml-2">
-                          {formatBDT(opt.price)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="p-4 rounded-2xl border-2 border-neutral-900 bg-stone-50 flex items-center justify-between shadow-xs">
+                <div>
+                  <span className="font-heading font-bold text-xs sm:text-sm text-neutral-900 block">
+                    {deliveryZone}
+                  </span>
+                  <span className="text-xs text-stone-500">
+                    Standard delivery charge for {formData.district || 'selected district'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="font-heading font-extrabold text-sm sm:text-base text-neutral-900">
+                    {formatBDT(deliveryZone === 'Inside Dhaka City' ? 80 : 150)}
+                  </span>
+                </div>
               </div>
             </div>
 

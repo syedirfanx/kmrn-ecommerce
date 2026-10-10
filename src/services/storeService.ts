@@ -30,7 +30,7 @@ import { PRODUCTS } from '../data/products';
 export const DEFAULT_CATALOGUES: Catalogue[] = [
   {
     id: 'catg-lawn',
-    name: 'Original Pakistani Lawn',
+    name: 'Luxury Lawn',
     description: '100% Original Pakistani designer lawn collection with intricate digital prints and embroidered chiffon dupattas.',
     image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=1200&q=85',
     category: "Elegant Women's Wear"
