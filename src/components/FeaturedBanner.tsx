@@ -10,7 +10,7 @@ interface FeaturedBannerProps {
   onAddToCart: (product: Product) => void;
   onViewDetails: (product: Product) => void;
   onNavigateToShop?: () => void;
-  onNavigateToCategory?: (categoryName: string, subcategoryName?: string) => void;
+  onNavigateToCategory?: (categoryName: string, catalogueName?: string) => void;
   onNavigateToPage?: (page: 'home' | 'about' | 'contact' | 'account') => void;
   onOpenCart?: () => void;
 }
@@ -237,16 +237,14 @@ export const FeaturedBanner: React.FC<FeaturedBannerProps> = ({
       return;
     }
 
-    // Check for subcategory / collection in products
+    // Check for catalogue / collection in products
     const matchedProdWithSub = products.find(
       (p) =>
-        (p.subcategory && p.subcategory.toLowerCase() === lower) ||
         (p.catalogueName && p.catalogueName.toLowerCase() === lower) ||
-        (p.subcategory && p.subcategory.toLowerCase() === catalogueIdOrName) ||
         (p.catalogueName && p.catalogueName.toLowerCase() === catalogueIdOrName)
     );
     if (matchedProdWithSub) {
-      onNavigateToCategory?.(matchedProdWithSub.category, matchedProdWithSub.subcategory || matchedProdWithSub.catalogueName);
+      onNavigateToCategory?.(matchedProdWithSub.category, matchedProdWithSub.catalogueName);
       return;
     }
 

@@ -58,7 +58,13 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
 
     try {
       if (mode === 'signin') {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+        if (userCredential.user) {
+          await saveUserProfileToDb(userCredential.user.uid, {
+            displayName: userCredential.user.displayName || email.split('@')[0],
+            email: userCredential.user.email || email.trim()
+          });
+        }
         setSuccessMessage('Signed in successfully.');
         setTimeout(() => {
           onClose();

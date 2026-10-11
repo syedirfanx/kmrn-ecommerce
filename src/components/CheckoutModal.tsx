@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone, Tag, AlertTriangle } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { CartItem, OrderConfirmation, UserProfile, PromoCode } from '../types';
+import { Product, CartItem, OrderConfirmation, UserProfile, PromoCode } from '../types';
 import { formatBDT } from '../utils/format';
 import { saveUserProfileToDb, saveUserOrderToDb, subscribePromoCodes } from '../services/storeService';
 import { BANGLADESH_DISTRICTS, DELIVERY_OPTIONS, DeliveryZoneOption } from '../data/bangladeshDistricts';
@@ -201,6 +201,54 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const compressOrderThumbnail = async (dataUrlOrUrl: string): Promise<string> => {
+    if (!dataUrlOrUrl || !dataUrlOrUrl.startsWith('data:image')) {
+      return dataUrlOrUrl || '';
+    }
+    // Already small enough
+    if (dataUrlOrUrl.length < 35000) return dataUrlOrUrl;
+
+    return new Promise<string>((resolve) => {
+      try {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const maxDim = 160;
+            let w = img.width || 160;
+            let h = img.height || 160;
+            if (w > h) {
+              if (w > maxDim) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              }
+            } else {
+              if (h > maxDim) {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            canvas.width = Math.max(1, w);
+            canvas.height = Math.max(1, h);
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL('image/jpeg', 0.65));
+            } else {
+              resolve(dataUrlOrUrl.slice(0, 30000));
+            }
+          } catch {
+            resolve(dataUrlOrUrl.slice(0, 30000));
+          }
+        };
+        img.onerror = () => resolve(dataUrlOrUrl.slice(0, 30000));
+        img.src = dataUrlOrUrl;
+      } catch {
+        resolve(dataUrlOrUrl.slice(0, 30000));
+      }
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -268,7 +316,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         });
       }
 
-      // 2. Build full order
+      // 2. Prepare compact items with lightweight thumbnails to avoid exceeding Firestore 1MB document limit
+      const preparedItems = await Promise.all(
+        items.map(async (item) => {
+          const thumb = await compressOrderThumbnail(item.product?.image || '');
+          return {
+            quantity: Number(item.quantity) || 1,
+            selectedColour: item.selectedColour || item.product?.selectedColour,
+            selectedSize: item.selectedSize || item.product?.selectedSize,
+            product: {
+              id: item.product.id,
+              name: item.product.name,
+              price: Number(item.product.price) || 0,
+              image: thumb,
+              category: item.product.category || '',
+              description: item.product.description || '',
+              specs: [],
+              inStock: true,
+              rating: item.product.rating || 0,
+              reviewsCount: item.product.reviewsCount || 0
+            } as Product
+          };
+        })
+      );
+
+      // 3. Build full order
       const order: OrderConfirmation = {
         orderId: `ORD-${Math.floor(100000 + Math.random() * 900000)}`,
         customerName: formData.fullName.trim(),
@@ -281,20 +353,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         deliveryZone: deliveryZone,
         country: formData.country.trim(),
         shippingAddress: fullShippingAddress,
-        items: items.map((item) => ({
-          quantity: Number(item.quantity) || 1,
-          selectedColour: item.selectedColour,
-          selectedSize: item.selectedSize,
-          product: {
-            ...item.product,
-            specs: item.product.specs || [],
-            additionalImages: item.product.additionalImages || [],
-            details: item.product.details || '',
-            inStock: item.product.inStock !== false,
-            rating: item.product.rating || 0,
-            reviewsCount: item.product.reviewsCount || 0
-          }
-        })),
+        items: preparedItems,
         subtotal: Number(subtotal) || 0,
         shipping: Number(shipping) || 0,
         discountAmount: discountAmount > 0 ? discountAmount : undefined,
@@ -309,13 +368,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         placedAt: new Date().toISOString()
       };
 
-      // 3. Save order to Firestore (both central admin orders and user subcollection)
-      await saveUserOrderToDb(currentUser?.uid, order);
+      // 4. Save order to Firestore (both central admin orders and user subcollection)
+      const saveResult = await saveUserOrderToDb(currentUser?.uid, order);
+      if (!saveResult.success) {
+        throw new Error(saveResult.error || 'Failed to record order in database. Please try again.');
+      }
 
       setCompletedOrder(order);
       onOrderComplete(order);
-    } catch {
-      setErrorMsg('An error occurred while placing your order. Please try again.');
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'An error occurred while placing your order. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

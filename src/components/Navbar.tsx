@@ -389,7 +389,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                         (p) =>
                           p.name.toLowerCase().includes(q) ||
                           p.category.toLowerCase().includes(q) ||
-                          (p.subcategory && p.subcategory.toLowerCase().includes(q)) ||
                           (p.catalogueName && p.catalogueName.toLowerCase().includes(q)) ||
                           p.description.toLowerCase().includes(q)
                       ).slice(0, 8);

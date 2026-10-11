@@ -238,7 +238,6 @@ export const subscribeProducts = (onUpdate: (products: Product[]) => void) => {
           id: d.id,
           name: data.name || '',
           category: data.category || '',
-          subcategory: data.subcategory || '',
           catalogueId: data.catalogueId || undefined,
           catalogueName: data.catalogueName || undefined,
           availableColours: Array.isArray(data.availableColours) ? data.availableColours : [],
@@ -378,7 +377,6 @@ export const saveProductToDb = async (product: Product): Promise<DbResult> => {
       id: product.id,
       name: product.name || '',
       category: product.category || "Elegant Women's Wear",
-      subcategory: product.subcategory || '',
       catalogueId: product.catalogueId || '',
       catalogueName: product.catalogueName || '',
       availableColours: Array.isArray(product.availableColours) ? product.availableColours : [],
@@ -468,16 +466,22 @@ export const saveUserProfileToDb = async (
 ): Promise<DbResult> => {
   const path = `users/${userId}/profile/main`;
   try {
+    const payload = sanitizeForFirestore({
+      ...profile,
+      uid: userId,
+      updatedAt: new Date().toISOString()
+    });
     const docRef = doc(db, 'users', userId, 'profile', 'main');
-    await setDoc(
-      docRef,
-      {
-        ...profile,
-        uid: userId,
-        updatedAt: new Date().toISOString()
-      },
-      { merge: true }
-    );
+    await setDoc(docRef, payload, { merge: true });
+
+    // Also mirror to root user document so both access patterns work seamlessly
+    try {
+      const rootDocRef = doc(db, 'users', userId);
+      await setDoc(rootDocRef, payload, { merge: true });
+    } catch {
+      // non-blocking
+    }
+
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -855,12 +859,42 @@ export const saveGuestOrderId = (orderId: string) => {
   }
 };
 
+/**
+ * Strips heavy product metadata (additionalImages, specs, details) from order items
+ * to guarantee that orders with multiple products never exceed Firestore's 1MB limit.
+ */
+export const prepareOrderForFirestore = (order: OrderConfirmation): OrderConfirmation => {
+  const sanitizedItems: CartItem[] = (order.items || []).map((it) => {
+    const cleanImage = typeof it.product?.image === 'string' ? it.product.image : '';
+
+    return {
+      quantity: Number(it.quantity) || 1,
+      selectedColour: it.selectedColour || (it.product as any)?.selectedColour || undefined,
+      selectedSize: it.selectedSize || (it.product as any)?.selectedSize || undefined,
+      product: {
+        id: String(it.product?.id || 'prod'),
+        name: String(it.product?.name || 'Product'),
+        price: Number(it.product?.price) || 0,
+        category: String(it.product?.category || ''),
+        image: cleanImage
+      } as any
+    };
+  });
+
+  const cleanedOrder: OrderConfirmation = {
+    ...order,
+    items: sanitizedItems
+  };
+
+  return sanitizeForFirestore(cleanedOrder) as OrderConfirmation;
+};
+
 export const saveUserOrderToDb = async (
   userId: string | undefined,
   order: OrderConfirmation
 ): Promise<DbResult> => {
   try {
-    const sanitizedOrder = sanitizeForFirestore(order) as OrderConfirmation;
+    const sanitizedOrder = prepareOrderForFirestore(order);
 
     // Always track guest order ID locally
     saveGuestOrderId(sanitizedOrder.orderId);
@@ -894,7 +928,7 @@ export const saveUserOrderToDb = async (
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `orders/${order.orderId}`);
     try {
-      const sanitizedOrder = sanitizeForFirestore(order) as OrderConfirmation;
+      const sanitizedOrder = prepareOrderForFirestore(order);
       const existing: OrderConfirmation[] = JSON.parse(localStorage.getItem('maison_local_orders') || '[]');
       localStorage.setItem(
         'maison_local_orders',
@@ -979,6 +1013,8 @@ export const sanitizeOrder = (d: { id: string; data: () => Record<string, unknow
     items: Array.isArray(data.items)
       ? data.items.map((i: CartItem) => ({
           quantity: Number(i.quantity) || 1,
+          selectedColour: i.selectedColour || (i.product as any)?.selectedColour || undefined,
+          selectedSize: i.selectedSize || (i.product as any)?.selectedSize || undefined,
           product: i.product || { id: 'unknown', name: 'Product', price: 0, image: '', category: '' }
         }))
       : [],
@@ -1824,27 +1860,175 @@ export const deletePromoCodeFromDb = async (promoId: string): Promise<DbResult> 
 };
 
 
+export const fetchAllUsers = async (): Promise<UserProfile[]> => {
+  const userMap = new Map<string, UserProfile>();
+
+  // 1. Check local storage cache for instant population
+  try {
+    const cached: UserProfile[] = JSON.parse(localStorage.getItem('maison_local_users') || '[]');
+    cached.forEach((u) => {
+      const k = u.uid || u.email;
+      if (k) userMap.set(k, u);
+    });
+  } catch {}
+
+  // 2. Fetch from collectionGroup('profile')
+  try {
+    const profileSnap = await getDocs(collectionGroup(db, 'profile'));
+    profileSnap.forEach((d) => {
+      const data = d.data();
+      const parentUid = d.ref.parent.parent?.id;
+      const uid = String(data.uid || parentUid || d.id || '').trim();
+      const email = String(data.email || '').trim();
+      const key = uid || email;
+      if (key) {
+        userMap.set(key, {
+          uid: uid || key,
+          displayName: String(data.displayName || data.name || (email ? email.split('@')[0] : 'Customer')),
+          email: email || 'No Email',
+          phone: data.phone ? String(data.phone) : undefined,
+          street: data.street ? String(data.street) : undefined,
+          address: data.address ? String(data.address) : (data.street ? String(data.street) : undefined),
+          city: data.city ? String(data.city) : undefined,
+          district: data.district ? String(data.district) : undefined,
+          subDistrict: data.subDistrict ? String(data.subDistrict) : undefined,
+          deliveryZone: data.deliveryZone ? String(data.deliveryZone) : undefined,
+          country: data.country ? String(data.country) : 'Bangladesh',
+          addresses: Array.isArray(data.addresses) ? data.addresses : [],
+          defaultAddressId: data.defaultAddressId ? String(data.defaultAddressId) : undefined,
+          updatedAt: data.updatedAt ? String(data.updatedAt) : new Date().toISOString()
+        } as UserProfile);
+      }
+    });
+  } catch (e) {
+    console.warn('fetchAllUsers profile query notice:', e);
+  }
+
+  // 3. Fetch from root collection('users')
+  try {
+    const userSnap = await getDocs(collection(db, 'users'));
+    userSnap.forEach((d) => {
+      const data = d.data();
+      const uid = d.id;
+      const email = String(data.email || '').trim();
+      const key = uid || email;
+      if (key && !userMap.has(key)) {
+        userMap.set(key, {
+          uid,
+          displayName: String(data.displayName || data.name || (email ? email.split('@')[0] : 'Customer')),
+          email: email || 'No Email',
+          phone: data.phone ? String(data.phone) : undefined,
+          street: data.street ? String(data.street) : undefined,
+          city: data.city ? String(data.city) : undefined,
+          district: data.district ? String(data.district) : undefined,
+          updatedAt: data.updatedAt ? String(data.updatedAt) : new Date().toISOString()
+        } as UserProfile);
+      }
+    });
+  } catch (e) {
+    console.warn('fetchAllUsers root users query notice:', e);
+  }
+
+  // 4. Merge customer accounts discovered from orders
+  try {
+    const ordersSnap = await getDocs(collection(db, 'orders'));
+    ordersSnap.forEach((d) => {
+      const data = d.data();
+      const orderUid = data.userId ? String(data.userId).trim() : '';
+      const orderEmail = data.email ? String(data.email).trim() : '';
+      const key = orderUid || orderEmail;
+      if (key && !userMap.has(key)) {
+        userMap.set(key, {
+          uid: orderUid || key,
+          displayName: String(data.customerName || (orderEmail ? orderEmail.split('@')[0] : 'Customer')),
+          email: orderEmail || 'No Email',
+          phone: data.phone ? String(data.phone) : undefined,
+          street: data.street ? String(data.street) : undefined,
+          city: data.city ? String(data.city) : undefined,
+          district: data.district ? String(data.district) : undefined,
+          updatedAt: data.placedAt ? String(data.placedAt) : new Date().toISOString()
+        } as UserProfile);
+      }
+    });
+  } catch {}
+
+  const result = Array.from(userMap.values());
+  try {
+    localStorage.setItem('maison_local_users', JSON.stringify(result));
+  } catch {}
+  return result;
+};
+
 export const subscribeAllUsers = (onUpdate: (users: UserProfile[]) => void) => {
   const path = 'profile';
+
+  // 1. Instant cache push
+  try {
+    const cached: UserProfile[] = JSON.parse(localStorage.getItem('maison_local_users') || '[]');
+    if (cached.length > 0) {
+      onUpdate(cached);
+    }
+  } catch {}
+
+  // 2. Initial live fetch
+  fetchAllUsers()
+    .then((liveUsers) => {
+      if (liveUsers.length > 0) {
+        onUpdate(liveUsers);
+      }
+    })
+    .catch(() => {});
+
+  // 3. Realtime listener
   return onSnapshot(
     collectionGroup(db, path),
     (snapshot) => {
-      const users: UserProfile[] = [];
+      const liveMap = new Map<string, UserProfile>();
+
+      // Seed with local cache
+      try {
+        const cached: UserProfile[] = JSON.parse(localStorage.getItem('maison_local_users') || '[]');
+        cached.forEach((u) => {
+          const k = u.uid || u.email;
+          if (k) liveMap.set(k, u);
+        });
+      } catch {}
+
       snapshot.forEach((d) => {
-        // The profile document is in profile/main
-        if (d.id === 'main') {
-          users.push({
-            uid: d.ref.parent.parent?.id || 'unknown',
-            displayName: d.data()?.displayName || 'Unknown User',
-            email: d.data()?.email || 'No Email',
-            ...d.data()
+        const data = d.data();
+        const parentUid = d.ref.parent.parent?.id;
+        const uid = String(data.uid || parentUid || d.id || '').trim();
+        const email = String(data.email || '').trim();
+        const key = uid || email;
+        if (key) {
+          liveMap.set(key, {
+            uid: uid || key,
+            displayName: String(data.displayName || data.name || (email ? email.split('@')[0] : 'Customer')),
+            email: email || 'No Email',
+            phone: data.phone ? String(data.phone) : undefined,
+            street: data.street ? String(data.street) : undefined,
+            address: data.address ? String(data.address) : (data.street ? String(data.street) : undefined),
+            city: data.city ? String(data.city) : undefined,
+            district: data.district ? String(data.district) : undefined,
+            subDistrict: data.subDistrict ? String(data.subDistrict) : undefined,
+            deliveryZone: data.deliveryZone ? String(data.deliveryZone) : undefined,
+            country: data.country ? String(data.country) : 'Bangladesh',
+            addresses: Array.isArray(data.addresses) ? data.addresses : [],
+            defaultAddressId: data.defaultAddressId ? String(data.defaultAddressId) : undefined,
+            updatedAt: data.updatedAt ? String(data.updatedAt) : new Date().toISOString()
           } as UserProfile);
         }
       });
-      onUpdate(users);
+
+      const userList = Array.from(liveMap.values());
+      try {
+        localStorage.setItem('maison_local_users', JSON.stringify(userList));
+      } catch {}
+      onUpdate(userList);
     },
     (error) => {
       handleFirestoreError(error, OperationType.GET, path);
+      fetchAllUsers().then(onUpdate).catch(() => {});
     }
   );
 };

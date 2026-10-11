@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Trash2, Plus, Minus, ArrowRight, ShoppingBag, Check, AlertTriangle } from 'lucide-react';
-import { CartItem, PromoCode } from '../types';
+import { CartItem, PromoCode, Product } from '../types';
 import { formatBDT } from '../utils/format';
 import { subscribePromoCodes } from '../services/storeService';
 

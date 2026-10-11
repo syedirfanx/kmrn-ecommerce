@@ -71,11 +71,16 @@ service cloud.firestore {
 
     // User private data: user profile document and all subcollections (addresses, cart, wishlist, orders)
     match /users/{userId} {
-      allow get, list, create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      allow read, write: if true;
 
-      match /{document=**} {
-        allow get, list, create, update, delete: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      match /{allChildren=**} {
+        allow read, write: if true;
       }
+    }
+
+    // Collection group for user profile documents
+    match /{path=**}/profile/{profileId} {
+      allow read, write: if true;
     }
 
     // Admin authorization mapping

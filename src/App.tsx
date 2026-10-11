@@ -30,6 +30,7 @@ import {
   removeCartItemFromDb,
   clearUserCartInDb,
   subscribeUserProfile,
+  saveUserProfileToDb,
   subscribeUserWishlist,
   toggleWishlistItemInDb,
   saveUserOrderToDb,
@@ -146,7 +147,7 @@ export default function App() {
   const [previousPage, setPreviousPage] = useState<{
     page: AppPage;
     category?: string;
-    subcategory?: string;
+    catalogue?: string;
   }>({ page: 'home' });
 
   const [products, setProducts] = useState<Product[]>(() => {
@@ -267,7 +268,7 @@ export default function App() {
     }
   };
 
-  const navigateToCategory = (categoryNameOrSlug: string, subcategoryName?: string) => {
+  const navigateToCategory = (categoryNameOrSlug: string, catalogueName?: string) => {
     setActiveProduct(null);
     setQuickViewProduct(null);
 
@@ -286,7 +287,7 @@ export default function App() {
     });
 
     let targetCategory = matchedCategory?.name;
-    let targetSubcategory = subcategoryName || 'All';
+    let targetSubcategory = catalogueName || 'All';
 
     // 2. If no direct category match, check if it's a catalogue name or ID
     if (!targetCategory) {
@@ -302,16 +303,16 @@ export default function App() {
       }
     }
 
-    // 3. Check if it's a product subcategory
+    // 3. Check if it's a catalogue in products
     if (!targetCategory) {
-      const prodWithSub = products.find(
+      const prodWithCat = products.find(
         (p) =>
-          (p.subcategory && p.subcategory.toLowerCase() === lower) ||
-          (p.catalogueName && p.catalogueName.toLowerCase() === lower)
+          (p.catalogueName && p.catalogueName.toLowerCase() === lower) ||
+          (p.catalogueId && p.catalogueId.toLowerCase() === lower)
       );
-      if (prodWithSub) {
-        targetCategory = prodWithSub.category;
-        targetSubcategory = prodWithSub.subcategory || prodWithSub.catalogueName || 'All';
+      if (prodWithCat) {
+        targetCategory = prodWithCat.category;
+        targetSubcategory = prodWithCat.catalogueName || 'All';
       }
     }
 
@@ -339,7 +340,7 @@ export default function App() {
     setPreviousPage({
       page: currentPage,
       category: selectedCategory,
-      subcategory: selectedSubcategory
+      catalogue: selectedSubcategory
     });
     setActiveProduct(product);
     setCurrentPage('product');
@@ -363,7 +364,7 @@ export default function App() {
 
     if (previousPage.page === 'category' && previousPage.category) {
       setSelectedCategory(previousPage.category);
-      setSelectedSubcategory(previousPage.subcategory || 'All');
+      setSelectedSubcategory(previousPage.catalogue || 'All');
       setCurrentPage('category');
       try {
         const slug = previousPage.category.toLowerCase().includes('women')
@@ -456,6 +457,12 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      if (user) {
+        saveUserProfileToDb(user.uid, {
+          displayName: user.displayName || (user.email ? user.email.split('@')[0] : 'Customer'),
+          email: user.email || ''
+        }).catch(() => {});
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -791,31 +798,18 @@ export default function App() {
     );
   }, [currentCategoryCatalogues, selectedSubcategory]);
 
-  // Subcategories / collections present in this category's products
-  const categorySubcategories = useMemo(() => {
-    const subs = new Set<string>();
-    categoryProducts.forEach((p) => {
-      if (p.subcategory && p.subcategory.trim()) subs.add(p.subcategory.trim());
-      if (p.catalogueName && p.catalogueName.trim()) subs.add(p.catalogueName.trim());
-    });
-    return Array.from(subs);
-  }, [categoryProducts]);
-
   // Filtered and sorted products for active category
   const filteredProducts = useMemo(() => {
     return categoryProducts
       .filter((product) => {
         const matchesSubcategory =
           selectedSubcategory === 'All' ||
-          product.subcategory === selectedSubcategory ||
           product.catalogueName === selectedSubcategory ||
           product.catalogueId === selectedSubcategory;
         const matchesSearch =
           !searchQuery.trim() ||
           product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (product.subcategory &&
-            product.subcategory.toLowerCase().includes(searchQuery.toLowerCase())) ||
           (product.catalogueName &&
             product.catalogueName.toLowerCase().includes(searchQuery.toLowerCase()));
 
@@ -1293,7 +1287,7 @@ export default function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                     {currentCategoryCatalogues.map((catg) => {
                       const catgCount = categoryProducts.filter(
-                        (p) => p.catalogueId === catg.id || p.catalogueName === catg.name || p.subcategory === catg.name
+                        (p) => p.catalogueId === catg.id || p.catalogueName === catg.name
                       ).length;
 
                       return (
@@ -1435,43 +1429,6 @@ export default function App() {
                   )}
                 </div>
               )
-            ) : currentCategoryData?.hasCatalogues !== false && categorySubcategories.length > 0 && selectedSubcategory === 'All' && !searchQuery.trim() ? (
-              /* Case B: Category without Catalogues but with Subcategories/Collections - Grid view before selection (Search & Sort hidden) */
-              <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {categorySubcategories.map((subName) => {
-                    const subProducts = categoryProducts.filter(
-                      (p) => p.subcategory === subName || p.catalogueName === subName
-                    );
-                    const coverImage = subProducts[0]?.image || 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=1200&q=85';
-
-                    return (
-                      <div
-                        key={subName}
-                        onClick={() => setSelectedSubcategory(subName)}
-                        className="group relative aspect-video rounded-2xl overflow-hidden border border-stone-200/80 hover:border-neutral-900 cursor-pointer transition-all duration-300 shadow-xs hover:shadow-xl"
-                      >
-                        {/* Image fits whole thumbnail */}
-                        <img
-                          src={coverImage}
-                          alt={subName}
-                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-
-                        {/* Dark translucent vintage scrim overlay */}
-                        <div className="absolute inset-0 bg-black/45 group-hover:bg-black/55 transition-colors duration-300 backdrop-blur-[0.5px]" />
-
-                        {/* Centered White Heading with Vintage styling & All Capital Letters */}
-                        <div className="relative z-10 w-full h-full flex flex-col items-center justify-center p-3 text-center">
-                          <h3 className="font-heading font-extrabold text-sm sm:text-base md:text-lg text-white uppercase tracking-widest drop-shadow-md">
-                            {subName.toUpperCase()}
-                          </h3>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             ) : currentCategoryData?.hasCatalogues !== false && selectedSubcategory !== 'All' && !searchQuery.trim() ? (
               /* Case C: Single Selected Collection view (Header, then Search & Sort, then Products) */
               <div className="space-y-6">

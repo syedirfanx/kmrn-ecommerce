@@ -26,7 +26,6 @@ export interface Product {
   id: string;
   name: string;
   category: string;
-  subcategory?: string;
   catalogueId?: string;
   catalogueName?: string;
   availableColours?: string[];
