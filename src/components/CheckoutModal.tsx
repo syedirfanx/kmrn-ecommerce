@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle, Truck, ShieldCheck, User as UserIcon, CreditCard, Smartphone, Tag, AlertTriangle } from 'lucide-react';
 import { User } from 'firebase/auth';
-import { Product, CartItem, OrderConfirmation, UserProfile, PromoCode } from '../types';
+import { Product, CartItem, OrderConfirmation, UserProfile, PromoCode, UserAddress } from '../types';
 import { formatBDT } from '../utils/format';
-import { saveUserProfileToDb, saveUserOrderToDb, subscribePromoCodes } from '../services/storeService';
+import { saveUserProfileToDb, saveUserAddressInDb, saveUserOrderToDb, subscribePromoCodes } from '../services/storeService';
 import { BANGLADESH_DISTRICTS, DELIVERY_OPTIONS, DeliveryZoneOption } from '../data/bangladeshDistricts';
 
 interface CheckoutModalProps {
@@ -300,6 +300,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       // 1. If signed in, update their user profile with address and district in Firebase
       if (currentUser) {
+        // When a user doesn't have any saved addresses yet, save this checkout address as their default address
+        const hasExistingAddresses = Array.isArray(userProfile?.addresses) && userProfile.addresses.length > 0;
+        if (!hasExistingAddresses) {
+          const newAddressEntry: UserAddress = {
+            id: 'addr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            label: 'Home',
+            recipientName: formData.fullName.trim(),
+            phone: formData.phone.trim(),
+            street: formData.street.trim(),
+            district: formData.district.trim(),
+            subDistrict: formData.subDistrict.trim(),
+            deliveryZone: deliveryZone,
+            isDefault: true,
+            createdAt: new Date().toISOString()
+          };
+          try {
+            await saveUserAddressInDb(currentUser.uid, newAddressEntry);
+          } catch {
+            // non-blocking fallback if profile save succeeds
+          }
+        }
+
         await saveUserProfileToDb(currentUser.uid, {
           displayName: formData.fullName.trim(),
           email: formData.email.trim(),
@@ -314,6 +336,29 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           preferredPaymentMethod: paymentMethod,
           preferredBkashNumber: paymentMethod === 'bKash' ? bkashNumber.trim() : undefined
         });
+      } else {
+        // Guest mode: If guest has no saved addresses locally, save as default address in localStorage
+        try {
+          const storedGuest = localStorage.getItem('maison_guest_addresses');
+          const guestAddresses = storedGuest ? JSON.parse(storedGuest) : [];
+          if (!Array.isArray(guestAddresses) || guestAddresses.length === 0) {
+            const guestAddressEntry: UserAddress = {
+              id: 'addr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+              label: 'Home',
+              recipientName: formData.fullName.trim(),
+              phone: formData.phone.trim(),
+              street: formData.street.trim(),
+              district: formData.district.trim(),
+              subDistrict: formData.subDistrict.trim(),
+              deliveryZone: deliveryZone,
+              isDefault: true,
+              createdAt: new Date().toISOString()
+            };
+            localStorage.setItem('maison_guest_addresses', JSON.stringify([guestAddressEntry]));
+          }
+        } catch {
+          // Ignore localStorage errors
+        }
       }
 
       // 2. Prepare compact items with lightweight thumbnails to avoid exceeding Firestore 1MB document limit

@@ -543,6 +543,15 @@ export const saveUserAddressInDb = async (
     };
 
     await setDoc(docRef, sanitizeForFirestore(payload), { merge: true });
+
+    // Also mirror to root user document for convenience
+    try {
+      const rootDocRef = doc(db, 'users', userId);
+      await setDoc(rootDocRef, sanitizeForFirestore(payload), { merge: true });
+    } catch {
+      // non-blocking
+    }
+
     return { success: true };
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);

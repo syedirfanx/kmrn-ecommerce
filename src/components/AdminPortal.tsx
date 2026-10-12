@@ -180,7 +180,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [ordersSearchQuery, setOrdersSearchQuery] = useState('');
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState<OrderConfirmation | null>(null);
-  const [copiedCourierId, setCopiedCourierId] = useState<string | null>(null);
   const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
     try {
       return JSON.parse(localStorage.getItem('maison_local_users') || '[]');
@@ -1140,30 +1139,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleCopyCourierInfo = (ord: OrderConfirmation) => {
-    const isBkash = ord.paymentMethod === 'bKash' || ord.paymentMethod?.toLowerCase().includes('bkash');
-    const text = [
-      `Recipient: ${ord.customerName}`,
-      `Phone: ${ord.phone}`,
-      `Address: ${ord.shippingAddress}`,
-      ord.subDistrict ? `Thana: ${ord.subDistrict}` : '',
-      ord.district || ord.city ? `District: ${ord.district || ord.city}` : '',
-      ord.deliveryZone ? `Zone: ${ord.deliveryZone}` : '',
-      `Amount to Collect: ${isBkash ? '0 BDT (Paid via bKash)' : `${ord.total} BDT`}`,
-      `Order ID: ${ord.orderId}`
-    ].filter(Boolean).join('\n');
-
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(() => {
-        setCopiedCourierId(ord.orderId);
-        setStatusNotice(`Courier info for order #${ord.orderId} copied`);
-        setTimeout(() => setCopiedCourierId(null), 2500);
-        setTimeout(() => setStatusNotice(''), 3000);
-      }).catch(() => {
-        setErrorMessage('Failed to copy courier info');
-      });
-    }
-  };
 
   const handleExportOrdersToCSV = (targetOrdersToExport?: OrderConfirmation[]) => {
     const targetOrders = targetOrdersToExport && targetOrdersToExport.length > 0
@@ -4298,14 +4273,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-neutral-900 text-white tabular-nums">
                         {orders.length}
                       </span>
-                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Live Firestore Sync
-                      </span>
                     </div>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Manage customer orders, update delivery statuses, export reports, copy courier dispatch details, and generate printable invoices.
-                    </p>
                   </div>
 
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -4667,16 +4635,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <span className="text-stone-500 text-[11px]">
                           Showing <strong className="text-neutral-900 font-bold">{filtered.length}</strong> of {orders.length} orders
                         </span>
-                        {filtered.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => handleExportOrdersToCSV(filtered)}
-                            className="text-neutral-900 hover:text-stone-600 font-bold text-[11px] flex items-center gap-1 cursor-pointer bg-stone-100 hover:bg-stone-200 px-2.5 py-1 rounded-lg transition-colors"
-                          >
-                            <Download className="h-3 w-3" />
-                            <span>Export View</span>
-                          </button>
-                        )}
                       </div>
                     );
                   })()}
@@ -4765,7 +4723,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                   return filteredOrders.map((ord) => {
                     const isBkash = ord.paymentMethod === 'bKash' || ord.paymentMethod?.toLowerCase().includes('bkash');
-                    const isRegistered = !ord.isGuest && Boolean(ord.userId);
 
                     return (
                       <div
@@ -4782,19 +4739,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <Clock className="h-3 w-3" />
                               {new Date(ord.placedAt).toLocaleString()}
                             </span>
-
-                            {/* Customer Type Badge */}
-                            {isRegistered ? (
-                              <span className="text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                                Registered Member
-                              </span>
-                            ) : (
-                              <span className="text-[11px] font-medium bg-stone-100 text-stone-600 border border-stone-200 px-2 py-0.5 rounded-md flex items-center gap-1">
-                                <User className="h-3 w-3 text-stone-400" />
-                                Guest Checkout
-                              </span>
-                            )}
 
                             {/* Payment Method Badge */}
                             {isBkash ? (
@@ -4964,30 +4908,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               </div>
                             </div>
 
-                            {/* Copy Courier Info Action */}
-                            <div className="pt-2 border-t border-stone-200/60">
-                              <button
-                                type="button"
-                                onClick={() => handleCopyCourierInfo(ord)}
-                                className={`w-full py-1.5 px-3 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${
-                                  copiedCourierId === ord.orderId
-                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                                    : 'bg-white hover:bg-stone-100 border-stone-200 text-neutral-900'
-                                }`}
-                              >
-                                {copiedCourierId === ord.orderId ? (
-                                  <>
-                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                    <span>Courier Info Copied!</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="h-3.5 w-3.5 text-stone-500" />
-                                    <span>Copy for Courier Dispatch</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
                           </div>
 
                           {/* Column 2: Order Items */}
@@ -5562,10 +5482,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
       {/* Invoice & Packing Slip Modal */}
       {selectedOrderForInvoice && (
-        <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-stone-200 overflow-hidden my-8 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-neutral-900/80 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto" onClick={() => setSelectedOrderForInvoice(null)}>
+          <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-stone-200 overflow-hidden my-8 animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="p-4 sm:p-5 bg-neutral-900 text-white flex items-center justify-between">
+            <div className="p-4 sm:p-5 bg-neutral-900 text-white flex items-center justify-between no-print shrink-0">
               <div className="flex items-center gap-2.5">
                 <FileText className="h-5 w-5 text-amber-400" />
                 <div>
@@ -5597,7 +5517,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
 
             {/* Printable Content */}
-            <div className="p-6 sm:p-8 space-y-6 text-neutral-900">
+            <div id="printable-invoice-body" className="p-6 sm:p-8 space-y-6 text-neutral-900 overflow-y-auto flex-1">
               {/* Store & Order Details Header */}
               <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-6 border-b border-stone-200">
                 <div>
@@ -5670,31 +5590,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       )}
                     </div>
                   )}
-                  <div>
-                    <span className="text-stone-500">Account Type:</span>{' '}
-                    <span className="font-medium text-stone-700">
-                      {selectedOrderForInvoice.isGuest || !selectedOrderForInvoice.userId ? 'Guest Checkout' : 'Registered Member'}
-                    </span>
-                  </div>
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => handleCopyCourierInfo(selectedOrderForInvoice)}
-                      className="px-2.5 py-1.5 rounded-lg bg-white border border-stone-200 text-neutral-900 hover:bg-stone-100 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      {copiedCourierId === selectedOrderForInvoice.orderId ? (
-                        <>
-                          <Check className="h-3 w-3 text-emerald-600" />
-                          <span className="text-emerald-700">Copied Courier Info!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3 w-3 text-stone-500" />
-                          <span>Copy Courier Info</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
                 </div>
               </div>
 
@@ -5784,7 +5679,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-between items-center gap-3">
+            <div className="p-4 bg-stone-50 border-t border-stone-200 flex justify-between items-center gap-3 no-print shrink-0">
               <span className="text-[11px] text-stone-500">
                 ANIQ LIFESTYLE &copy; {new Date().getFullYear()} Official Invoice
               </span>

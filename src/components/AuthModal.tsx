@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Lock, Mail, User as UserIcon, AlertCircle, Check } from 'lucide-react';
+import { X, Lock, Mail, User as UserIcon, AlertCircle, Check, KeyRound } from 'lucide-react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
-  updateProfile
+  updateProfile,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
 import { saveUserProfileToDb } from '../services/storeService';
@@ -14,13 +15,20 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [tabIconError, setTabIconError] = useState(false);
+
+  const tabIconUrl =
+    (typeof document !== 'undefined' &&
+      (document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.getAttribute('href') ||
+        document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]')?.getAttribute('href'))) ||
+    '/images/tab-logo.png';
 
   useEffect(() => {
     if (isOpen) {
@@ -38,13 +46,21 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       error.code === 'auth/wrong-password' ||
       error.code === 'auth/user-not-found'
     ) {
-      setErrorMessage('Invalid email address or password.');
+      if (mode === 'forgot') {
+        setErrorMessage('No account found with this email address.');
+      } else {
+        setErrorMessage('Invalid email address or password.');
+      }
     } else if (error.code === 'auth/email-already-in-use') {
       setErrorMessage('An account with this email address already exists. Please sign in instead.');
     } else if (error.code === 'auth/weak-password') {
       setErrorMessage('Password must be at least 6 characters long.');
     } else if (error.code === 'auth/invalid-email') {
       setErrorMessage('Please enter a valid email address.');
+    } else if (error.code === 'auth/missing-email') {
+      setErrorMessage('Please enter your email address.');
+    } else if (error.code === 'auth/too-many-requests') {
+      setErrorMessage('Too many requests. Please wait a few moments and try again.');
     } else {
       setErrorMessage(error.message || 'Authentication failed. Please try again.');
     }
@@ -57,7 +73,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setIsLoading(true);
 
     try {
-      if (mode === 'signin') {
+      if (mode === 'forgot') {
+        if (!email.trim()) {
+          setErrorMessage('Please enter your email address.');
+          setIsLoading(false);
+          return;
+        }
+
+        await sendPasswordResetEmail(auth, email.trim());
+        setSuccessMessage('Password reset link sent! Check your email inbox (and spam folder) for instructions to reset your password.');
+      } else if (mode === 'signin') {
         const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
         if (userCredential.user) {
           await saveUserProfileToDb(userCredential.user.uid, {
@@ -106,7 +131,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     }
   };
 
-  const switchMode = (newMode: 'signin' | 'signup') => {
+  const switchMode = (newMode: 'signin' | 'signup' | 'forgot') => {
     setMode(newMode);
     setErrorMessage('');
     setSuccessMessage('');
@@ -126,11 +151,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between pb-4 mb-4 border-b border-stone-100">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center">
-              <UserIcon className="h-5 w-5" />
-            </div>
+            {mode === 'forgot' ? (
+              <div className="h-9 w-9 rounded-xl bg-neutral-900 text-white flex items-center justify-center shadow-xs">
+                <KeyRound className="h-5 w-5" />
+              </div>
+            ) : (
+              <div className="h-9 w-9 rounded-xl bg-stone-100 border border-stone-200/80 flex items-center justify-center overflow-hidden p-1 shadow-xs">
+                {!tabIconError ? (
+                  <img
+                    src={tabIconUrl}
+                    alt="ANIQ"
+                    onError={() => setTabIconError(true)}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <UserIcon className="h-5 w-5 text-neutral-700" />
+                )}
+              </div>
+            )}
             <h2 className="font-heading text-xl text-neutral-900">
-              {mode === 'signin' ? 'Sign In' : 'Create Account'}
+              {mode === 'signin'
+                ? 'Sign In'
+                : mode === 'signup'
+                ? 'Create Account'
+                : 'Reset Password'}
             </h2>
           </div>
 
@@ -143,6 +187,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {mode === 'forgot' && (
+          <p className="text-xs text-neutral-600 mb-4 leading-relaxed">
+            Enter your registered email address and we will send you a secure link to reset your password.
+          </p>
+        )}
 
         {/* Feedback Messages */}
         {errorMessage && (
@@ -199,22 +249,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-category font-semibold text-neutral-800 mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
-              <input
-                type="password"
-                required
-                placeholder="At least 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:bg-white shadow-2xs"
-              />
+          {mode !== 'forgot' && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-category font-semibold text-neutral-800">
+                  Password
+                </label>
+                {mode === 'signin' && (
+                  <button
+                    type="button"
+                    onClick={() => switchMode('forgot')}
+                    className="text-xs text-neutral-600 hover:text-neutral-900 font-semibold hover:underline cursor-pointer"
+                  >
+                    Forgot password?
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
+                <input
+                  type="password"
+                  required
+                  placeholder="At least 6 characters"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-stone-50 border border-stone-300 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-neutral-900 focus:outline-none focus:border-neutral-900 focus:bg-white shadow-2xs"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <button
             type="submit"
@@ -225,7 +288,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
               ? 'Processing...'
               : mode === 'signin'
               ? 'Sign In'
-              : 'Create Account'}
+              : mode === 'signup'
+              ? 'Create Account'
+              : 'Send Reset Link'}
           </button>
         </form>
 
@@ -242,7 +307,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 Create Account
               </button>
             </p>
-          ) : (
+          ) : mode === 'signup' ? (
             <p className="text-xs text-neutral-600">
               Already have an account?{' '}
               <button
@@ -251,6 +316,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
                 className="font-bold text-neutral-900 hover:underline cursor-pointer ml-1"
               >
                 Sign In
+              </button>
+            </p>
+          ) : (
+            <p className="text-xs text-neutral-600">
+              Remember your password?{' '}
+              <button
+                type="button"
+                onClick={() => switchMode('signin')}
+                className="font-bold text-neutral-900 hover:underline cursor-pointer ml-1"
+              >
+                Back to Sign In
               </button>
             </p>
           )}

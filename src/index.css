@@ -124,3 +124,28 @@ h1, h2, h3, h4, h5, h6, .font-heading {
 .animate-marquee:hover {
   animation-play-state: paused;
 }
+
+
+/* Print styling for Invoice & Packing Slip */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-invoice-body,
+  #printable-invoice-body * {
+    visibility: visible;
+  }
+  #printable-invoice-body {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 24px !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
