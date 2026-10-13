@@ -23,11 +23,11 @@ export const Footer: React.FC<FooterProps> = ({
     <footer
       className="relative text-neutral-300 pt-14 pb-12 mt-auto border-t border-stone-800/80 overflow-hidden"
       style={{
-        backgroundColor: '#141414',
+        backgroundColor: '#111111',
         backgroundImage: `
-          repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 6px),
-          repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.02) 0px, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 6px),
-          radial-gradient(ellipse at 50% 0%, rgba(217, 180, 110, 0.04) 0%, transparent 70%)
+          radial-gradient(ellipse at 50% 0%, rgba(217, 180, 110, 0.16) 0%, rgba(217, 180, 110, 0.04) 45%, transparent 72%),
+          linear-gradient(to bottom, rgba(18, 18, 18, 0.2) 0%, rgba(14, 14, 14, 0.85) 100%),
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 48 48'%3E%3Cpath d='M24 0 L48 24 L24 48 L0 24 Z' fill='none' stroke='rgba(255,255,255,0.035)' stroke-width='1'/%3E%3Cpath d='M24 8 L40 24 L24 40 L8 24 Z' fill='none' stroke='rgba(217,180,110,0.08)' stroke-width='0.8'/%3E%3Cpath d='M0 0 L12 12 M48 0 L36 12 M0 48 L12 36 M48 48 L36 36' fill='none' stroke='rgba(255,255,255,0.03)' stroke-width='0.8'/%3E%3Ccircle cx='24' cy='24' r='2' fill='rgba(217,180,110,0.12)'/%3E%3C/svg%3E")
         `
       }}
     >
