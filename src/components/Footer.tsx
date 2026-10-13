@@ -94,7 +94,7 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   onClick={onNavigateToNewArrivals}
-                  className="hover:text-white transition-colors cursor-pointer text-left font-medium text-stone-200"
+                  className="hover:text-white transition-colors cursor-pointer text-left"
                 >
                   New Arrivals
                 </button>
@@ -138,8 +138,9 @@ export const Footer: React.FC<FooterProps> = ({
                   WhatsApp: +880 1554-555071
                 </a>
               </li>
-              <li>B Block, Road no. 2, Jahurul Islam City</li>
-              <li>Aftab Nagar, Dhaka 1212, Bangladesh</li>
+              <li className="leading-relaxed">
+                B Block, Road no. 2, Jahurul Islam City Aftab Nagar, Dhaka 1212, Bangladesh
+              </li>
             </ul>
           </div>
         </div>
