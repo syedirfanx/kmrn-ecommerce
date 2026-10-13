@@ -125,6 +125,21 @@ h1, h2, h3, h4, h5, h6, .font-heading {
   animation-play-state: paused;
 }
 
+/* Gentle Blink / Soft Pulse for Tags */
+@keyframes gentleBlink {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.97);
+  }
+}
+
+.animate-gentle-blink {
+  animation: gentleBlink 2s ease-in-out infinite;
+}
 
 /* Print styling for Invoice & Packing Slip */
 @media print {

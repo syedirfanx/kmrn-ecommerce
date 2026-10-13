@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Plus,
   Trash2,
@@ -9,7 +9,6 @@ import {
   LogOut,
   AlertCircle,
   Upload,
-  Lock,
   Layout,
   Megaphone,
   X,
@@ -129,7 +128,27 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('maison_admin_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const mainScrollRef = useRef<HTMLElement>(null);
+
+  const toggleSidebarCollapsed = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('maison_admin_sidebar_collapsed', String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
 
   // Navigation options on the left side
   const [activeTab, setActiveTab] = useState<
@@ -605,7 +624,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   };
 
-  const handleToggleProductStock = async (product: Product) => {
+  const handleToggleProductStock = async (product: Product, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const currentScrollTop = mainScrollRef.current?.scrollTop;
     setErrorMessage('');
     const newStock = !product.inStock;
     const updated: Product = {
@@ -615,6 +639,11 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     };
 
     onProductSavedLocally(updated);
+
+    if (mainScrollRef.current && typeof currentScrollTop === 'number') {
+      mainScrollRef.current.scrollTop = currentScrollTop;
+    }
+
     const res = await saveProductToDb(updated);
     if (res.success) {
       setStatusNotice(`"${product.name}" is now marked as ${newStock ? 'In Stock' : 'Out of Stock'}`);
@@ -622,9 +651,23 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } else if (res.error) {
       setErrorMessage(res.error);
     }
+
+    if (mainScrollRef.current && typeof currentScrollTop === 'number') {
+      mainScrollRef.current.scrollTop = currentScrollTop;
+      requestAnimationFrame(() => {
+        if (mainScrollRef.current && typeof currentScrollTop === 'number') {
+          mainScrollRef.current.scrollTop = currentScrollTop;
+        }
+      });
+    }
   };
 
-  const handleToggleProductArchive = async (product: Product) => {
+  const handleToggleProductArchive = async (product: Product, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    const currentScrollTop = mainScrollRef.current?.scrollTop;
     setErrorMessage('');
     const newArchived = !product.archived;
     const updated: Product = {
@@ -634,12 +677,26 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     };
 
     onProductSavedLocally(updated);
+
+    if (mainScrollRef.current && typeof currentScrollTop === 'number') {
+      mainScrollRef.current.scrollTop = currentScrollTop;
+    }
+
     const res = await saveProductToDb(updated);
     if (res.success) {
       setStatusNotice(`"${product.name}" has been ${newArchived ? 'archived' : 'unarchived'}`);
       setTimeout(() => setStatusNotice(''), 3000);
     } else if (res.error) {
       setErrorMessage(res.error);
+    }
+
+    if (mainScrollRef.current && typeof currentScrollTop === 'number') {
+      mainScrollRef.current.scrollTop = currentScrollTop;
+      requestAnimationFrame(() => {
+        if (mainScrollRef.current && typeof currentScrollTop === 'number') {
+          mainScrollRef.current.scrollTop = currentScrollTop;
+        }
+      });
     }
   };
 
@@ -1227,17 +1284,82 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     .map((id) => products.find((p) => p.id === id))
     .filter((p): p is Product => p !== undefined);
 
+  // High-level dashboard metrics for sidebar, topbar, and section headers
+  const pendingOrdersCount = orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled').length;
+  const unreadMessagesCount = contactMessages.filter((m) => !m.read).length;
+  const inStockProductsCount = products.filter((p) => p.inStock && !p.archived).length;
+  const outOfStockProductsCount = products.filter((p) => !p.inStock && !p.archived).length;
+  const archivedProductsCount = products.filter((p) => p.archived).length;
+
+  const tabIconUrl =
+    (typeof document !== 'undefined' &&
+      (document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.getAttribute('href') ||
+        document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]')?.getAttribute('href'))) ||
+    '/images/tab-logo.png';
+
+  interface AdminNavItem {
+    id: 'products' | 'catalogues' | 'categories' | 'featured' | 'banner' | 'announcements' | 'promocodes' | 'messages' | 'orders' | 'users';
+    label: string;
+    icon: React.ElementType;
+    countLabel: string;
+    urgent?: boolean;
+    urgentColor?: string;
+  }
+
+  const navSections: { group: string; items: AdminNavItem[] }[] = [
+    {
+      group: 'Catalog & Store',
+      items: [
+        { id: 'products', label: 'Products', icon: Package, countLabel: `${products.length}` },
+        { id: 'categories', label: 'Categories', icon: Layers, countLabel: `${categories.length}/5` },
+        { id: 'catalogues', label: 'Catalogues', icon: BookOpen, countLabel: `${catalogues.length}` },
+        { id: 'featured', label: 'Featured Home', icon: Sparkles, countLabel: `${localFeaturedIds.length}/4` },
+      ]
+    },
+    {
+      group: 'Marketing & Promos',
+      items: [
+        { id: 'banner', label: 'Banner Ads', icon: Layout, countLabel: `${localBannerSlides.length}` },
+        { id: 'announcements', label: 'News & Offers', icon: Megaphone, countLabel: `${localAnnouncements.length}` },
+        { id: 'promocodes', label: 'Promo Codes', icon: Tag, countLabel: `${promoCodesList.length}` },
+      ]
+    },
+    {
+      group: 'Sales & Operations',
+      items: [
+        {
+          id: 'orders',
+          label: 'Orders',
+          icon: ShoppingBag,
+          countLabel: pendingOrdersCount > 0 ? `${pendingOrdersCount} pending` : `${orders.length}`,
+          urgent: pendingOrdersCount > 0,
+          urgentColor: 'bg-amber-400 text-neutral-950 font-bold'
+        },
+        {
+          id: 'messages',
+          label: 'Messages',
+          icon: Mail,
+          countLabel: unreadMessagesCount > 0 ? `${unreadMessagesCount} new` : `${contactMessages.length}`,
+          urgent: unreadMessagesCount > 0,
+          urgentColor: 'bg-rose-500 text-white font-bold'
+        },
+        { id: 'users', label: 'Users', icon: User, countLabel: `${allUsers.length}` },
+      ]
+    }
+  ];
+
   if (!isAdminLoggedIn) {
     return (
       <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-md flex flex-col items-center">
-          <div className="h-14 w-14 rounded-2xl bg-neutral-900 text-white flex items-center justify-center mb-4 shadow-xs">
-            <Lock className="h-7 w-7" />
-          </div>
-          <h2 className="font-heading font-extrabold text-2xl text-neutral-900 mb-1 text-center">
+          <img
+            src={tabIconUrl}
+            alt="ANIQ"
+            className="h-14 w-14 object-contain mb-4"
+          />
+          <h2 className="font-heading font-extrabold text-2xl text-neutral-900 mb-6 text-center">
             Admin Access
           </h2>
-          <p className="text-xs text-stone-500 mb-6 text-center">Sign in to manage your luxury store</p>
 
           <form onSubmit={handleAdminLogin} className="w-full space-y-4">
             {loginError && (
@@ -1286,470 +1408,316 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden bg-stone-100 flex flex-row font-sans relative">
-      {/* 1. DESKTOP & TABLET NARROW ICON RAIL (Like ChatGPT) */}
-      <aside className="hidden md:flex w-16 bg-neutral-950 text-white flex-col justify-between items-center py-4 shrink-0 border-r border-neutral-800 z-30 h-screen select-none">
-        <div className="flex flex-col items-center gap-3 w-full">
-          {/* Top Three-Line Menu Toggle Button */}
-          <button
-            type="button"
-            onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
-            className="p-3 text-neutral-300 hover:text-white hover:bg-neutral-900 rounded-xl transition-all cursor-pointer group"
-            title="Expand Navigation Menu"
-            aria-label="Expand menu"
-          >
-            <Menu className="h-5 w-5 transition-transform group-hover:scale-110" />
-          </button>
-
-          <div className="w-8 h-px bg-neutral-800/80" />
-
-          {/* Quick Icon List */}
-          <nav className="flex flex-col items-center gap-1.5 w-full px-2" aria-label="Quick Navigation">
-            <button
-              type="button"
-              onClick={() => setActiveTab('products')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'products'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Products"
-            >
-              <Package className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('categories')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'categories'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Categories"
-            >
-              <Layers className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('catalogues')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'catalogues'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Catalogues"
-            >
-              <BookOpen className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('featured')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'featured'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Featured Homepage"
-            >
-              <Sparkles className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('banner')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'banner'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Banner Ads"
-            >
-              <Layout className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('announcements')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'announcements'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="News & Offers"
-            >
-              <Megaphone className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('promocodes')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'promocodes'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Promo Codes"
-            >
-              <Tag className="h-4.5 w-4.5" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('messages')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'messages'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Messages"
-            >
-              <Mail className="h-4.5 w-4.5" />
-              {contactMessages.filter((m) => !m.read).length > 0 && (
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('orders')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'orders'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Orders"
-            >
-              <ShoppingBag className="h-4.5 w-4.5" />
-              {orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled').length > 0 && (
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-400" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab('users')}
-              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
-                activeTab === 'users'
-                  ? 'bg-white text-neutral-950 shadow-md font-bold'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
-              }`}
-              title="Users"
-            >
-              <User className="h-4.5 w-4.5" />
-            </button>
-          </nav>
+    <div className="h-screen w-full overflow-hidden bg-stone-100 flex flex-row font-sans relative text-neutral-900">
+      {/* 1. MODERN DESKTOP SIDEBAR (Collapsible, in-flow, high-end luxury dark aesthetic) */}
+      <aside
+        className={`hidden lg:flex flex-col justify-between shrink-0 h-screen bg-neutral-950 text-white border-r border-neutral-800/90 shadow-2xl transition-all duration-300 ease-in-out select-none z-30 ${
+          isSidebarCollapsed ? 'w-[84px]' : 'w-64 xl:w-72'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className={`border-b border-neutral-800/90 ${isSidebarCollapsed ? 'px-2 py-3.5' : 'p-4'}`}>
+          {!isSidebarCollapsed ? (
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col">
+                <Logo variant="dark" size="sm" />
+                <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 mt-1">
+                  Admin
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleSidebarCollapsed}
+                className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-lg transition-colors cursor-pointer"
+                title="Collapse Sidebar"
+                aria-label="Collapse sidebar"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="flex items-center justify-center gap-1.5 w-full">
+                <img
+                  src={tabIconUrl}
+                  alt="ANIQ"
+                  className="h-11 w-11 object-contain brightness-0 invert drop-shadow-md shrink-0 bg-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={toggleSidebarCollapsed}
+                  className="p-1 text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-lg transition-colors cursor-pointer shrink-0"
+                  title="Expand Sidebar"
+                  aria-label="Expand sidebar"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400">
+                Admin
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Bottom Logout Button in Icon Strip */}
-        <div className="flex flex-col items-center gap-3 w-full pb-2">
-          <div className="w-8 h-px bg-neutral-800/80" />
-          <button
-            type="button"
-            onClick={() => setIsLogoutModalOpen(true)}
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-400 hover:text-red-400 hover:bg-neutral-900 transition-colors cursor-pointer"
-            title="Sign Out"
-            aria-label="Sign out"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
+        {/* Scrollable Navigation Groups */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin scrollbar-thumb-neutral-800">
+          {navSections.map((section) => (
+            <div key={section.group} className="space-y-1">
+              {!isSidebarCollapsed && (
+                <p className="px-3 text-[10px] uppercase font-bold tracking-wider text-neutral-400 mb-1.5">
+                  {section.group}
+                </p>
+              )}
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  const isUrgent = item.urgent;
+
+                  if (isSidebarCollapsed) {
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setActiveTab(item.id)}
+                        className={`w-12 h-11 mx-auto rounded-xl flex items-center justify-center transition-all cursor-pointer relative group ${
+                          isActive
+                            ? 'bg-white text-neutral-950 font-bold shadow-md'
+                            : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                        }`}
+                        title={`${item.label} (${item.countLabel})`}
+                      >
+                        <Icon className="h-4.5 w-4.5" />
+                        {isUrgent && (
+                          <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-neutral-950" />
+                        )}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setActiveTab(item.id)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-white text-neutral-950 font-bold shadow-md'
+                          : 'text-neutral-400 hover:text-white hover:bg-neutral-900/90'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-neutral-950' : 'text-neutral-400'}`} />
+                        <span className="truncate">{item.label}</span>
+                      </div>
+
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 transition-colors ${
+                          isUrgent
+                            ? item.urgentColor
+                            : isActive
+                            ? 'bg-neutral-950 text-white font-bold'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        {item.countLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        {/* Sidebar Footer: View Store & Admin Profile */}
+        <div className="p-3 border-t border-neutral-800/90 bg-neutral-900/40">
+          {!isSidebarCollapsed ? (
+            <div className="space-y-2">
+              {onNavigateToStore && (
+                <button
+                  type="button"
+                  onClick={onNavigateToStore}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800/90 text-neutral-200 text-xs font-semibold border border-neutral-800 transition-colors cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2">
+                    <ExternalLink className="h-3.5 w-3.5 text-stone-400 group-hover:text-white" />
+                    <span>View Live Store</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-400 font-normal">Storefront ↗</span>
+                </button>
+              )}
+
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2.5 truncate">
+                  <div className="h-8 w-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                    {ADMIN_CREDENTIALS.username.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="truncate">
+                    <p className="text-xs font-bold text-white truncate">{ADMIN_CREDENTIALS.username}</p>
+                    <p className="text-[10px] text-neutral-400">Store Owner</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsLogoutModalOpen(true)}
+                  className="p-1.5 text-neutral-400 hover:text-red-400 hover:bg-neutral-900 rounded-lg transition-colors cursor-pointer"
+                  title="Sign Out"
+                  aria-label="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              {onNavigateToStore && (
+                <button
+                  type="button"
+                  onClick={onNavigateToStore}
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors cursor-pointer"
+                  title="View Live Store"
+                  aria-label="View live store"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(true)}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-neutral-400 hover:text-red-400 hover:bg-neutral-900 transition-colors cursor-pointer"
+                title="Sign Out"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
-      {/* 2. THREE-LINE SLIDE DRAWER (Opens when 3-line hamburger menu is clicked) */}
-      {/* Backdrop Overlay */}
+      {/* 2. MOBILE & TABLET SLIDE-OUT DRAWER */}
+      {/* Backdrop */}
       <div
         onClick={() => setIsAdminMenuOpen(false)}
-        className={`fixed inset-0 bg-neutral-950/60 backdrop-blur-xs z-50 transition-opacity duration-300 ${
+        className={`fixed inset-0 bg-neutral-950/70 backdrop-blur-xs z-50 transition-opacity duration-300 lg:hidden ${
           isAdminMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         aria-hidden={!isAdminMenuOpen}
       />
 
-      {/* Sliding Aside Menu */}
+      {/* Drawer */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 bg-neutral-950 text-white flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-in-out border-r border-neutral-800 ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 sm:w-80 bg-neutral-950 text-white flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-in-out border-r border-neutral-800 lg:hidden ${
           isAdminMenuOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-5 sm:p-6 overflow-y-auto flex-1">
-          {/* Logo, Admin Branding & Close X Button */}
-          <div className="pb-5 border-b border-neutral-800 flex items-center justify-between">
-            <div className="flex flex-col">
-              <Logo variant="dark" size="sm" />
-              <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 mt-1">
-                Admin
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsAdminMenuOpen(false)}
-              className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-xl transition-colors cursor-pointer"
-              aria-label="Close menu"
-              title="Close Menu"
-            >
-              <X className="h-5 w-5" />
-            </button>
+        <div className="p-5 border-b border-neutral-800 flex items-center justify-between">
+          <div className="flex flex-col">
+            <Logo variant="dark" size="sm" />
+            <span className="text-[10px] uppercase font-bold tracking-widest text-neutral-400 mt-1">
+              Admin
+            </span>
           </div>
-
-          {/* Vertical Navigation Tabs */}
-          <nav className="mt-6 space-y-1.5" aria-label="Admin Navigation">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('products');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'products'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Package className="h-4 w-4" />
-                <span>Products</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'products' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {products.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('categories');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'categories'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Layers className="h-4 w-4" />
-                <span>Categories</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'categories' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {categories.length}/5
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('catalogues');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'catalogues'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="h-4 w-4" />
-                <span>Catalogues</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'catalogues' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {catalogues.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('featured');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'featured'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Sparkles className="h-4 w-4" />
-                <span>Featured Homepage</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'featured' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {localFeaturedIds.length}/4
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('banner');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'banner'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Layout className="h-4 w-4" />
-                <span>Banner Ads</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'banner' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {localBannerSlides.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('announcements');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'announcements'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Megaphone className="h-4 w-4" />
-                <span>News & Offers</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'announcements' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {localAnnouncements.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('promocodes');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'promocodes'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Tag className="h-4 w-4" />
-                <span>Promo Codes</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'promocodes' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {promoCodesList.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('messages');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'messages'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Mail className="h-4 w-4" />
-                <span>Messages</span>
-              </div>
-              {contactMessages.filter((m) => !m.read).length > 0 && (
-                <span className="h-2 w-2 rounded-full bg-red-500 shrink-0" />
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('orders');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'orders'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <ShoppingBag className="h-4 w-4" />
-                <span>Orders</span>
-              </div>
-              {orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled').length > 0 ? (
-                <span className="text-[10px] bg-amber-400 text-neutral-950 font-bold px-1.5 py-0.5 rounded-full tabular-nums">
-                  {orders.filter((o) => o.status !== 'Delivered' && o.status !== 'Cancelled').length}
-                </span>
-              ) : (
-                <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                  activeTab === 'orders' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-                }`}>
-                  {orders.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('users');
-                setIsAdminMenuOpen(false);
-              }}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'users'
-                  ? 'bg-white text-neutral-950 shadow-md font-extrabold'
-                  : 'text-neutral-300 hover:bg-neutral-900 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <User className="h-4 w-4" />
-                <span>Users</span>
-              </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                activeTab === 'users' ? 'bg-neutral-950 text-white' : 'bg-neutral-800 text-neutral-300'
-              }`}>
-                {allUsers.length}
-              </span>
-            </button>
-          </nav>
+          <button
+            type="button"
+            onClick={() => setIsAdminMenuOpen(false)}
+            className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-900 rounded-xl transition-colors cursor-pointer"
+            aria-label="Close menu"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* User profile & Sign Out at bottom of sidebar */}
-        <div className="p-4 border-t border-neutral-800 bg-neutral-900/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 truncate">
-              <div className="h-8 w-8 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-300 font-bold text-xs">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-4">
+          {navSections.map((section) => (
+            <div key={section.group} className="space-y-1">
+              <p className="px-3 text-[10px] uppercase font-bold tracking-wider text-neutral-400 mb-1">
+                {section.group}
+              </p>
+              <div className="space-y-1">
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+                  const isUrgent = item.urgent;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setIsAdminMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-white text-neutral-950 font-bold shadow-md'
+                          : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Icon className={`h-4 w-4 ${isActive ? 'text-neutral-950' : 'text-neutral-400'}`} />
+                        <span>{item.label}</span>
+                      </div>
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full ${
+                          isUrgent
+                            ? item.urgentColor
+                            : isActive
+                            ? 'bg-neutral-950 text-white font-bold'
+                            : 'bg-neutral-900 text-neutral-400 border border-neutral-800'
+                        }`}
+                      >
+                        {item.countLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-neutral-800 bg-neutral-900/60 space-y-2">
+          {onNavigateToStore && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsAdminMenuOpen(false);
+                onNavigateToStore();
+              }}
+              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold border border-neutral-800 transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <ExternalLink className="h-3.5 w-3.5 text-stone-400" />
+                <span>View Live Store</span>
+              </div>
+              <span className="text-[10px] text-neutral-400">Storefront ↗</span>
+            </button>
+          )}
+
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-white font-bold text-xs">
                 {ADMIN_CREDENTIALS.username.charAt(0).toUpperCase()}
               </div>
-              <div className="truncate">
-                <p className="text-xs font-bold text-white truncate">{ADMIN_CREDENTIALS.username}</p>
-                <p className="text-[10px] text-neutral-400">Owner Access</p>
+              <div>
+                <p className="text-xs font-bold text-white">{ADMIN_CREDENTIALS.username}</p>
+                <p className="text-[10px] text-neutral-400">Store Owner</p>
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => setIsLogoutModalOpen(true)}
-              className="p-2 text-neutral-400 hover:text-red-400 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
-              title="Sign Out of Admin"
+              onClick={() => {
+                setIsAdminMenuOpen(false);
+                setIsLogoutModalOpen(true);
+              }}
+              className="p-2 text-neutral-400 hover:text-red-400 rounded-lg hover:bg-neutral-900 transition-colors cursor-pointer"
+              title="Sign Out"
+              aria-label="Sign out"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -1757,60 +1725,151 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         </div>
       </aside>
 
-      {/* 3. MAIN CONTENT WRAPPER */}
+      {/* 3. MAIN WORKSPACE WRAPPER */}
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        {/* TOP HEADER */}
-        <header className="bg-white border-b border-stone-200 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 shrink-0 shadow-2xs z-20">
-          <div className="flex items-center gap-3">
-            {/* THREE-LINE HAMBURGER BUTTON (Mobile only, since desktop & tablet have the icon rail) */}
+        {/* TOP BAR */}
+        <header className="bg-white/95 backdrop-blur-md border-b border-stone-200/90 px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-4 shrink-0 z-20 shadow-2xs">
+          {/* Left: Mobile Drawer Toggle & Active Section Identity */}
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile Drawer Toggle (mobile only) */}
             <button
               type="button"
               onClick={() => setIsAdminMenuOpen(true)}
-              className="p-2 rounded-xl bg-stone-100 hover:bg-neutral-900 hover:text-white text-neutral-800 border border-stone-200/80 transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs md:hidden"
-              aria-label="Open menu"
+              className="p-2 rounded-xl bg-stone-100 hover:bg-neutral-900 hover:text-white text-neutral-800 border border-stone-200 transition-all cursor-pointer flex items-center gap-1.5 lg:hidden relative shrink-0"
+              aria-label="Open navigation menu"
             >
-              <Menu className="h-5 w-5" />
-              <span className="text-xs font-bold">Menu</span>
+              <Menu className="h-4.5 w-4.5" />
+              {(pendingOrdersCount > 0 || unreadMessagesCount > 0) && (
+                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white" />
+              )}
             </button>
 
-            {/* Current Section Title */}
-            <div className="flex items-center gap-2">
-              <h1 className="font-heading font-bold text-base sm:text-lg text-neutral-900 capitalize">
-                {activeTab === 'featured'
-                  ? 'Featured Homepage'
-                  : activeTab === 'announcements'
-                  ? 'News & Offers'
-                  : activeTab === 'messages'
-                  ? 'Contact Messages'
-                  : activeTab === 'banner'
-                  ? 'Banner Ads'
-                  : activeTab}
-              </h1>
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-600 px-2 py-0.5 rounded-md border border-stone-200/60 hidden sm:inline-block">
-                Admin
-              </span>
+            {/* Active Tab Breadcrumb & Identity */}
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <div className="h-9 w-9 rounded-xl bg-stone-100 border border-stone-200/80 flex items-center justify-center text-neutral-800 shrink-0 shadow-2xs">
+                {activeTab === 'products' && <Package className="h-4.5 w-4.5" />}
+                {activeTab === 'catalogues' && <BookOpen className="h-4.5 w-4.5" />}
+                {activeTab === 'categories' && <Layers className="h-4.5 w-4.5" />}
+                {activeTab === 'featured' && <Sparkles className="h-4.5 w-4.5" />}
+                {activeTab === 'banner' && <ImageIcon className="h-4.5 w-4.5" />}
+                {activeTab === 'announcements' && <Megaphone className="h-4.5 w-4.5" />}
+                {activeTab === 'promocodes' && <Tag className="h-4.5 w-4.5" />}
+                {activeTab === 'messages' && <Mail className="h-4.5 w-4.5" />}
+                {activeTab === 'orders' && <ShoppingBag className="h-4.5 w-4.5" />}
+                {activeTab === 'users' && <User className="h-4.5 w-4.5" />}
+              </div>
+
+              <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 leading-none">
+                  {activeTab === 'products' || activeTab === 'catalogues' || activeTab === 'categories' || activeTab === 'featured'
+                    ? 'Catalog & Store'
+                    : activeTab === 'banner' || activeTab === 'announcements' || activeTab === 'promocodes'
+                    ? 'Marketing & Promos'
+                    : 'Sales & Operations'}
+                </span>
+                <h1 className="font-heading font-extrabold text-base sm:text-lg text-neutral-900 truncate tracking-tight mt-0.5">
+                  {activeTab === 'catalogues'
+                    ? 'Catalogues'
+                    : activeTab === 'featured'
+                    ? 'Featured Homepage'
+                    : activeTab === 'announcements'
+                    ? 'News & Offers'
+                    : activeTab === 'messages'
+                    ? 'Messages'
+                    : activeTab === 'banner'
+                    ? 'Banner Ads'
+                    : activeTab === 'promocodes'
+                    ? 'Promo Codes'
+                    : activeTab === 'products'
+                    ? 'Products'
+                    : activeTab === 'categories'
+                    ? 'Categories'
+                    : activeTab === 'orders'
+                    ? 'Orders'
+                    : activeTab === 'users'
+                    ? 'Users'
+                    : activeTab}
+                </h1>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => setIsLogoutModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-stone-600 hover:text-red-600 hover:bg-red-50 rounded-xl border border-stone-200 transition-colors cursor-pointer"
-              title="Sign Out"
-              aria-label="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
+          {/* Right: Quick Action Indicators, View Store & Profile */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Quick Activity Badges (Orders & Messages) */}
+            <div className="flex items-center gap-1 bg-stone-100/90 p-1 rounded-xl border border-stone-200/70">
+              <button
+                type="button"
+                onClick={() => setActiveTab('orders')}
+                className={`relative px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'orders'
+                    ? 'bg-white text-neutral-900 shadow-2xs'
+                    : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-200/60'
+                }`}
+                title={pendingOrdersCount > 0 ? `${pendingOrdersCount} orders waiting for processing` : 'Orders'}
+                aria-label="Orders"
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Orders</span>
+                {pendingOrdersCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-amber-500 text-neutral-950 font-extrabold text-[10px] rounded-full tabular-nums">
+                    {pendingOrdersCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('messages')}
+                className={`relative px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'messages'
+                    ? 'bg-white text-neutral-900 shadow-2xs'
+                    : 'text-stone-600 hover:text-neutral-900 hover:bg-stone-200/60'
+                }`}
+                title={unreadMessagesCount > 0 ? `${unreadMessagesCount} unread customer messages` : 'Messages'}
+                aria-label="Messages"
+              >
+                <Mail className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Messages</span>
+                {unreadMessagesCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-rose-500 text-white font-extrabold text-[10px] rounded-full tabular-nums">
+                    {unreadMessagesCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Clean Admin Profile & Sign Out */}
+            <div className="flex items-center gap-2 pl-2 sm:pl-3 border-l border-stone-200">
+              <div className="h-8 w-8 rounded-full bg-neutral-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
+                {ADMIN_CREDENTIALS.username.charAt(0).toUpperCase()}
+              </div>
+              <div className="hidden lg:flex flex-col text-left">
+                <span className="text-xs font-bold text-neutral-900 leading-tight">
+                  {ADMIN_CREDENTIALS.username}
+                </span>
+                <span className="text-[10px] text-stone-400 font-medium leading-tight">
+                  Admin
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLogoutModalOpen(true)}
+                className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Sign Out"
+                aria-label="Sign out"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </header>
 
-        {/* MAIN CONTENT SCROLL AREA */}
-        <main className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
-        <div className="p-4 sm:p-6 lg:p-8 flex-1">
-          {/* TAB 1: Products */}
-          {activeTab === 'products' && (
+        {/* MAIN WORKSPACE SCROLL CANVAS */}
+        <main ref={mainScrollRef} className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto bg-stone-100/70">
+          <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto flex-1">
+            {/* TAB 1: Products */}
+            {activeTab === 'products' && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-xs">
                 <div className="relative flex-1 sm:max-w-xs">
@@ -1906,7 +1965,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <div className="flex flex-col gap-1 items-start">
                                 <button
                                   type="button"
-                                  onClick={() => handleToggleProductStock(p)}
+                                  onClick={(e) => handleToggleProductStock(p, e)}
                                   className={`text-[10px] font-bold px-2.5 py-1 rounded-full cursor-pointer transition-all border ${
                                     p.inStock
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
@@ -1927,19 +1986,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => handleToggleProductStock(p)}
-                                  className={`p-1.5 rounded-lg transition-colors cursor-pointer text-xs font-semibold ${
-                                    p.inStock
-                                      ? 'text-stone-600 hover:bg-stone-100 hover:text-neutral-900'
-                                      : 'text-emerald-700 hover:bg-emerald-50'
-                                  }`}
-                                  title={p.inStock ? 'Mark as Out of Stock' : 'Mark as In Stock'}
-                                >
-                                  <span className="text-[11px] font-bold">{p.inStock ? 'Out' : 'In'}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleProductArchive(p)}
+                                  onClick={(e) => handleToggleProductArchive(p, e)}
                                   className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                                     p.archived
                                       ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-800'
@@ -2633,15 +2680,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           {/* TAB 3: Catalogues Management (Organized by Category, 16:9 cards, No IDs shown) */}
           {activeTab === 'catalogues' && (
             <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-stone-200 shadow-xs">
-                <div>
-                  <h3 className="font-heading font-bold text-lg text-neutral-900">
-                    Product Catalogues & Collections
-                  </h3>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Pre-add designer catalogues and collections for each category in 16:9 banner format.
-                  </p>
-                </div>
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-stone-200 shadow-xs">
+                <p className="text-xs text-stone-500">
+                  Pre-add designer catalogues and collections for each category in 16:9 banner format.
+                </p>
 
                 {selectedCatalogueCategoryFilter !== 'All' && 
                  categories.find(c => c.name === selectedCatalogueCategoryFilter)?.hasCatalogues === false ? null : (

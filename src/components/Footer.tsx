@@ -6,6 +6,7 @@ interface FooterProps {
   logoUrl?: string;
   categories?: CategoryData[];
   onNavigateToCategory?: (categoryName: string) => void;
+  onNavigateToNewArrivals?: () => void;
   onNavigateToAbout: () => void;
   onNavigateToContact: () => void;
 }
@@ -14,6 +15,7 @@ export const Footer: React.FC<FooterProps> = ({
   logoUrl,
   categories = [],
   onNavigateToCategory,
+  onNavigateToNewArrivals,
   onNavigateToAbout,
   onNavigateToContact
 }) => {
@@ -89,6 +91,14 @@ export const Footer: React.FC<FooterProps> = ({
               Categories
             </span>
             <ul className="space-y-2.5 text-xs text-neutral-400">
+              <li>
+                <button
+                  onClick={onNavigateToNewArrivals}
+                  className="hover:text-white transition-colors cursor-pointer text-left font-medium text-stone-200"
+                >
+                  New Arrivals
+                </button>
+              </li>
               {categories.slice(0, 5).map((cat) => (
                 <li key={cat.id}>
                   <button
@@ -128,8 +138,8 @@ export const Footer: React.FC<FooterProps> = ({
                   WhatsApp: +880 1554-555071
                 </a>
               </li>
-              <li>Road: 02, Block: B, Aftabnagar</li>
-              <li>Dhaka 1212, Bangladesh</li>
+              <li>B Block, Road no. 2, Jahurul Islam City</li>
+              <li>Aftab Nagar, Dhaka 1212, Bangladesh</li>
             </ul>
           </div>
         </div>

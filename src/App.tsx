@@ -60,10 +60,11 @@ import { AuthModal } from './components/AuthModal';
 import { AccountPage } from './components/AccountPage';
 import { AboutPage } from './components/AboutPage';
 import { ContactPage } from './components/ContactPage';
+import { NewArrivalsPage } from './components/NewArrivalsPage';
 import { Footer } from './components/Footer';
 
 type SortOption = 'featured' | 'newest' | 'price-asc' | 'price-desc' | 'rating-desc';
-type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact' | 'product';
+type AppPage = 'home' | 'category' | 'admin' | 'account' | 'about' | 'contact' | 'product' | 'new-arrivals';
 
 const CART_STORAGE_KEY = 'maison_ecommerce_cart_v1';
 const WISHLIST_STORAGE_KEY = 'maison_ecommerce_wishlist_v1';
@@ -82,6 +83,7 @@ const getInitialRoute = (): { page: AppPage; categoryName?: string; productId?: 
     else if (hash === 'account' || hash === '/account') cleanPath = '/account';
     else if (hash === 'about' || hash === '/about') cleanPath = '/about';
     else if (hash === 'contact' || hash === '/contact') cleanPath = '/contact';
+    else if (hash === 'new-arrivals' || hash === '/new-arrivals' || hash === 'newarrivals') cleanPath = '/new-arrivals';
     else if (hash.startsWith('product/')) cleanPath = `/${hash}`;
     else if (hash.includes('women') || hash === 'womens-wear') cleanPath = '/category/womens-wear';
     else if (hash.includes('decor') || hash === 'home-decor') cleanPath = '/category/home-decor';
@@ -106,6 +108,9 @@ const getInitialRoute = (): { page: AppPage; categoryName?: string; productId?: 
   }
   if (path === '/contact') {
     return { page: 'contact' };
+  }
+  if (path === '/new-arrivals' || path === '/newarrivals') {
+    return { page: 'new-arrivals' };
   }
 
   // Handle dedicated product path: /product/:id or /products/:id
@@ -842,10 +847,25 @@ export default function App() {
         bannerSlides={bannerSlides}
         onBannerSlidesChange={setBannerSlides}
         announcements={announcements}
-        onAnnouncementsChange={setAnnouncements}
-        onProductSavedLocally={(p) => setProducts((prev) => [p, ...prev.filter((i) => i.id !== p.id)])}
+        onProductSavedLocally={(p) =>
+          setProducts((prev) => {
+            const exists = prev.some((i) => i.id === p.id);
+            if (exists) {
+              return prev.map((i) => (i.id === p.id ? p : i));
+            }
+            return [p, ...prev];
+          })
+        }
         onProductDeletedLocally={(id) => setProducts((prev) => prev.filter((i) => i.id !== id))}
-        onCategorySavedLocally={(c) => setCategories((prev) => [c, ...prev.filter((i) => i.id !== c.id)])}
+        onCategorySavedLocally={(c) =>
+          setCategories((prev) => {
+            const exists = prev.some((i) => i.id === c.id);
+            if (exists) {
+              return prev.map((i) => (i.id === c.id ? c : i));
+            }
+            return [c, ...prev];
+          })
+        }
         onCategoryDeletedLocally={(id) => setCategories((prev) => prev.filter((i) => i.id !== id))}
       />
     );
@@ -872,6 +892,7 @@ export default function App() {
             navigateTo('account');
           }}
           onNavigateToHome={() => navigateTo('home')}
+          onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
           onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
@@ -908,6 +929,7 @@ export default function App() {
           logoUrl={storeSettings.logoUrl}
           categories={categories}
           onNavigateToCategory={navigateToCategory}
+          onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
         />
@@ -982,6 +1004,7 @@ export default function App() {
             }
           }}
           onNavigateToHome={() => navigateTo('home')}
+          onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
           onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
@@ -996,6 +1019,7 @@ export default function App() {
           logoUrl={storeSettings.logoUrl}
           categories={categories}
           onNavigateToCategory={navigateToCategory}
+          onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
         />
@@ -1045,6 +1069,7 @@ export default function App() {
             }
           }}
           onNavigateToHome={() => navigateTo('home')}
+          onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
           onNavigateToCategory={navigateToCategory}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
@@ -1059,6 +1084,7 @@ export default function App() {
           logoUrl={storeSettings.logoUrl}
           categories={categories}
           onNavigateToCategory={navigateToCategory}
+          onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
           onNavigateToAbout={() => navigateTo('about')}
           onNavigateToContact={() => navigateTo('contact')}
         />
@@ -1114,6 +1140,7 @@ export default function App() {
                 }
               }}
               onNavigateToHome={() => navigateTo('home')}
+              onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
               onNavigateToCategory={navigateToCategory}
               onNavigateToAbout={() => navigateTo('about')}
               onNavigateToContact={() => navigateTo('contact')}
@@ -1164,7 +1191,7 @@ export default function App() {
                       {selectedCategory}
                     </h1>
                     {currentCategoryData?.tag?.trim() && (
-                      <span className="bg-white/20 backdrop-blur-xs text-white border border-white/30 text-[10px] sm:text-xs font-heading font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-xs">
+                      <span className="bg-white/20 backdrop-blur-xs text-white border border-white/30 text-[10px] sm:text-xs font-heading font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-xs animate-gentle-blink">
                         {currentCategoryData.tag.trim()}
                       </span>
                     )}
@@ -1225,6 +1252,7 @@ export default function App() {
               }
             }}
             onNavigateToHome={() => navigateTo('home')}
+            onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
             onNavigateToCategory={navigateToCategory}
             onNavigateToAbout={() => navigateTo('about')}
             onNavigateToContact={() => navigateTo('contact')}
@@ -1636,6 +1664,20 @@ export default function App() {
             onGoBack={handleGoBackFromProduct}
           />
         )}
+
+        {/* VIEW 4: Dedicated New Arrivals Page */}
+        {currentPage === 'new-arrivals' && (
+          <NewArrivalsPage
+            products={products}
+            categories={categories}
+            onAddToCart={(p, q) => handleAddToCart(p, q)}
+            onViewDetails={(p) => navigateToProduct(p)}
+            onQuickView={(p) => setQuickViewProduct(p)}
+            wishlistProductIds={wishlistProductIds}
+            onToggleWishlist={handleToggleWishlist}
+            onNavigateToCategory={navigateToCategory}
+          />
+        )}
       </main>
 
       {/* Footer */}
@@ -1643,6 +1685,7 @@ export default function App() {
         logoUrl={storeSettings.logoUrl}
         categories={categories}
         onNavigateToCategory={navigateToCategory}
+        onNavigateToNewArrivals={() => navigateTo('new-arrivals')}
         onNavigateToAbout={() => navigateTo('about')}
         onNavigateToContact={() => navigateTo('contact')}
       />

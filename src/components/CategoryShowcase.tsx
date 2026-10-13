@@ -82,7 +82,7 @@ export const CategoryShowcase: React.FC<CategoryShowcaseProps> = ({
               {/* Optional Category Tag Badge (e.g. 'NEW') */}
               {cat.tag && (
                 <div className="absolute top-3.5 right-3.5 z-20">
-                  <span className="bg-neutral-900 text-white text-[10px] sm:text-[11px] font-heading font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs">
+                  <span className="bg-neutral-900 text-white text-[10px] sm:text-[11px] font-heading font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-xs animate-gentle-blink">
                     {cat.tag}
                   </span>
                 </div>

@@ -27,6 +27,7 @@ interface NavbarProps {
   onOpenCart: () => void;
   onOpenAccount: (tab?: 'profile' | 'addresses' | 'cart' | 'wishlist' | 'orders') => void;
   onNavigateToHome: () => void;
+  onNavigateToNewArrivals?: () => void;
   onNavigateToCategory: (categoryName: string) => void;
   onNavigateToAbout: () => void;
   onNavigateToContact: () => void;
@@ -47,6 +48,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   onOpenAccount,
   onNavigateToHome,
+  onNavigateToNewArrivals,
   onNavigateToCategory,
   onNavigateToAbout,
   onNavigateToContact,
@@ -499,6 +501,37 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ChevronRight className="h-4 w-4 opacity-60" />
                 </button>
 
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onNavigateToNewArrivals?.();
+                  }}
+                  className={`w-full text-left py-3 px-3.5 rounded-xl text-xs font-category font-semibold uppercase tracking-wider flex items-center justify-between transition-colors cursor-pointer ${
+                    currentPage === 'new-arrivals'
+                      ? 'bg-neutral-900 text-white font-extrabold shadow-xs'
+                      : 'text-stone-700 hover:bg-stone-50 hover:text-neutral-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="truncate">New Arrivals</span>
+                    <span
+                      className={`px-2 py-0.5 text-[9px] font-heading font-extrabold uppercase tracking-wider rounded-full shadow-2xs shrink-0 transition-colors animate-gentle-blink ${
+                        currentPage === 'new-arrivals'
+                          ? 'bg-white text-neutral-900'
+                          : 'bg-neutral-900 text-white'
+                      }`}
+                    >
+                      New
+                    </span>
+                  </div>
+                  <ChevronRight
+                    className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                      currentPage === 'new-arrivals' ? 'text-white/80' : 'text-stone-400'
+                    }`}
+                  />
+                </button>
+
                 {/* Clean Category Links with optional Tag badge */}
                 {categories.map((cat) => {
                   const isActive = currentPage === 'category' && selectedCategory === cat.name;
@@ -518,7 +551,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <span className="truncate">{cat.name}</span>
                         {tagText && (
                           <span
-                            className={`px-2 py-0.5 text-[9px] font-heading font-extrabold uppercase tracking-wider rounded-full shadow-2xs shrink-0 transition-colors ${
+                            className={`px-2 py-0.5 text-[9px] font-heading font-extrabold uppercase tracking-wider rounded-full shadow-2xs shrink-0 transition-colors animate-gentle-blink ${
                               isActive
                                 ? 'bg-white text-neutral-900'
                                 : 'bg-neutral-900 text-white'

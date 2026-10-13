@@ -73,7 +73,7 @@ export const ContactPage: React.FC = () => {
                       Location
                     </span>
                     <p className="text-xs sm:text-sm text-neutral-800 font-medium leading-relaxed">
-                      Road: 02, Block: B, Aftabnagar, Dhaka 1212, Bangladesh
+                      B Block, Road no. 2, Jahurul Islam City Aftab Nagar, Dhaka 1212, Bangladesh
                     </p>
                   </div>
                 </div>

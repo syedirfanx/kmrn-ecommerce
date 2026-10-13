@@ -11,7 +11,7 @@ interface FeaturedBannerProps {
   onViewDetails: (product: Product) => void;
   onNavigateToShop?: () => void;
   onNavigateToCategory?: (categoryName: string, catalogueName?: string) => void;
-  onNavigateToPage?: (page: 'home' | 'about' | 'contact' | 'account') => void;
+  onNavigateToPage?: (page: 'home' | 'about' | 'contact' | 'account' | 'new-arrivals') => void;
   onOpenCart?: () => void;
 }
 
